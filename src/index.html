@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>ArcGIS Velocity Logger</title>
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';">
+    <link rel="stylesheet" href="themes.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="app-status.css">
+    <script src="./themes/theme-loader.js" defer></script>
+</head>
+<body>
+    <div class="app-container">
+        <div class="header">
+            <h1 id="app-title">ArcGIS Velocity Logger</h1>
+            <div id="connection-status">
+                <div id="connection-dot"></div>
+                <span id="connection-text">Disconnected</span>
+            </div>
+            <div class="theme-controls">
+                <select id="theme-selector" aria-label="Theme">
+                    <option value="blue">🔵 Blue</option>
+                    <option value="color-blind">🟡 Color Blind</option>
+                    <option value="dark">🌙 Dark</option>
+                    <option value="dark-gray">🌫️ Dark Gray</option>
+                    <option value="green">🟢 Green</option>
+                    <option value="high-contrast">⚫ High Contrast</option>
+                    <option value="light">☀️ Light</option>
+                    <option value="light-gray">☁️ Light Gray</option>
+                    <option value="midnight">🌌 Midnight</option>
+                    <option value="mocha">☕ Mocha</option>
+                    <option value="ocean">🌊 Ocean</option>
+                    <option value="rose">🌸 Rose</option>
+                    <option value="rose-dark">🌺 Rose Dark</option>
+                    <option value="sunset">🌅 Sunset</option>
+                    <option value="system">💻 System</option>
+                </select>
+                <button id="save-logs-btn" class="control-button" title="Save logs to a file (Cmd+S)" aria-label="Save logs to a file">
+                    <span class="button-icon icon-save"></span>
+                </button>
+                <button id="clear-logs-btn" class="control-button" title="Clear all logs from the display (Cmd+Delete)" aria-label="Clear logs">
+                    <span class="button-icon icon-clear"></span>
+                </button>
+                <button id="toggle-order-btn" class="control-button" title="Toggle List Order (Ascending/Descending)" aria-label="Toggle list order" data-order="ascending">
+                    <span class="button-icon icon-ascending"></span>
+                </button>
+                <button id="toggle-autoscroll-btn" class="control-button active" title="Toggle Auto-Scroll" data-enabled="true" aria-label="Toggle auto-scroll" aria-pressed="true">
+                    <span class="button-icon icon-auto-scroll"></span>
+                </button>
+                <button id="toggle-connection-line" class="control-button active" title="Hide connection controls" data-enabled="true" aria-label="Hide connection controls" aria-pressed="true">
+                    <span class="button-icon icon-connection-hide"></span>
+                </button>
+                <button id="toggle-view-raw-btn" class="control-button" title="Show Metadata: log connection/call metadata before each incoming message" data-enabled="false" aria-label="Toggle Show Metadata" aria-pressed="false">
+                    <span class="button-icon icon-view-raw-off"></span>
+                </button>
+                <button id="cli-btn" class="control-button" title="Command Line Interface (F3)" aria-label="Open Command Line Interface dialog">
+                    <span class="button-icon" aria-hidden="true" style="font-family: monospace; font-weight: bold; font-size: 13px;">&gt;_</span>
+                </button>
+            </div>
+        </div>
+        <div class="connection-controls">
+            <div class="connection-primary">
+                <select id="connection-type">
+                    <option value="tcp-server" selected>TCP Server</option>
+                    <option value="tcp-client">TCP Client</option>
+                    <option value="udp-server">UDP Server</option>
+                    <option value="udp-client">UDP Client</option>
+                    <option value="grpc-server">gRPC Server</option>
+                    <option value="grpc-client">gRPC Client</option>
+                </select>
+                <input type="text" id="host" placeholder="Host (e.g., 127.0.0.1)" value="127.0.0.1">
+                <input type="number" id="port" placeholder="Port (e.g., 5565)" value="5565">
+                <button id="connect-btn" class="connect-btn">Connect</button>
+                <button id="disconnect-btn" class="disconnect-btn" disabled>Disconnect</button>
+            </div>
+            <div class="grpc-options-row" aria-label="gRPC options">
+                <select id="grpc-serialization">
+                    <option value="protobuf" selected>Protobuf</option>
+                    <option value="kryo">Kryo</option>
+                    <option value="text">Text</option>
+                </select>
+                <select id="grpc-send-method" title="gRPC RPC type">
+                    <option value="stream" selected title="Client Streaming RPC — opens a persistent stream and sends all messages over a single long-lived connection. Higher throughput and lower per-message overhead.">Client Streaming</option>
+                    <option value="unary" title="Unary RPC — sends each message as an independent request/response call. Simpler to debug and reason about, but higher per-message overhead.">Unary</option>
+                </select>
+                <input type="text" id="grpc-header-path-key" value="grpc-path" title="gRPC endpoint header path key" style="display: none;">
+                <input type="text" id="grpc-header-path" value="replace.with.dedicated.uid" title="gRPC endpoint header path" style="display: none;">
+                <label id="grpc-tls-label"><input type="checkbox" id="grpc-tls" checked title="Use TLS (SSL) for the gRPC connection"> TLS</label>
+                <input type="text" id="grpc-tls-ca-path" placeholder="CA cert path" title="Path to CA certificate (PEM)" style="display: none;">
+                <input type="text" id="grpc-tls-cert-path" placeholder="TLS cert path" title="Path to client/server certificate (PEM)" style="display: none;">
+                <input type="text" id="grpc-tls-key-path" placeholder="TLS key path" title="Path to private key (PEM)" style="display: none;">
+            </div>
+        </div>
+        <pre id="logs"></pre>
+        <div class="status-bar">
+            <div class="status-bar-left">
+                <span id="status" aria-live="polite">Disconnected</span>
+            </div>
+            <div class="status-bar-center">
+                <div id="app-status">
+                    <span id="app-status-dot"></span>
+                    <span id="app-status-text">Disconnected</span>
+                </div>
+            </div>
+            <div class="status-bar-right">
+                <span id="line-counter" aria-live="polite">Lines Received: 0</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="./renderer.js"></script>
+    <script>
+    // Responsive UI: hide title, connection-status, and status-bar-left at small widths
+    (function() {
+        const title = document.getElementById('app-title');
+        const originalText = title.textContent;
+        const connectionStatus = document.getElementById('connection-status');
+        const statusBarLeft = document.querySelector('.status-bar-left');
+        const appStatusText = document.getElementById('app-status-text');
+        const statusBarRight = document.querySelector('.status-bar-right');
+        const statusBarCenter = document.querySelector('.status-bar-center');
+        // For right alignment utility
+        const statusBar = document.querySelector('.status-bar');
+        const lineCounter = document.getElementById('line-counter');
+        // Use the global lineCount variable from renderer.js
+
+        function updateResponsiveUI() {
+            // Title
+            if (window.innerWidth < 830) {
+                title.textContent = '';
+            } else {
+                title.textContent = originalText;
+            }
+
+            const lineCount = window.lineCount !== undefined ? window.lineCount : 0;
+
+            // Hide connection-status, hide status-bar-left, hide app-status-text, right-align status-bar-right if < 510px
+            if (window.innerWidth < 560) {
+                if (lineCounter) lineCounter.textContent = window.lineCount;
+                if (connectionStatus) connectionStatus.style.display = 'none';
+                if (statusBarLeft) statusBarLeft.style.display = 'none';
+                if (appStatusText) appStatusText.style.display = 'none';
+                if (statusBarCenter) statusBarCenter.classList.add('align-left');
+                if (statusBar) statusBar.classList.add('compact-status-bar');
+            } else {
+                if (lineCounter) lineCounter.textContent = `Lines Received: ${lineCount}`;
+                if (connectionStatus) connectionStatus.style.display = '';
+                if (statusBarLeft) statusBarLeft.style.display = '';
+                if (appStatusText) appStatusText.style.display = '';
+                if (statusBarCenter) statusBarCenter.classList.remove('align-left');
+                if (statusBar) statusBar.classList.remove('compact-status-bar');
+            }
+
+            // Progressive header control visibility
+            const themeSelector = document.getElementById('theme-selector');
+            const saveBtn = document.getElementById('save-logs-btn');
+            const clearBtn = document.getElementById('clear-logs-btn');
+            const orderBtn = document.getElementById('toggle-order-btn');
+            const autoBtn = document.getElementById('toggle-autoscroll-btn');
+            const toggleConnBtn = document.getElementById('toggle-connection-line');
+            const viewRawBtn = document.getElementById('toggle-view-raw-btn');
+            const cliBtn = document.getElementById('cli-btn');
+
+            // Priority: keep toggle connection and clear visible as long as possible
+
+            // hide or show controls based on width
+
+            // theme selector
+            if (window.innerWidth < 720) {
+                if (themeSelector) themeSelector.style.display = 'none';
+            } else {
+                if (themeSelector) themeSelector.style.display = '';
+            }
+
+            var onlyButtonsWidth = 300;
+
+            // save button
+            onlyButtonsWidth -= 40;
+            if (window.innerWidth < onlyButtonsWidth) {
+                if (saveBtn) saveBtn.style.display = 'none';
+            } else {
+                if (saveBtn) saveBtn.style.display = '';
+            }
+
+            // clear button
+            onlyButtonsWidth -= 40;
+            if (window.innerWidth < onlyButtonsWidth) {
+                if (clearBtn) clearBtn.style.display = 'none';
+            } else {
+                if (clearBtn) clearBtn.style.display = '';
+            }
+
+            // order button
+            onlyButtonsWidth -= 40;
+            if (window.innerWidth < onlyButtonsWidth) {
+                if (orderBtn) orderBtn.style.display = 'none';
+            } else {
+                if (orderBtn) orderBtn.style.display = '';
+            }
+
+            // auto-scroll button
+            onlyButtonsWidth -= 40;
+            if (window.innerWidth < onlyButtonsWidth) {
+                if (autoBtn) autoBtn.style.display = 'none';
+            } else {
+                if (autoBtn) autoBtn.style.display = '';
+            }
+
+            // connection toggle button
+            onlyButtonsWidth -= 40;
+            if (window.innerWidth < onlyButtonsWidth) {
+                if (toggleConnBtn) toggleConnBtn.style.display = 'none';
+            } else {
+                if (toggleConnBtn) toggleConnBtn.style.display = '';
+            }
+
+            // show headers button
+            onlyButtonsWidth -= 40;
+            if (window.innerWidth < onlyButtonsWidth) {
+                if (viewRawBtn) viewRawBtn.style.display = 'none';
+            } else {
+                if (viewRawBtn) viewRawBtn.style.display = '';
+            }
+
+            // CLI button
+            onlyButtonsWidth -= 40;
+            if (window.innerWidth < onlyButtonsWidth) {
+                if (cliBtn) cliBtn.style.display = 'none';
+            } else {
+                if (cliBtn) cliBtn.style.display = '';
+            }
+        }
+        window.addEventListener('resize', updateResponsiveUI);
+        // Run on load
+        updateResponsiveUI();
+    })();
+    </script>
+
+    <!-- Error Dialog -->
+    <div id="error-dialog" class="dialog-overlay" style="display: none;">
+        <div class="dialog-content">
+            <div class="dialog-header">
+                <h2 class="dialog-title">Error</h2>
+            </div>
+            <div class="dialog-body">
+                <p id="error-message"></p>
+            </div>
+            <div class="dialog-footer">
+                <button id="error-close-btn" class="dialog-button">Close</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

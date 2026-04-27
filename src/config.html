@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Config State</title>
+  <link rel="stylesheet" href="themes.css">
+  <script src="./themes/theme-loader.js"></script>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+    }
+    body {
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: var(--background-color);
+      color: var(--text-color);
+      transition: background-color 0.3s, color 0.3s;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .config-path {
+      background-color: var(--surface-color);
+      padding: 10px;
+      border-radius: 4px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 12px;
+      word-break: break-all;
+      border: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+    .config-json {
+      background-color: var(--surface-color);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 15px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 12px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      overflow: auto;
+      flex-grow: 1;
+      min-height: 0;
+    }
+    .button-container {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    button {
+      background-color: var(--button-bg);
+      color: var(--button-text);
+      border: 1px solid var(--button-border);
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background-color 0.2s;
+    }
+    button:hover {
+      background-color: var(--button-hover-bg);
+    }
+    .copy-feedback {
+      color: #28a745;
+      font-size: 12px;
+      margin-left: 10px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .copy-feedback.show {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <h1>Configuration</h1>
+  <div class="config-path" id="configPath">Loading config path...</div>
+  <div class="config-json" id="configJson">Loading configuration...</div>
+  <div class="button-container">
+    <span class="copy-feedback" id="copyFeedback">Copied to clipboard!</span>
+    <button id="copyButton">Copy JSON</button>
+    <button id="closeButton">Close</button>
+  </div>
+  <script>
+    let configData = null;
+
+    // Apply theme immediately from URL parameters to prevent white flash
+    const urlParams = new URLSearchParams(window.location.search);
+    const theme = urlParams.get('theme') || 'theme-dark';
+    if (window.themeLoader) {
+      window.themeLoader.loadTheme(theme);
+    } else {
+      // Fallback to old method if theme loader is not available
+      document.body.className = theme;
+    }
+
+    window.electronAPI.on('load-config-data', (data) => {
+      configData = data;
+      // Update theme if it's different from URL parameter
+      if (data.theme && data.theme !== theme) {
+        if (window.themeLoader) {
+          window.themeLoader.loadTheme(data.theme);
+        } else {
+          // Fallback to old method if theme loader is not available
+          document.body.className = data.theme;
+        }
+      }
+      document.getElementById('configPath').textContent = data.configPath;
+      document.getElementById('configJson').textContent = JSON.stringify(data.config, null, 2);
+    });
+
+    document.getElementById('copyButton').addEventListener('click', () => {
+      if (configData) {
+        try {
+          const jsonText = JSON.stringify(configData.config, null, 2);
+          window.electronAPI.send('copy-to-clipboard', jsonText);
+          
+          const feedback = document.getElementById('copyFeedback');
+          feedback.classList.add('show');
+          setTimeout(() => {
+            feedback.classList.remove('show');
+          }, 2000);
+        } catch (err) {
+          console.error('Failed to copy to clipboard:', err);
+        }
+      }
+    });
+
+    document.getElementById('closeButton').addEventListener('click', () => {
+      window.electronAPI.send('close-dialog');
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        window.electronAPI.send('close-dialog');
+      }
+    });
+  </script>
+</body>
+</html>

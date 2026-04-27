@@ -1,0 +1,56 @@
+/* Light theme (default) */
+:root {
+    --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+body.theme-light {
+    /* Base & Text */
+    --background-color: #f4f4f9;
+    --surface-color: #ffffff;
+    --text-color: #333333;
+    --text-color-inverse: #ffffff;
+    --header-color: #111111;
+
+    /* Accents & Borders */
+    --primary-color: #007bff;
+    --accent-color: #0056b3;
+    --border-color: #dddddd;
+    --shadow-color: rgba(0, 0, 0, 0.1);
+
+    /* Button colors */
+    --button-bg: #007acc;
+    --button-hover-bg: #005a9e;
+    --button-text: #ffffff;
+    
+    /* Button States for App Status */
+    --button-primary-bg: #007bff;
+    --button-success-bg: #28a745;
+    --button-danger-bg: #dc3545;
+    --button-warning-bg: #ffc107;
+    --button-info-bg: #17a2b8;
+    --button-warning-text: #1e1e1e;
+
+    /* Toggle Button Colors */
+    --button-toggle-on-bg: #28a745;
+    --button-toggle-on-text: #ffffff;
+
+    /* Splash Screen Variables */
+    --title-gradient-start: #007bff;
+    --title-gradient-mid: #0056b3;
+    --title-gradient-end: #1a73e8;
+    --close-bg: var(--primary-color);
+    --close-hover-bg: var(--accent-color);
+    --details-color: #666666;
+
+    /* Legacy Aliases (for backward compatibility) */
+    --bg-color: var(--background-color);
+    --input-bg-color: var(--surface-color);
+    --input-border-color: var(--border-color);
+    --status-bg-color: var(--surface-color);
+    --controls-bg-color: var(--surface-color);
+    --button-bg-color: var(--button-bg);
+    --button-text-color: var(--button-text);
+    --button-hover-bg-color: var(--button-hover-bg);
+    --logs-bg-color: #e9ecef;
+    --logs-border-color: var(--border-color);
+} 

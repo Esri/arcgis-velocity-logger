@@ -1,0 +1,50 @@
+/* Midnight theme - Ultra-dark with subtle blue accents */
+body.theme-midnight {
+    --background-color: #0a0a0a;
+    --surface-color: #0f0f0f;
+    --text-color: #e8e8e8;
+    --text-color-inverse: #0a0a0a;
+    --header-color: #e8e8e8;
+    --primary-color: #16213e;
+    --accent-color: #1a2a4a;
+    --border-color: #1a1a2e;
+    --shadow-color: rgba(10, 10, 10, 0.8);
+
+    /* Button colors */
+    --button-bg: #16213e;
+    --button-hover-bg: #0f3460;
+    --button-text: #e8e8e8;
+
+    /* Button States for App Status */
+    --button-primary-bg: #16213e;
+    --button-success-bg: #1f6f5b;
+    --button-danger-bg: #9b2e2e;
+    --button-warning-bg: #b4850f;
+    --button-info-bg: #0f4c75;
+    --button-info-text-color: #e8e8e8;
+    --button-warning-text: #e8e8e8;
+
+    /* Toggle Button Colors */
+    --button-toggle-on-bg: #00d1b2;
+    --button-toggle-on-text: #e8e8e8;
+
+    /* Splash Screen Variables */
+    --title-gradient-start: #3498db;
+    --title-gradient-mid: #2980b9;
+    --title-gradient-end: #1b4f72;
+    --close-bg: var(--primary-color);
+    --close-hover-bg: var(--accent-color);
+    --details-color: #aed6f1;
+
+    /* Legacy Aliases */
+    --bg-color: var(--background-color);
+    --input-bg-color: var(--surface-color);
+    --input-border-color: var(--border-color);
+    --status-bg-color: var(--surface-color);
+    --controls-bg-color: var(--surface-color);
+    --button-bg-color: var(--button-bg);
+    --button-text-color: var(--button-text);
+    --button-hover-bg-color: var(--button-hover-bg);
+    --logs-bg-color: var(--surface-color);
+    --logs-border-color: var(--border-color);
+} 

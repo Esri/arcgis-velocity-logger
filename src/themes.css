@@ -1,0 +1,83 @@
+/* Dark theme (default fallback) */
+:root {
+    --background-color: #1e1e1e;
+    --surface-color: #252526;
+    --text-color: #d4d4d4;
+    --text-color-inverse: #1e1e1e;
+    --header-color: #ffffff;
+    --primary-color: #0e639c;
+    --accent-color: #1177bb;
+    --border-color: #404040;
+    --shadow-color: rgba(0, 0, 0, 0.5);
+    --button-bg: #0e639c;
+    --button-text: #ffffff;
+    --button-border: #0e639c;
+    --button-hover-bg: #1177bb;
+    --button-hover-border: #1177bb;
+    --button-active-bg: #158dcf;
+    
+    /* Button States for App Status */
+    --button-primary-bg: #0e639c;
+    --button-success-bg: #28a745;
+    --button-danger-bg: #dc3545;
+    --button-warning-bg: #ffc107;
+    --button-info-bg: #17a2b8;
+    --button-warning-text: #1e1e1e;
+
+    /* Toggle Button Colors */
+    --button-toggle-on-bg: #28a745;
+    --button-toggle-on-text: #ffffff;
+
+    /* Splash Screen Variables */
+    --title-gradient-start: #00f2fe;
+    --title-gradient-mid: #4facfe;
+    --title-gradient-end: #43e97b;
+    --close-bg: var(--primary-color);
+    --close-hover-bg: var(--accent-color);
+    --details-color: #a0a0a0;
+
+    /* Legacy Aliases */
+    --bg-color: var(--background-color);
+    --input-bg-color: var(--surface-color);
+    --input-border-color: var(--border-color);
+    --status-bg-color: var(--surface-color);
+    --controls-bg-color: var(--surface-color);
+    --button-bg-color: var(--button-bg);
+    --button-text-color: var(--button-text);
+    --button-hover-bg-color: var(--button-hover-bg);
+    --logs-bg-color: #2d2d2d;
+    --logs-border-color: #333333;
+}
+
+/* Default font family for all themes */
+:root {
+    --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Minimal fallback styles for when theme loader fails */
+/* These provide basic dark theme colors as a safety net */
+body.theme-dark {
+    --background-color: #1e1e1e;
+    --surface-color: #252526;
+    --text-color: #d4d4d4;
+    --primary-color: #0e639c;
+    --border-color: #404040;
+    --button-bg: #0e639c;
+    --button-text: #ffffff;
+    --button-border: #0e639c;
+    --button-hover-bg: #1177bb;
+    --button-hover-border: #1177bb;
+    --button-active-bg: #158dcf;
+    --logs-bg-color: #2d2d2d;
+    --logs-border-color: #333333;
+}
+
+/* Default body styles when no theme is applied */
+body {
+    font-family: var(--font-family);
+    background-color: var(--background-color, #1e1e1e);
+    color: var(--text-color, #d4d4d4);
+}
+
+/* Theme loader script will be included in HTML files */
+/* Individual theme files are loaded dynamically from the themes/ directory */

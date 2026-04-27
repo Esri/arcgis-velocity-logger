@@ -1,0 +1,50 @@
+/* Rose theme - Soft pink/purple */
+body.theme-rose {
+    --background-color: #fff1f2;
+    --surface-color: #ffe4e6;
+    --text-color: #831843;
+    --text-color-inverse: #500724;
+    --header-color: #831843;
+    --primary-color: #ec4899;
+    --accent-color: #be185d;
+    --border-color: #fecdd3;
+    --shadow-color: rgba(249, 168, 212, 0.5);
+
+    /* Button colors */
+    --button-bg: #ec4899;
+    --button-hover-bg: #be185d;
+    --button-text: #500724;
+    
+    /* Button States for App Status */
+    --button-primary-bg: #ec4899;
+    --button-success-bg: #fb7185;
+    --button-danger-bg: #f43f5e;
+    --button-warning-bg: #f9a8d4;
+    --button-info-bg: #f472b6;
+    --button-info-text-color: #831843;
+    --button-warning-text: #500724;
+
+    /* Toggle Button Colors */
+    --button-toggle-on-bg: #ec4899;
+    --button-toggle-on-text: #500724;
+
+    /* Splash Screen Variables */
+    --title-gradient-start: #ec4899;
+    --title-gradient-mid: #be185d;
+    --title-gradient-end: #9d174d;
+    --close-bg: var(--primary-color);
+    --close-hover-bg: var(--accent-color);
+    --details-color: #9d174d;
+
+    /* Legacy Aliases */
+    --bg-color: var(--background-color);
+    --input-bg-color: var(--surface-color);
+    --input-border-color: var(--border-color);
+    --status-bg-color: var(--surface-color);
+    --controls-bg-color: var(--surface-color);
+    --button-bg-color: var(--button-bg);
+    --button-text-color: var(--button-text);
+    --button-hover-bg-color: var(--button-hover-bg);
+    --logs-bg-color: var(--surface-color);
+    --logs-border-color: var(--border-color);
+} 

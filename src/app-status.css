@@ -1,0 +1,74 @@
+/* App Status Indicator - Following Simulator Project Pattern */
+#app-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+#app-status-dot {
+    font-size: 1.2em; /* Use font-size to control emoji size */
+    line-height: 1; /* Ensure proper vertical alignment */
+    flex-shrink: 0;
+}
+
+#app-status-text {
+    font-size: 1.1em;
+    font-weight: 500;
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    line-height: 1.4;
+    transition: all 0.3s ease;
+}
+
+/* App Status States - Following Simulator Pattern with data-state attributes */
+
+/* Visual state indicators for app status - override header color for specific states */
+#app-status-text[data-state="disconnected"] {
+    background-color: var(--button-danger-bg);
+    color: var(--button-text) !important;
+}
+
+#app-status-text[data-state="connected"] {
+    background-color: var(--button-success-bg);
+    color: var(--button-text) !important;
+}
+
+#app-status-text[data-state="connecting"] {
+    background-color: var(--button-primary-bg);
+    color: var(--button-text) !important;
+    animation: pulse 2s infinite;
+}
+
+#app-status-text[data-state="disconnecting"] {
+    background-color: var(--button-warning-bg);
+    color: var(--button-warning-text) !important;
+    animation: pulse 2s infinite;
+}
+
+#app-status-text[data-state="error"] {
+    background-color: var(--button-danger-bg);
+    color: var(--button-text) !important;
+    animation: flash 0.3s;
+}
+
+/* Subtle animations matching simulator */
+@keyframes pulse {
+    0%, 100% { opacity: 0.9; }
+    50% { opacity: 0.6; }
+}
+
+@keyframes flash {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.2; }
+}
+
+/* Theme-specific adjustments - Minimal overrides for special cases */
+
+/* High Contrast Theme - Add borders for better definition */
+body.theme-high-contrast #app-status-text[data-state] {
+    border: 2px solid var(--text-color);
+}

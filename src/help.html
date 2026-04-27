@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=500, initial-scale=1.0">
+    <title>Help - ArcGIS Velocity Logger</title>
+    <link rel="stylesheet" href="./themes.css">
+    <link rel="stylesheet" href="./help.css">
+    <script src="./themes/theme-loader.js"></script>
+</head>
+<body>
+    <div class="help-container">
+        <div class="help-header">
+            <div class="help-title">ArcGIS Velocity Logger Help</div>
+        </div>
+        
+        <div class="help-content">
+            <div class="help-section">
+                <h3>Getting Started</h3>
+                <p>Capture and log network data from TCP and UDP connections. Useful for debugging and monitoring ArcGIS Velocity feeds and other data sources.</p>
+            </div>
+
+            <div class="help-section">
+                <h3>Connection Types</h3>
+                <ul>
+                    <li><strong>TCP Server:</strong> Listen for incoming TCP connections</li>
+                    <li><strong>TCP Client:</strong> Connect to a remote TCP server</li>
+                    <li><strong>UDP Server:</strong> Listen for UDP packets</li>
+                    <li><strong>UDP Client:</strong> Send UDP packets to a remote server</li>
+                </ul>
+            </div>
+
+            <div class="help-section">
+                <h3>Log Management</h3>
+                <ul>
+                    <li><strong>Save Logs:</strong> Export captured data to text file</li>
+                    <li><strong>Clear Logs:</strong> Remove all log entries</li>
+                    <li><strong>Auto‑Scroll:</strong> Toggle automatic scrolling to newest lines from the header</li>
+                    <li><strong>List Order:</strong> Toggle between ascending (oldest first) and descending (newest first) order</li>
+                    <li><strong>Line Counter:</strong> Track total messages received</li>
+                </ul>
+            </div>
+
+            <div class="help-section">
+                <h3>Status Bar and Indicators</h3>
+                <p>The status bar at the bottom of the window provides real-time feedback on the application's connection state. It includes a colored dot indicator and descriptive text to show the current status.</p>
+
+                <h4>Application States</h4>
+                <table class="shortcuts-table">
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th>Indicator</th>
+                            <th>Color</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Connected</td>
+                            <td><span class="status-indicator connected">●</span></td>
+                            <td>Green</td>
+                            <td>A successful connection is established, and the application is ready to send or receive data.</td>
+                        </tr>
+                        <tr>
+                            <td>Connecting</td>
+                            <td><span class="status-indicator connecting">●</span></td>
+                            <td>Orange</td>
+                            <td>The application is attempting to establish a connection to the specified host and port.</td>
+                        </tr>
+                        <tr>
+                            <td>Disconnecting</td>
+                            <td><span class="status-indicator disconnecting">●</span></td>
+                            <td>Orange</td>
+                            <td>The application is in the process of closing the current connection.</td>
+                        </tr>
+                        <tr>
+                            <td>Disconnected</td>
+                            <td><span class="status-indicator disconnected">●</span></td>
+                            <td>Grey</td>
+                            <td>The application is not connected. This is the default state before a connection is initiated or after a connection is successfully closed.</td>
+                        </tr>
+                        <tr>
+                            <td>Error</td>
+                            <td><span class="status-indicator error">●</span></td>
+                            <td>Red</td>
+                            <td>An error has occurred, such as a connection failure or configuration issue. Check the status message for more details.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="help-section">
+                <h3>Customization</h3>
+                <h4>Themes</h4>
+                <p>15 built-in themes: 🔵 Blue, 🟡 Color Blind, 🌙 Dark, 🌫️ Dark Gray, 🟢 Green, ⚫ High Contrast, ☀️ Light, ☁️ Light Gray, 🌌 Midnight, ☕ Mocha, 🌊 Ocean, 🌸 Rose, 🌺 Rose Dark, 🌅 Sunset, 💻 System. Access via theme dropdown or right-click context menu.</p>
+                <p>Themes are loaded dynamically from per‑theme CSS files. If loading fails, a minimal dark fallback ensures a usable UI.</p>
+
+                <h4>Font Settings</h4>
+                <ul>
+                    <li><strong>Font Size:</strong> 6px to 25px (default: 13px)</li>
+                    <li><strong>Font Family:</strong> monospace, Arial, Helvetica, Georgia, and others</li>
+                </ul>
+                <p>All settings are automatically saved and restored.</p>
+            </div>
+
+            <div class="help-section shortcuts-section">
+                <h3>Keyboard Shortcuts</h3>
+                <p>The following keyboard shortcuts are available for quick access to common actions:</p>
+                <h4>File Operations</h4>
+                <table class="shortcuts-table">
+                    <thead>
+                        <tr>
+                            <th>Action</th>
+                            <th>Windows/Linux</th>
+                            <th>macOS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Save Logs</td>
+                            <td><kbd>Ctrl</kbd> + <kbd>S</kbd></td>
+                            <td><kbd>Cmd</kbd> + <kbd>S</kbd></td>
+                        </tr>
+                        <tr>
+                            <td>Clear Logs</td>
+                            <td><kbd>Ctrl</kbd> + <kbd>C</kbd></td>
+                            <td><kbd>Cmd</kbd> + <kbd>C</kbd></td>
+                        </tr>
+
+                        <tr>
+                            <td>Save Config As...</td>
+                            <td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd></td>
+                            <td><kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd></td>
+                        </tr>
+                        <tr>
+                            <td>Load Config</td>
+                            <td><kbd>Ctrl</kbd> + <kbd>O</kbd></td>
+                            <td><kbd>Cmd</kbd> + <kbd>O</kbd></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h4>Interface & Navigation</h4>
+                <table class="shortcuts-table">
+                    <thead>
+                        <tr>
+                            <th>Action</th>
+                            <th>Shortcut</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Open Help Dialog</td>
+                            <td><kbd>F1</kbd></td>
+                        </tr>
+                        <tr>
+                            <td>Open About Dialog</td>
+                            <td><kbd>F2</kbd></td>
+                        </tr>
+                        <tr>
+                            <td>Open Command Line Interface Dialog</td>
+                            <td><kbd>F3</kbd></td>
+                        </tr>
+                        <tr>
+                            <td>Toggle Developer Tools</td>
+                            <td><kbd>F12</kbd></td>
+                        </tr>
+                        <tr>
+                            <td>Toggle Auto‑Scroll</td>
+                            <td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd> (macOS: <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd>)</td>
+                        </tr>
+                        <tr>
+                            <td>Toggle Order (Asc/Desc)</td>
+                            <td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>O</kbd> (macOS: <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>O</kbd>)</td>
+                        </tr>
+                        <tr>
+                            <td>Show Config Dialog</td>
+                            <td><kbd>Ctrl</kbd> + <kbd>I</kbd> or <kbd>Cmd</kbd> + <kbd>I</kbd></td>
+                        </tr>
+                        <tr>
+                            <td>Close Any Dialog</td>
+                            <td><kbd>Escape</kbd></td>
+                        </tr>
+                        <tr>
+                            <td>Open Context Menu</td>
+                            <td><kbd>Right-click</kbd></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="help-section">
+                <h3>Command Line Interface</h3>
+                <p>The logger can run from the command line in normal UI mode or in a truly headless mode with no GUI. Press <kbd>F3</kbd>, or choose <strong>Help → Command Line Interface</strong>, or use the toolbar button (<code>&gt;_</code>), or the context menu, to open a dedicated searchable dialog listing every command-line parameter, its default, whether it is required in headless mode, and an example.</p>
+                <ul>
+                    <li><strong>Search + quick filters:</strong> filter by parameter text and switch among All, Required, Optional, Headless-only, and Help-related parameters.</li>
+                    <li><strong>Active filter pills:</strong> see the current search, category, and sort state at a glance and clear search/category filters directly from the pill row.</li>
+                    <li><strong>Copy / export tools:</strong> copy example commands, copy visible rows, or export visible rows as <code>TSV</code>, <code>CSV</code>, <code>Markdown</code>, or <code>JSON</code>.</li>
+                    <li><strong>Collapsible panels:</strong> the <strong>Behavior &amp; Help Layouts</strong> and <strong>Notes</strong> sections start collapsed so the main table and examples stay in view.</li>
+                    <li><strong>Resizable table area:</strong> drag the parameter table taller or shorter inside the dialog as needed.</li>
+                    <li><strong>Wider first-open layout:</strong> the dialog opens wider by default so the built-in example commands are easier to read immediately.</li>
+                </ul>
+                <p>For terminal help use <code>npm run help:cli</code>, <code>npm run help:cli:wide</code>, or <code>npm run help:cli:narrow</code>. See <code>docs/COMMAND-LINE.md</code> and <code>docs/HEADLESS.md</code> for full details.</p>
+            </div>
+
+            <div class="help-section">
+                <h3>Window Opacity</h3>
+                <p>Adjust window transparency from 50% to 100% via right-click context menu. Settings are automatically saved.</p>
+            </div>
+        </div>
+        
+        <div class="help-footer">
+            <button class="help-close" id="close-button">Close</button>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const theme = params.get('theme') || 'theme-dark';
+            if (window.themeLoader) {
+              window.themeLoader.loadTheme(theme);
+            } else {
+              // Fallback to old method if theme loader is not available
+              document.body.className = theme;
+            }
+
+            // Signal that the dialog is ready to be shown
+            window.electronAPI.send('help-dialog-ready');
+        });
+
+        document.getElementById('close-button').addEventListener('click', () => {
+            window.electronAPI.send('close-dialog');
+        });
+
+        // Allow closing with the Escape key
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                window.electronAPI.send('close-dialog');
+            }
+        });
+    </script>
+</body>
+</html>

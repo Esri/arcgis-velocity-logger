@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Loading ArcGIS Velocity Logger...</title>
+      <link rel="stylesheet" href="./themes.css">
+    <link rel="stylesheet" href="./splash.css">
+    <script src="./themes/theme-loader.js"></script>
+</head>
+<body>
+  <img src="./assets/icon.png" class="logo" alt="ArcGIS Velocity Logger"/>
+  <div class="app-title">ArcGIS Velocity Logger</div>
+  <div class="progress-bar-bg">
+    <div class="progress-bar" id="progress"></div>
+  </div>
+  <div class="loading-text" id="loading-text">Initializing...</div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    // The main process will send the theme.
+    // Once the theme is applied, we'll signal that the splash screen is ready to be shown.
+    ipcRenderer.once('load-theme', (event, theme) => {
+      if (window.themeLoader) {
+        window.themeLoader.loadTheme(theme || 'dark');
+      } else {
+        // Fallback to old method if theme loader is not available
+        document.body.className = theme || 'dark';
+      }
+      ipcRenderer.send('splash-ready');
+    });
+
+    // Listen for progress updates from the main process
+    ipcRenderer.on('splash-progress', (event, { percent, text }) => {
+      const progressBar = document.getElementById('progress');
+      const loadingText = document.getElementById('loading-text');
+      if (progressBar) {
+        progressBar.style.width = percent + '%';
+      }
+      if (loadingText && text) {
+        loadingText.textContent = text;
+      }
+    });
+  </script>
+</body>
+</html>

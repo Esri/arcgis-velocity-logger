@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Theme Loader Test</title>
+    <link rel="stylesheet" href="../src/themes.css">
+    <script src="../src/themes/theme-loader.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .theme-selector {
+            margin-bottom: 20px;
+        }
+        select {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            background-color: var(--surface-color);
+            color: var(--text-color);
+        }
+        .test-section {
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: var(--button-bg);
+            color: var(--button-text);
+            border: 1px solid var(--button-border);
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: var(--button-hover-bg);
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            background-color: var(--logs-bg-color);
+            border: 1px solid var(--logs-border-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Theme Loader Test</h1>
+        
+        <div class="theme-selector">
+            <label for="theme-select">Select Theme:</label>
+            <select id="theme-select">
+                <option value="light">☀️ Light</option>
+                <option value="dark">🌙 Dark</option>
+                <option value="dark-gray">🌫️ Dark Gray</option>
+                <option value="light-gray">☁️ Light Gray</option>
+                <option value="blue">🔵 Blue</option>
+                <option value="green">🟢 Green</option>
+                <option value="high-contrast">⚫ High Contrast</option>
+                <option value="color-blind">🟡 Color Blind</option>
+                <option value="system">💻 System</option>
+                <option value="midnight">🌌 Midnight</option>
+                <option value="sunset">🌅 Sunset</option>
+                <option value="rose">🌸 Rose</option>
+                <option value="rose-dark">🌺 Rose Dark</option>
+                <option value="ocean">🌊 Ocean</option>
+                <option value="mocha">☕ Mocha</option>
+            </select>
+        </div>
+
+        <div class="test-section">
+            <h2>Current Theme Status</h2>
+            <div id="status" class="status">
+                Loading theme information...
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>Test Buttons</h2>
+            <button class="button-primary">Primary Button</button>
+            <button class="button-success">Success Button</button>
+            <button class="button-danger">Danger Button</button>
+            <button class="button-warning">Warning Button</button>
+            <button class="button-info">Info Button</button>
+        </div>
+
+        <div class="test-section">
+            <h2>Test Content</h2>
+            <p>This is a test paragraph to see how text looks in different themes.</p>
+            <p>Background color: <span id="bg-color">Loading...</span></p>
+            <p>Text color: <span id="text-color">Loading...</span></p>
+            <p>Primary color: <span id="primary-color">Loading...</span></p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const themeSelect = document.getElementById('theme-select');
+            const statusDiv = document.getElementById('status');
+            
+            // Load default theme
+            if (window.themeLoader) {
+                window.themeLoader.loadTheme('dark');
+                updateStatus();
+            }
+
+            // Theme change handler
+            themeSelect.addEventListener('change', () => {
+                const selectedTheme = themeSelect.value;
+                if (window.themeLoader) {
+                    window.themeLoader.loadTheme(selectedTheme);
+                    updateStatus();
+                }
+            });
+
+            function updateStatus() {
+                const currentTheme = window.themeLoader ? window.themeLoader.getCurrentTheme() : 'unknown';
+                const computedStyle = getComputedStyle(document.body);
+                
+                statusDiv.innerHTML = `
+                    <strong>Current Theme:</strong> ${currentTheme}<br>
+                    <strong>Theme Loader Available:</strong> ${window.themeLoader ? 'Yes' : 'No'}<br>
+                    <strong>Body Class:</strong> ${document.body.className}
+                `;
+
+                // Update color displays
+                document.getElementById('bg-color').textContent = computedStyle.getPropertyValue('--background-color').trim();
+                document.getElementById('text-color').textContent = computedStyle.getPropertyValue('--text-color').trim();
+                document.getElementById('primary-color').textContent = computedStyle.getPropertyValue('--primary-color').trim();
+            }
+
+            // Update status every second to show real-time changes
+            setInterval(updateStatus, 1000);
+        });
+    </script>
+</body>
+</html> 

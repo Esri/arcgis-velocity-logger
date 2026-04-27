@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Error</title>
+  <link rel="stylesheet" href="themes.css">
+  <script src="./themes/theme-loader.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: var(--background-color);
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      box-sizing: border-box;
+    }
+    .content {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    textarea {
+      flex-grow: 1;
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 1rem;
+      white-space: pre-wrap;
+      background-color: var(--surface-color);
+      color: var(--text-color);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 10px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    }
+    .button-group {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 1rem;
+      flex-shrink: 0;
+    }
+    button {
+      background-color: var(--button-bg);
+      color: var(--button-text);
+      border: 1px solid var(--button-border);
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background-color 0.2s;
+    }
+    button:hover {
+      background-color: var(--button-hover-bg);
+    }
+  </style>
+</head>
+<body>
+  <div class="content">
+    <h1 id="error-message"></h1>
+    <textarea id="error-details" readonly></textarea>
+  </div>
+  <div class="button-group">
+    <button id="copy-btn">Copy</button>
+    <button id="send-to-dev-btn">Send to Developer</button>
+    <button id="close-btn">Close</button>
+  </div>
+
+  <script>
+    const errorMessage = document.getElementById('error-message');
+    const errorDetails = document.getElementById('error-details');
+    const copyBtn = document.getElementById('copy-btn');
+    const sendToDevBtn = document.getElementById('send-to-dev-btn');
+    const closeBtn = document.getElementById('close-btn');
+
+    // Apply theme immediately from URL parameters to prevent white flash
+    const urlParams = new URLSearchParams(window.location.search);
+    const theme = urlParams.get('theme') || 'theme-dark';
+    if (window.themeLoader) {
+      window.themeLoader.loadTheme(theme);
+    } else {
+      // Fallback to old method if theme loader is not available
+      document.body.className = theme;
+    }
+
+    window.electronAPI.on('load-error-data', (data) => {
+      // Update theme if it's different from URL parameter
+      if (data.theme && `theme-${data.theme}` !== theme) {
+        if (window.themeLoader) {
+          window.themeLoader.loadTheme(`theme-${data.theme}`);
+        } else {
+          // Fallback to old method if theme loader is not available
+          document.body.className = `theme-${data.theme}`;
+        }
+      }
+      errorMessage.textContent = data.message;
+      errorDetails.value = data.details;
+    });
+
+    copyBtn.addEventListener('click', () => {
+      window.electronAPI.send('copy-to-clipboard', errorDetails.value);
+    });
+
+    sendToDevBtn.addEventListener('click', () => {
+      const subject = 'ArcGIS Velocity Logger Error Report';
+      const body = `Please describe what you were doing when the error occurred:\n\n\n---\nError Details:\n${errorDetails.value}`;
+      const mailtoLink = `mailto:hkalmanovich@esri.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      window.electronAPI.send('open-external-link', mailtoLink);
+    });
+
+    closeBtn.addEventListener('click', () => {
+      window.electronAPI.send('close-dialog');
+    });
+
+    // Allow closing with the Escape key
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        window.electronAPI.closeDialog();
+      }
+    });
+  </script>
+</body>
+</html>

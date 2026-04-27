@@ -1,0 +1,37 @@
+{
+  "capture": {
+    "durationMs": null,
+    "exclude": null,
+    "filter": null,
+    "idleTimeoutMs": 0,
+    "maxLogCount": null
+  },
+  "connection": {
+    "autoConnect": true,
+    "connectRetryIntervalMs": 1000,
+    "connectTimeoutMs": 0,
+    "connectWaitForServer": false,
+    "grpcHeaderPath": "replace.with.dedicated.uid",
+    "grpcHeaderPathKey": "grpc-path",
+    "grpcSerialization": "protobuf",
+    "ip": "127.0.0.1",
+    "mode": "server",
+    "port": 5565,
+    "protocol": "tcp"
+  },
+  "headless": {
+    "runId": "sample-run",
+    "runMode": "headless"
+  },
+  "output": {
+    "appendOutput": false,
+    "doneFile": null,
+    "exitOnComplete": true,
+    "logFile": null,
+    "logLevel": "info",
+    "onError": "exit",
+    "outputFile": "./captured.log",
+    "outputFormat": "text",
+    "stdout": true
+  }
+}

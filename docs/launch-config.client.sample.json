@@ -1,0 +1,32 @@
+{
+  "capture": {
+    "durationMs": 60000
+  },
+  "connection": {
+    "autoConnect": true,
+    "connectRetryIntervalMs": 1000,
+    "connectTimeoutMs": 5000,
+    "connectWaitForServer": true,
+    "grpcHeaderPath": "replace.with.dedicated.uid",
+    "grpcHeaderPathKey": "grpc-path",
+    "grpcSerialization": "protobuf",
+    "ip": "192.168.1.25",
+    "mode": "client",
+    "port": 6000,
+    "protocol": "udp"
+  },
+  "headless": {
+    "runId": "client-capture",
+    "runMode": "headless"
+  },
+  "output": {
+    "appendOutput": false,
+    "doneFile": "./logs/client-run.done.json",
+    "exitOnComplete": true,
+    "logLevel": "info",
+    "onError": "continue",
+    "outputFile": "./captured-client.jsonl",
+    "outputFormat": "jsonl",
+    "stdout": true
+  }
+}

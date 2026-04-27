@@ -1,0 +1,570 @@
+/* =================================================================== */
+/* ArcGIS Velocity Logger - Main Styles                               */
+/* =================================================================== */
+
+/* Theme controls group for theme dropdown and toggle-connection-line button */
+.theme-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+}
+
+/* CSS Reset & Base Styles */
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+body {
+    font-family: var(--font-family);
+    font-size: 16px;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    transition: background-color 0.3s ease, color 0.3s ease;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Layout Components */
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: 8px; /* Symmetric tighter edges */
+    padding-bottom: 32px; /* Status bar height (30px) + 2px breathing room */
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    margin: 0 0 2px; /* Align with container padding for symmetry */
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.0));
+    flex-wrap: nowrap;
+    gap: 10px;
+}
+
+/* Control button styles */
+.control-button {
+    background-color: var(--button-info-bg);
+    color: var(--button-info-text-color, var(--button-text));
+    padding: 6px; /* Square dimension for icon buttons */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+}
+
+.control-button:hover {
+    background-color: var(--button-hover-bg);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.15);
+}
+
+.control-button.active {
+    background-color: var(--button-toggle-on-bg);
+    color: var(--button-toggle-on-text, var(--button-text));
+}
+
+/* Button icon styles */
+.button-icon {
+    width: 16px;
+    height: 16px;
+    display: inline-block;
+    background-color: currentColor;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+}
+
+.icon-save {
+    -webkit-mask-image: url('assets/save-logs.svg');
+    mask-image: url('assets/save-logs.svg');
+}
+
+.icon-clear {
+    -webkit-mask-image: url('assets/clear-logs.svg');
+    mask-image: url('assets/clear-logs.svg');
+}
+
+.icon-ascending {
+    -webkit-mask-image: url('assets/ascending.svg');
+    mask-image: url('assets/ascending.svg');
+}
+
+.icon-descending {
+    -webkit-mask-image: url('assets/descending.svg');
+    mask-image: url('assets/descending.svg');
+}
+
+.icon-auto-scroll {
+    -webkit-mask-image: url('assets/auto-scroll.svg');
+    mask-image: url('assets/auto-scroll.svg');
+}
+
+/* Connection controls show/hide icons */
+.icon-connection-show {
+    -webkit-mask-image: url('assets/connection-show.svg');
+    mask-image: url('assets/connection-show.svg');
+}
+
+.icon-connection-hide {
+    -webkit-mask-image: url('assets/connection-hide.svg');
+    mask-image: url('assets/connection-hide.svg');
+}
+
+/* View Raw button icons — reuse the connection-show/hide SVGs */
+.icon-view-raw-off {
+    -webkit-mask-image: url('assets/connection-show.svg');
+    mask-image: url('assets/connection-show.svg');
+}
+
+.icon-view-raw-on {
+    -webkit-mask-image: url('assets/connection-hide.svg');
+    mask-image: url('assets/connection-hide.svg');
+}
+
+.connection-svg-line {
+    stroke: currentColor;
+    stroke-width: 10;
+    stroke-linecap: round;
+}
+
+.connection-svg-circle {
+    fill: currentColor;
+}
+
+/* Status Bar - Perfect centering using CSS Grid */
+.status-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 30px;
+    background: var(--surface-color);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px; /* Match side padding with app container for alignment */
+    z-index: 100;
+    font-family: var(--font-family);
+    backdrop-filter: saturate(120%) blur(6px);
+}
+
+.status-bar-left {
+    min-width: 0; /* Allow shrinking below content size */
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-self: start;
+}
+
+.status-bar-center {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+}
+
+.status-bar-right {
+    min-width: 0; /* Allow shrinking for truncation */
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    justify-self: end;
+}
+
+/* Compact Status Bar for smaller screens */
+.status-bar.compact-status-bar {
+    gap: 8px;
+}
+.status-bar.compact-status-bar .status-bar-center {
+    justify-content: flex-start;
+}
+.status-bar.compact-status-bar .status-bar-right {
+    margin-left: auto;
+}
+
+/* Allow alignment override from script */
+.status-bar-center.align-left {
+    justify-content: flex-start;
+}
+
+/* Typography */
+h1 {
+    color: var(--header-color);
+    margin: 0;
+    font-size: 1.5em;
+    font-weight: 600;
+}
+
+/* gRPC options row control sizing */
+#grpc-serialization,
+#grpc-send-method {
+    text-align: left;
+    text-align-last: left;
+}
+
+#grpc-header-path-key {
+    width: 90px;
+    min-width: 70px;
+}
+
+#grpc-header-path {
+    flex: 1;
+    min-width: 140px;
+}
+
+select,
+input,
+button {
+    padding: 5px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: inherit;
+    background-color: var(--input-bg-color);
+    border: 1px solid var(--input-border-color);
+    color: var(--text-color);
+    transition: all 0.2s ease;
+}
+
+select:focus,
+input:focus {
+    outline: none;
+    border-color: var(--button-bg-color);
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+/* Buttons */
+button {
+    cursor: pointer;
+    background-color: var(--button-bg-color);
+    color: var(--button-text-color);
+    border: none;
+    font-weight: 500;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+button:hover:not(:disabled) {
+    background-color: var(--button-hover-bg-color);
+    transform: translateY(-1px);
+}
+
+button:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Specific Button Types */
+.connect-btn {
+    background-color: #28a745;
+    color: #ffffff;
+    border: none;
+}
+
+.connect-btn:hover:enabled {
+    background-color: #218838;
+}
+
+.disconnect-btn {
+    background-color: #dc3545;
+    color: #ffffff;
+    border: none;
+}
+
+.disconnect-btn:hover:enabled {
+    background-color: #b52a37;
+}
+
+/* Layout Sections */
+.connection-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin: 0 0 2px;
+    padding: 2px 0;
+    border-radius: 0;
+    background-color: transparent;
+    box-shadow: none;
+}
+
+.connection-controls.hidden {
+    display: none;
+}
+
+.connection-primary {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: nowrap;
+}
+
+/* gRPC options second row — slides in/out with a max-height transition */
+.grpc-options-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease, padding-top 0.25s ease, opacity 0.25s ease, border-top-color 0.25s ease;
+    padding-top: 0;
+    opacity: 0;
+    border-top: 1px solid transparent;
+}
+
+.grpc-options-row.visible {
+    max-height: 120px; /* generous ceiling; actual content ~36px, wraps to ~80px on narrow windows */
+    padding-top: 6px;
+    opacity: 1;
+    border-top-color: var(--border-color);
+}
+
+/* Auto-hide: collapse back even when .visible is set */
+.grpc-options-row.visible.auto-hidden {
+    max-height: 0;
+    padding-top: 0;
+    opacity: 0;
+    border-top-color: transparent;
+}
+
+/* Hint strip: shown at the bottom of the connection-controls area when the
+   gRPC row is active but auto-hidden. Gives the user a subtle cue to hover. */
+.connection-controls.grpc-active::after {
+    content: '';
+    display: block;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--border-color);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.connection-controls.grpc-active.grpc-row-hidden::after {
+    opacity: 0.55;
+    animation: grpc-hint-pulse 2.5s ease-in-out infinite;
+}
+
+@keyframes grpc-hint-pulse {
+    0%, 100% { opacity: 0.3; }
+    50%       { opacity: 0.65; }
+}
+
+/* TLS cert path inputs stretch to fill available space */
+#grpc-tls-ca-path,
+#grpc-tls-cert-path,
+#grpc-tls-key-path {
+    flex: 1;
+    min-width: 110px;
+}
+
+/* Status Components */
+#status {
+    color: var(--text-color);
+    font-size: 1em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0; /* Allow the element to shrink and truncate */
+}
+
+#line-counter {
+    color: var(--text-color);
+    font-size: 1em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+#connection-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0; /* Prevent this element from shrinking */
+}
+
+#connection-dot {
+    --dot-disconnected: #dc3545;
+    --dot-connected: #28a745;
+
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background-color: var(--dot-disconnected);
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    box-shadow: 0 0 8px rgba(220, 53, 69, 0.7);
+}
+
+#connection-dot.connected {
+    background-color: var(--dot-connected);
+    box-shadow: 0 0 8px rgba(40, 167, 69, 0.7);
+}
+
+/* Logs Display */
+pre#logs {
+    border-radius: 8px;
+    padding: 12px;
+    margin: 2px 0 2px; /* Tighter gap above status bar for symmetry */
+    flex-grow: 1;
+    min-height: 0;
+    white-space: pre;
+    word-wrap: normal;
+    background-color: var(--logs-bg-color);
+    border: 1px solid var(--logs-border-color);
+    box-shadow: 0 1px 6px rgba(0,0,0,0.18);
+    overflow: auto;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Consolas', monospace;
+    font-size: 13px;
+    line-height: 1.3;
+}
+
+/* Subtle, modern scrollbars for logs */
+pre#logs::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+pre#logs::-webkit-scrollbar-track {
+    background: var(--surface-color);
+}
+pre#logs::-webkit-scrollbar-thumb {
+    background-color: var(--border-color);
+    border-radius: 10px;
+    border: 2px solid var(--surface-color);
+}
+
+/* Specific Element Sizing */
+#host {
+    width: 98px;
+}
+
+#port {
+    width: 92px;
+    min-width: 92px;
+}
+
+#theme-selector {
+    min-width: 160px;
+}
+
+/* Focus Indicators */
+:focus-visible {
+    outline: 2px solid var(--button-bg-color);
+    outline-offset: 2px;
+}
+
+/* Better focus for icon-only buttons */
+.control-button:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}
+
+/* Accessibility Improvements */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Dialog Styles */
+.dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.dialog-content {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+    width: 90%;
+    max-width: 450px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.dialog-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--background-color);
+}
+
+.dialog-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--header-color);
+}
+
+.dialog-body {
+    padding: 16px;
+    line-height: 1.5;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.dialog-footer {
+    padding: 10px 16px;
+    text-align: right;
+    border-top: 1px solid var(--border-color);
+    background-color: var(--background-color);
+}
+
+.dialog-button {
+    background-color: var(--button-bg);
+    color: var(--button-text);
+    border: 1px solid var(--button-border);
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.dialog-button:hover {
+    background-color: var(--button-hover-bg);
+}
+
+@media (max-width: 900px) {
+  #theme-selector { min-width: 140px; }
+}
+@media (max-width: 780px) {
+  #theme-selector { min-width: 120px; }
+}
+@media (max-width: 560px) {
+  #theme-selector { display: none; }
+}

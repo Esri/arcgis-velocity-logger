@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Heart pulse line connecting the dots -->
+  <path class="connection-svg-line" 
+        d="M 10 50 
+           L 15 50
+           L 20 10
+           L 30 90
+           L 40 0
+           L 50 70
+           L 55 50
+           L 90 50"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="6"
+        stroke-linecap="round"
+        stroke-linejoin="miter" />
+  
+  <!-- Left dot -->
+  <circle class="connection-svg-circle" cx="10" cy="50" r="10" fill="currentColor" />
+  
+  <!-- Right dot -->
+  <circle class="connection-svg-circle" cx="90" cy="50" r="10" fill="currentColor" />
+</svg>

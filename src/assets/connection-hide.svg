@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <!-- Panel representing connection controls -->
+  <rect x="3" y="10" width="18" height="8" rx="2" fill="#000"/>
+  <!-- Small UI knobs inside the panel -->
+  <circle cx="7" cy="14" r="1.2" fill="#000"/>
+  <rect x="10" y="13.2" width="5" height="1.6" rx="0.8" fill="#000"/>
+  <rect x="16.5" y="13.2" width="3.5" height="1.6" rx="0.8" fill="#000"/>
+  <!-- Chevron up indicating hide/collapse -->
+  <path d="M6 9.5 L12 4.5 L18 9.5 L16.6 10.9 L12 7 L7.4 10.9 Z" fill="#000"/>
+</svg>
+

@@ -1,0 +1,28 @@
+{
+  "capture": {
+    "idleTimeoutMs": 60000,
+    "maxLogCount": 10000
+  },
+  "connection": {
+    "autoConnect": true,
+    "ip": "0.0.0.0",
+    "mode": "server",
+    "port": 5565,
+    "protocol": "tcp"
+  },
+  "headless": {
+    "runId": "server-capture",
+    "runMode": "headless"
+  },
+  "output": {
+    "appendOutput": false,
+    "doneFile": "./logs/server-run.done.json",
+    "exitOnComplete": true,
+    "logFile": "./logs/server-run.log",
+    "logLevel": "info",
+    "onError": "exit",
+    "outputFile": "./captured-server.log",
+    "outputFormat": "text",
+    "stdout": false
+  }
+}
