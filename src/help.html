@@ -18,16 +18,42 @@
         <div class="help-content">
             <div class="help-section">
                 <h3>Getting Started</h3>
-                <p>Capture and log network data from TCP and UDP connections. Useful for debugging and monitoring ArcGIS Velocity feeds and other data sources.</p>
+                <p>Capture and log network data from TCP, UDP, HTTP/HTTPS, and gRPC connections. Useful for debugging and monitoring ArcGIS Velocity feeds and other data sources.</p>
             </div>
 
             <div class="help-section">
                 <h3>Connection Types</h3>
                 <ul>
-                    <li><strong>TCP Server:</strong> Listen for incoming TCP connections</li>
-                    <li><strong>TCP Client:</strong> Connect to a remote TCP server</li>
-                    <li><strong>UDP Server:</strong> Listen for UDP packets</li>
-                    <li><strong>UDP Client:</strong> Send UDP packets to a remote server</li>
+                    <li><strong>TCP Server:</strong> Listen for incoming TCP connections from clients</li>
+                    <li><strong>TCP Client:</strong> Connect to a remote TCP server to receive data</li>
+                    <li><strong>UDP Server:</strong> Listen for incoming UDP datagrams</li>
+                    <li><strong>UDP Client:</strong> Send UDP datagrams to a remote server</li>
+                    <li><strong>HTTP Client:</strong> Send data via HTTP/HTTPS POST requests to a remote endpoint (e.g. an ArcGIS Velocity HTTP Receiver feed). Supports JSON, Delimited (CSV), Esri JSON, GeoJSON, and XML formats.</li>
+                    <li><strong>HTTP Server:</strong> Start a local HTTP/HTTPS server that accepts POST requests from clients. Use for receiving data from the Velocity Simulator or other HTTP senders.</li>
+                    <li><strong>gRPC Server:</strong> Start a local gRPC server that accepts incoming RPC calls. Supports Protobuf, Kryo, and Text serialization.</li>
+                    <li><strong>gRPC Client:</strong> Connect to a remote gRPC server using HTTP/2. Supports Protobuf, Kryo, and Text serialization with client-streaming or unary RPCs.</li>
+                </ul>
+            </div>
+
+            <div class="help-section">
+                <h3>HTTP Options</h3>
+                <ul>
+                    <li><strong>Format:</strong> Controls the Content-Type header — JSON (<code>application/json</code>), Delimited/CSV (<code>text/plain</code>), Esri JSON (<code>application/json</code>), GeoJSON (<code>application/geo+json</code>), or XML (<code>application/xml</code>). Must match the format configured in the ArcGIS Velocity HTTP Receiver feed.</li>
+                    <li><strong>TLS:</strong> Enable HTTPS (port 443 by default). Uses the OS certificate store automatically in client mode. Server mode requires a certificate and key.</li>
+                    <li><strong>CA cert path:</strong> Custom CA certificate file (PEM). Leave empty to use the OS certificate store. Only needed for enterprise or self-signed CAs.</li>
+                    <li><strong>TLS cert path:</strong> Client or server certificate file (PEM). Required for server-mode TLS; only needed in client mode for mutual TLS (mTLS).</li>
+                    <li><strong>TLS key path:</strong> Private key file (PEM). Required for server-mode TLS and client-side mTLS.</li>
+                    <li><strong>HTTP Path:</strong> URL path appended after host:port (default <code>/</code>). In server mode, only POST requests matching this path are accepted. In client mode, this path is used in outgoing POST URLs. Set to the Velocity feed's system-generated path (e.g. <code>/receiver/feed-id</code>) when connecting to a real endpoint.</li>
+                </ul>
+            </div>
+
+            <div class="help-section">
+                <h3>gRPC Options</h3>
+                <ul>
+                    <li><strong>Serialization:</strong> Protobuf (default, external GrpcFeed protocol), Kryo (internal GrpcFeatureService, binary), or Text (internal GrpcFeatureService, UTF-8 CSV).</li>
+                    <li><strong>RPC Type:</strong> Client Streaming (persistent stream, higher throughput) or Unary (individual request/response per message).</li>
+                    <li><strong>TLS:</strong> Enable TLS for the gRPC connection. Uses the OS certificate store automatically.</li>
+                    <li><strong>Header Path Key / Path:</strong> Custom gRPC metadata header for endpoint routing (client mode only).</li>
                 </ul>
             </div>
 

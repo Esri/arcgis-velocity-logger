@@ -1913,3 +1913,67 @@ ipcMain.on('disconnect-grpc', () => {
     }
 });
 
+
+// --- HTTP Connection Handling ---
+const { createHttpClientTransport, createHttpServerTransport, FORMAT_CONTENT_TYPES } = require('./http-transport.js');
+let httpTransport = null;
+
+function updateHttpButtonStates(connectionState) {
+    mainWindow.webContents.send('tcp-set-connect-enabled', connectionState === 'disconnected');
+    mainWindow.webContents.send('tcp-set-disconnect-enabled', connectionState === 'connected' || connectionState === 'connecting');
+    mainWindow.webContents.send('tcp-connection-state', connectionState);
+}
+
+ipcMain.on('connect-http', (event, { type, port, host, httpFormat, httpTls, httpTlsCaPath, httpTlsCertPath, httpTlsKeyPath, httpPath }) => {
+    currentConnectionDetails = { protocol: 'http', type, port, host, httpFormat, httpTls, httpTlsCaPath, httpTlsCertPath, httpTlsKeyPath, httpPath };
+    updateHttpButtonStates('connecting');
+    const contentType = FORMAT_CONTENT_TYPES[httpFormat] || 'text/plain';
+
+    const onData = (text, metadata) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            if (metadata) {
+                sendMetadataLine(`[metadata] protocol=HTTP mode=${type} method=${metadata.method} path=${metadata.path} content-type=${metadata.contentType} content-length=${metadata.contentLength} tls=${metadata.tls} remote=${metadata.remote} format=${metadata.httpFormat}`);
+            }
+            mainWindow.webContents.send('log-data', text);
+        }
+    };
+
+    if (type === 'server') {
+        httpTransport = createHttpServerTransport({ ip: host, port, httpFormat, httpPath, httpTls, httpTlsCaPath, httpTlsCertPath, httpTlsKeyPath, onData });
+        httpTransport.connect().then((result) => {
+            const scheme = httpTls ? 'https' : 'http';
+            mainWindow.webContents.send('http-status', `HTTP Server listening on ${scheme}://${result.address.address}:${result.address.port}${httpPath || '/'} [${httpFormat}] Content-Type: ${contentType}\n  ${result.tlsInfo || 'tls=off'}`);
+            updateHttpButtonStates('connected');
+        }).catch((err) => {
+            mainWindow.webContents.send('http-error', err.message);
+            httpTransport = null;
+            updateHttpButtonStates('disconnected');
+        });
+    } else { // client
+        httpTransport = createHttpClientTransport({ ip: host, port, httpFormat, httpPath, httpTls, httpTlsCaPath, httpTlsCertPath, httpTlsKeyPath });
+        httpTransport.connect().then((result) => {
+            mainWindow.webContents.send('http-status', `HTTP Client connected to ${result.address} [${httpFormat}] Content-Type: ${contentType}\n  ${result.tlsInfo || 'tls=off'}`);
+            updateHttpButtonStates('connected');
+        }).catch((err) => {
+            mainWindow.webContents.send('http-error', err.message);
+            httpTransport = null;
+            updateHttpButtonStates('disconnected');
+        });
+    }
+});
+
+ipcMain.on('disconnect-http', () => {
+    updateHttpButtonStates('disconnecting');
+    if (httpTransport) {
+        httpTransport.disconnect().then(() => {
+            mainWindow.webContents.send('http-status', 'HTTP connection closed');
+            httpTransport = null;
+            currentConnectionDetails = null;
+            updateHttpButtonStates('disconnected');
+        });
+    } else {
+        mainWindow.webContents.send('http-status', 'No HTTP connection to disconnect');
+        updateHttpButtonStates('disconnected');
+    }
+});
+

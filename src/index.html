@@ -61,12 +61,14 @@
         <div class="connection-controls">
             <div class="connection-primary">
                 <select id="connection-type">
-                    <option value="tcp-server" selected>TCP Server</option>
-                    <option value="tcp-client">TCP Client</option>
-                    <option value="udp-server">UDP Server</option>
-                    <option value="udp-client">UDP Client</option>
-                    <option value="grpc-server">gRPC Server</option>
-                    <option value="grpc-client">gRPC Client</option>
+                    <option value="tcp-server" selected title="TCP Server — listens on the specified port and accepts incoming TCP connections from clients. Use when the sender (e.g. ArcGIS Velocity Simulator) connects to this logger.">TCP Server</option>
+                    <option value="tcp-client" title="TCP Client — connects to a remote TCP server at the specified host and port to receive data.">TCP Client</option>
+                    <option value="udp-server" title="UDP Server — binds to the specified port and receives incoming UDP datagrams. Connectionless; each datagram is independent.">UDP Server</option>
+                    <option value="udp-client" title="UDP Client — sends UDP datagrams to the specified host and port. Connectionless; no handshake or acknowledgment.">UDP Client</option>
+                    <option value="http-client" title="HTTP Client — sends data via HTTP/HTTPS POST requests to a remote endpoint (e.g. an ArcGIS Velocity HTTP Receiver feed). Supports JSON, CSV, Esri JSON, GeoJSON, and XML formats.">HTTP Client</option>
+                    <option value="http-server" title="HTTP Server — starts a local HTTP/HTTPS server that accepts POST requests from clients. Use for receiving data from the Velocity Simulator or other HTTP senders.">HTTP Server</option>
+                    <option value="grpc-server" title="gRPC Server — starts a local gRPC server that accepts incoming RPC calls from clients. Supports Protobuf, Kryo, and Text serialization.">gRPC Server</option>
+                    <option value="grpc-client" title="gRPC Client — connects to a remote gRPC server using HTTP/2. Supports Protobuf, Kryo, and Text serialization with client-streaming or unary RPCs.">gRPC Client</option>
                 </select>
                 <input type="text" id="host" placeholder="Host (e.g., 127.0.0.1)" value="127.0.0.1">
                 <input type="number" id="port" placeholder="Port (e.g., 5565)" value="5565">
@@ -89,6 +91,20 @@
                 <input type="text" id="grpc-tls-ca-path" placeholder="CA cert path" title="Path to CA certificate (PEM)" style="display: none;">
                 <input type="text" id="grpc-tls-cert-path" placeholder="TLS cert path" title="Path to client/server certificate (PEM)" style="display: none;">
                 <input type="text" id="grpc-tls-key-path" placeholder="TLS key path" title="Path to private key (PEM)" style="display: none;">
+            </div>
+            <div class="http-options-row" aria-label="HTTP options" style="display: none;">
+                <select id="http-format" title="HTTP data format — controls the Content-Type header used when sending/receiving data. Must match the format configured in the ArcGIS Velocity HTTP Receiver feed.">
+                    <option value="json" selected title="JSON — sends data as application/json. The standard format for most HTTP feeds. Each request body is a JSON object or array.">JSON</option>
+                    <option value="delimited" title="Delimited (CSV) — sends data as text/plain. Each line is a comma-separated row. Best for simple tabular data without nested structures.">Delimited (CSV)</option>
+                    <option value="esri-json" title="Esri JSON — sends data as application/json using the Esri Feature JSON schema (with geometry and attributes objects). Use when the receiver expects ArcGIS-native feature format.">Esri JSON</option>
+                    <option value="geo-json" title="GeoJSON — sends data as application/geo+json per RFC 7946. Use when the receiver expects standard GeoJSON FeatureCollections.">GeoJSON</option>
+                    <option value="xml" title="XML — sends data as application/xml. Use when the receiver expects XML-formatted payloads.">XML</option>
+                </select>
+                <label id="http-tls-label"><input type="checkbox" id="http-tls" checked title="Enable TLS (HTTPS) for the HTTP connection. When checked, the connection uses HTTPS (port 443 by default). When unchecked, uses plain HTTP (port 80). In client mode, the OS certificate store is used automatically; in server mode, a certificate and key must be provided."> TLS</label>
+                <input type="text" id="http-tls-ca-path" placeholder="CA cert path" title="Path to a custom CA certificate file (PEM). Leave empty to use the OS certificate store automatically. Only needed for enterprise or self-signed CAs not in the system trust store." style="display: none;">
+                <input type="text" id="http-tls-cert-path" placeholder="TLS cert path" title="Path to a client or server certificate file (PEM). Required for server-mode TLS. For client mode, only needed for mutual TLS (mTLS) authentication." style="display: none;">
+                <input type="text" id="http-tls-key-path" placeholder="TLS key path" title="Path to the private key file (PEM) corresponding to the TLS certificate. Required for server-mode TLS and client-side mTLS." style="display: none;">
+                <input type="text" id="http-path" value="/" placeholder="/" title="HTTP endpoint URL path appended after the host:port (e.g. /receiver/feed-id). In server mode, only POST requests matching this path are accepted; all others return 404. In client mode, this path is used in the outgoing POST request URL. Default is /." class="http-path-input">
             </div>
         </div>
         <pre id="logs"></pre>

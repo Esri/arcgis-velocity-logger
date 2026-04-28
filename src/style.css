@@ -224,6 +224,12 @@ h1 {
     text-align-last: left;
 }
 
+/* HTTP options row control sizing */
+#http-format {
+    text-align: left;
+    text-align-last: left;
+}
+
 #grpc-header-path-key {
     width: 90px;
     min-width: 70px;
@@ -378,9 +384,32 @@ button:disabled {
 /* TLS cert path inputs stretch to fill available space */
 #grpc-tls-ca-path,
 #grpc-tls-cert-path,
-#grpc-tls-key-path {
+#grpc-tls-key-path,
+#http-tls-ca-path,
+#http-tls-cert-path,
+#http-tls-key-path,
+#http-path {
     flex: 1;
     min-width: 110px;
+    text-align: left;
+}
+
+/* HTTP options row mirrors gRPC options row layout */
+.http-options-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    flex-wrap: wrap;
+}
+
+.http-options-row select,
+.http-options-row input[type="text"] {
+    text-align: left;
+}
+
+.http-path-input {
+    max-width: 80px;
 }
 
 /* Status Components */

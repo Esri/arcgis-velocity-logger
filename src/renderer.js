@@ -39,6 +39,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleOrderBtn = document.getElementById('toggle-order-btn');
     const connectionControls = document.querySelector('.connection-controls');
     const grpcOptionsRow = document.querySelector('.grpc-options-row');
+    const httpOptionsRow = document.querySelector('.http-options-row');
+    const httpFormatSelect = document.getElementById('http-format');
+    const httpTlsCheckbox = document.getElementById('http-tls');
+    const httpTlsCaInput = document.getElementById('http-tls-ca-path');
+    const httpTlsCertInput = document.getElementById('http-tls-cert-path');
+    const httpTlsKeyInput = document.getElementById('http-tls-key-path');
+    const httpPathInput = document.getElementById('http-path');
     const logs = document.getElementById('logs');
     const statusDisplay = document.getElementById('status');
     const lineCounter = document.getElementById('line-counter');
@@ -58,6 +65,14 @@ document.addEventListener('DOMContentLoaded', () => {
         unary: 'gRPC RPC Type: Unary. Each message is sent as a discrete request/response round-trip — one request in, one response out. The simplest gRPC call pattern, analogous to a traditional REST call. Easier to trace and debug, but incurs per-call overhead (HTTP/2 framing, header compression). Maps to Send (GrpcFeed) or execute (GrpcFeatureService).',
     };
 
+    const HTTP_FORMAT_TOOLTIPS = {
+        json: 'HTTP Format: JSON (application/json). The standard format for most HTTP feeds. Each request body is a JSON object or array of features.',
+        delimited: 'HTTP Format: Delimited / CSV (text/plain). Each line is a comma-separated row of field values. Best for simple tabular data without nested structures.',
+        'esri-json': 'HTTP Format: Esri JSON (application/json). Uses the Esri Feature JSON schema with geometry and attributes objects. Use when the Velocity HTTP Receiver expects ArcGIS-native feature format.',
+        'geo-json': 'HTTP Format: GeoJSON (application/geo+json). Standard GeoJSON per RFC 7946 with FeatureCollection and Feature objects. Use when the receiver expects standard geospatial interchange format.',
+        xml: 'HTTP Format: XML (application/xml). Sends data as XML-formatted payloads. Use when the Velocity HTTP Receiver is configured for XML input.',
+    };
+
     function updateGrpcSerializationTooltip() {
         const tooltip = GRPC_SERIALIZATION_TOOLTIPS[grpcSerializationSelect.value] || GRPC_SERIALIZATION_TOOLTIPS.protobuf;
         grpcSerializationSelect.title = tooltip;
@@ -68,6 +83,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const tooltip = GRPC_SEND_METHOD_TOOLTIPS[grpcSendMethodSelect.value] || GRPC_SEND_METHOD_TOOLTIPS.stream;
         grpcSendMethodSelect.title = tooltip;
         grpcSendMethodSelect.setAttribute('aria-label', tooltip);
+    }
+
+    function updateHttpFormatTooltip() {
+        if (!httpFormatSelect) return;
+        const tooltip = HTTP_FORMAT_TOOLTIPS[httpFormatSelect.value] || HTTP_FORMAT_TOOLTIPS.json;
+        httpFormatSelect.title = tooltip;
+        httpFormatSelect.setAttribute('aria-label', tooltip);
+    }
+
+    const CONNECTION_MODE_TOOLTIPS = {
+        'tcp-server': 'TCP Server — listens on the specified port and accepts incoming TCP connections from clients.',
+        'tcp-client': 'TCP Client — connects to a remote TCP server at the specified host and port to receive data.',
+        'udp-server': 'UDP Server — binds to the specified port and receives incoming UDP datagrams.',
+        'udp-client': 'UDP Client — sends UDP datagrams to the specified host and port.',
+        'http-client': 'HTTP Client — sends data via HTTP/HTTPS POST requests to a remote endpoint.',
+        'http-server': 'HTTP Server — starts a local HTTP/HTTPS server that accepts POST requests from clients.',
+        'grpc-server': 'gRPC Server — starts a local gRPC server that accepts incoming RPC calls.',
+        'grpc-client': 'gRPC Client — connects to a remote gRPC server using HTTP/2.',
+    };
+
+    function updateConnectionModeTooltip() {
+        const tooltip = CONNECTION_MODE_TOOLTIPS[connectionTypeSelect.value] || '';
+        connectionTypeSelect.title = tooltip;
+        connectionTypeSelect.setAttribute('aria-label', tooltip);
     }
 
     // Show/hide gRPC options row and individual controls based on connection type
@@ -107,9 +146,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Default ports per protocol
+    const DEFAULT_PORTS = { tcp: 5565, udp: 5565, grpc: 5565, http: 443 };
+    const HTTP_PORT_TLS_ON = 443;
+    const HTTP_PORT_TLS_OFF = 80;
+    let lastProtocolDefault = 5565;
+
     function updateGrpcRowVisibility() {
         const isGrpc = connectionTypeSelect.value.startsWith('grpc');
         const isGrpcClient = connectionTypeSelect.value === 'grpc-client';
+        const isHttp = connectionTypeSelect.value.startsWith('http');
 
         if (isGrpc) {
             grpcOptionsRow.classList.add('visible');
@@ -124,13 +170,40 @@ document.addEventListener('DOMContentLoaded', () => {
             clearGrpcAutoHideTimer();
         }
 
+        // HTTP options row
+        if (httpOptionsRow) {
+            httpOptionsRow.style.display = isHttp ? '' : 'none';
+            if (isHttp) {
+                const showTlsCerts = httpTlsCheckbox.checked;
+                httpTlsCaInput.style.display = showTlsCerts ? '' : 'none';
+                httpTlsCertInput.style.display = showTlsCerts ? '' : 'none';
+                httpTlsKeyInput.style.display = showTlsCerts ? '' : 'none';
+            }
+        }
+
         grpcHeaderPathKeyInput.style.display = isGrpcClient ? '' : 'none';
         grpcHeaderPathInput.style.display = isGrpcClient ? '' : 'none';
         const showTlsCerts = isGrpc && grpcTlsCheckbox.checked;
         grpcTlsCaInput.style.display = showTlsCerts ? '' : 'none';
         grpcTlsCertInput.style.display = showTlsCerts ? '' : 'none';
         grpcTlsKeyInput.style.display = showTlsCerts ? '' : 'none';
+
+        // Smart port switching
+        const currentPort = parseInt(portInput.value, 10);
+        const protocol = connectionTypeSelect.value.split('-')[0];
+        let newDefault;
+        if (isHttp) {
+            newDefault = httpTlsCheckbox.checked ? HTTP_PORT_TLS_ON : HTTP_PORT_TLS_OFF;
+        } else {
+            newDefault = DEFAULT_PORTS[protocol] || 5565;
+        }
+        if (currentPort === lastProtocolDefault || isNaN(currentPort)) {
+            portInput.value = newDefault;
+        }
+        lastProtocolDefault = newDefault;
+
         updateGrpcSerializationTooltip();
+        updateConnectionModeTooltip();
     }
 
     connectionTypeSelect.addEventListener('change', updateGrpcRowVisibility);
@@ -141,6 +214,14 @@ document.addEventListener('DOMContentLoaded', () => {
     grpcSendMethodSelect.addEventListener('change', updateGrpcSendMethodTooltip);
     updateGrpcSendMethodTooltip();
 
+    if (httpFormatSelect) {
+        httpFormatSelect.addEventListener('change', updateHttpFormatTooltip);
+        updateHttpFormatTooltip();
+    }
+
+    connectionTypeSelect.addEventListener('change', updateConnectionModeTooltip);
+    updateConnectionModeTooltip();
+
     grpcTlsCheckbox.addEventListener('change', () => {
         const isGrpc = connectionTypeSelect.value.startsWith('grpc');
         const show = isGrpc && grpcTlsCheckbox.checked;
@@ -148,6 +229,28 @@ document.addEventListener('DOMContentLoaded', () => {
         grpcTlsCertInput.style.display = show ? '' : 'none';
         grpcTlsKeyInput.style.display = show ? '' : 'none';
     });
+
+    // HTTP TLS checkbox handler
+    if (httpTlsCheckbox) {
+        httpTlsCheckbox.addEventListener('change', () => {
+            const isHttp = connectionTypeSelect.value.startsWith('http');
+            const show = isHttp && httpTlsCheckbox.checked;
+            if (httpTlsCaInput) httpTlsCaInput.style.display = show ? '' : 'none';
+            if (httpTlsCertInput) httpTlsCertInput.style.display = show ? '' : 'none';
+            if (httpTlsKeyInput) httpTlsKeyInput.style.display = show ? '' : 'none';
+            // Smart port switch between 80 and 443
+            if (isHttp) {
+                const currentPort = parseInt(portInput.value, 10);
+                if (httpTlsCheckbox.checked && currentPort === HTTP_PORT_TLS_OFF) {
+                    portInput.value = HTTP_PORT_TLS_ON;
+                    lastProtocolDefault = HTTP_PORT_TLS_ON;
+                } else if (!httpTlsCheckbox.checked && currentPort === HTTP_PORT_TLS_ON) {
+                    portInput.value = HTTP_PORT_TLS_OFF;
+                    lastProtocolDefault = HTTP_PORT_TLS_OFF;
+                }
+            }
+        });
+    }
 
     // Apply initial gRPC row state on load (in case a gRPC mode is pre-selected)
     updateGrpcRowVisibility();
@@ -406,6 +509,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const headerLabel = type === 'client' ? ` ${headerPathKey}=${headerPath}` : '';
             statusDisplay.textContent = `Connecting via gRPC ${type} to ${host}:${port} [${serialization}] ${methodLabel} ${tlsLabel}${headerLabel}...`;
             window.electronAPI.send('connect-grpc', { type, port, host, grpcSerialization: serialization, grpcSendMethod, headerPathKey, headerPath, useTls, tlsCaPath, tlsCertPath, tlsKeyPath });
+        } else if (connectionType.startsWith('http')) {
+            const type = connectionType.split('-')[1];
+            const httpFormat = httpFormatSelect ? httpFormatSelect.value : 'json';
+            const httpTls = httpTlsCheckbox ? httpTlsCheckbox.checked : true;
+            const httpTlsCaPath = httpTlsCaInput ? httpTlsCaInput.value || undefined : undefined;
+            const httpTlsCertPath = httpTlsCertInput ? httpTlsCertInput.value || undefined : undefined;
+            const httpTlsKeyPath = httpTlsKeyInput ? httpTlsKeyInput.value || undefined : undefined;
+            const httpPath = httpPathInput ? httpPathInput.value || '/' : '/';
+            const tlsLabel = httpTls ? 'tls=on' : 'tls=off';
+            statusDisplay.textContent = `Connecting via HTTP ${type} to ${host}:${port} [${httpFormat}] ${tlsLabel} path=${httpPath}...`;
+            window.electronAPI.send('connect-http', { type, port, host, httpFormat, httpTls, httpTlsCaPath, httpTlsCertPath, httpTlsKeyPath, httpPath });
         }
     });
 
@@ -420,6 +534,8 @@ document.addEventListener('DOMContentLoaded', () => {
             window.electronAPI.send('disconnect-udp');
         } else if (connectionType.startsWith('grpc')) {
             window.electronAPI.send('disconnect-grpc');
+        } else if (connectionType.startsWith('http')) {
+            window.electronAPI.send('disconnect-http');
         }
     });
 
@@ -743,6 +859,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.electronAPI.on('grpc-error', (message) => {
+        showErrorDialog(message);
+        statusDisplay.textContent = `Error: ${message}`;
+        setAppStatus(Status.ERROR);
+    });
+
+    window.electronAPI.on('http-status', (message) => {
+        if (statusElement) {
+            statusElement.textContent = message;
+            statusElement.title = message;
+        }
+        if (statusDisplay) {
+            statusDisplay.textContent = message;
+        }
+    });
+
+    window.electronAPI.on('http-error', (message) => {
         showErrorDialog(message);
         statusDisplay.textContent = `Error: ${message}`;
         setAppStatus(Status.ERROR);

@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const validChannels = [
       'save-theme', 'connect-tcp', 'disconnect-tcp', 
       'connect-udp', 'disconnect-udp', 'connect-grpc', 'disconnect-grpc',
+      'connect-http', 'disconnect-http',
       'copy-to-clipboard',
       'open-external-link', 'close-about-dialog', 'close-dialog',
       'help-dialog-ready', 'about-dialog-ready', 'cli-dialog-ready', 'show-cli-dialog', 'connection-line-state-changed',
@@ -50,6 +51,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'font-size-changed', 'font-family-changed', 'log-data',
       'tcp-status', 'udp-status', 'tcp-error', 'udp-error',
       'grpc-status', 'grpc-error',
+      'http-status', 'http-error',
       'udp-set-connect-enabled', 'udp-set-disconnect-enabled',
       'udp-set-inputs-enabled', 'udp-connection-state',
       'tcp-set-connect-enabled', 'tcp-set-disconnect-enabled',
