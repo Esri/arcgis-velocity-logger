@@ -2026,7 +2026,7 @@ ipcMain.on('connect-ws', (event, { type, port, host, wsFormat, wsTls, wsTlsCaPat
     const contentType = WS_CONTENT_TYPES[wsFormat] || 'text/plain';
 
     const onData = (data, metadata) => {
-        if (showMetadataEnabled && metadata) {
+        if (metadata) {
             sendMetadataLine(`[metadata] protocol=WebSocket mode=${type} path=${metadata.path || wsPath} content-type=${metadata.contentType || contentType} tls=${metadata.tls || (wsTls ? 'on (WSS)' : 'off (WS)')} remote=${metadata.remote || 'unknown'} format=${wsFormat}`);
         }
         mainWindow.webContents.send('log-data', data);
