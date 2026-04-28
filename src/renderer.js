@@ -165,9 +165,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Default ports per protocol
-    const DEFAULT_PORTS = { tcp: 5565, udp: 5565, grpc: 5565, http: 443 };
-    const HTTP_PORT_TLS_ON = 443;
-    const HTTP_PORT_TLS_OFF = 80;
+    const DEFAULT_PORTS = { tcp: 5565, udp: 5565, grpc: 5565, http: 8443 };
+    const HTTP_PORT_TLS_ON = 8443;
+    const HTTP_PORT_TLS_OFF = 8080;
     let lastProtocolDefault = 5565;
 
     function updateGrpcRowVisibility() {
@@ -288,7 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (httpTlsCaInput) httpTlsCaInput.style.display = show ? '' : 'none';
             if (httpTlsCertInput) httpTlsCertInput.style.display = show ? '' : 'none';
             if (httpTlsKeyInput) httpTlsKeyInput.style.display = show ? '' : 'none';
-            // Smart port switch between 80 and 443
+            // Smart port switch between 8080 and 8443
             if (isHttp) {
                 const currentPort = parseInt(portInput.value, 10);
                 if (httpTlsCheckbox.checked && currentPort === HTTP_PORT_TLS_OFF) {
@@ -975,12 +975,14 @@ document.addEventListener('DOMContentLoaded', () => {
         showErrorDialog(message);
         statusDisplay.textContent = `Error: ${message}`;
         setAppStatus(Status.ERROR);
+        setConnectionControls('disconnected');
     });
 
     window.electronAPI.on('tcp-error', (message) => {
         showErrorDialog(message);
         statusDisplay.textContent = `Error: ${message}`;
         setAppStatus(Status.ERROR);
+        setConnectionControls('disconnected');
     });
 
     window.electronAPI.on('grpc-status', (message) => {
@@ -997,6 +999,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showErrorDialog(message);
         statusDisplay.textContent = `Error: ${message}`;
         setAppStatus(Status.ERROR);
+        setConnectionControls('disconnected');
     });
 
     window.electronAPI.on('http-status', (message) => {
@@ -1013,6 +1016,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showErrorDialog(message);
         statusDisplay.textContent = `Error: ${message}`;
         setAppStatus(Status.ERROR);
+        setConnectionControls('disconnected');
     });
 
     window.electronAPI.on('ws-status', (message) => {
@@ -1029,6 +1033,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showErrorDialog(message);
         statusDisplay.textContent = `Error: ${message}`;
         setAppStatus(Status.ERROR);
+        setConnectionControls('disconnected');
     });
 
 
