@@ -1099,5 +1099,54 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.electronAPI.on('trigger-clear-logs', clearLogsContent);
 
+    // --- Inspect Element pick mode ---
+    // Activated by the "Inspect Element Mode" menu item (checkbox): changes cursor to a
+    // crosshair and on the next click sends the coordinates to the main process, which calls
+    // webContents.inspectElement(x, y) to highlight the element in DevTools.
+    // Deactivated by toggling the menu item again, pressing Escape, or completing a pick.
+    let pickCleanup = null;
+
+    function cancelPickMode() {
+      if (!pickCleanup) return;
+      pickCleanup();
+      pickCleanup = null;
+      document.body.style.cursor = '';
+      window.electronAPI.send('inspect-element-done');
+    }
+
+    const onEscapeCancel = (e) => {
+      if (e.key === 'Escape') cancelPickMode();
+    };
+
+    window.electronAPI.on('enter-inspect-mode', () => {
+      document.body.style.cursor = 'crosshair';
+
+      const onPick = (e) => {
+        document.body.style.cursor = '';
+        pickCleanup = null;
+        document.removeEventListener('keydown', onEscapeCancel, { capture: true });
+        window.electronAPI.send('inspect-element', { x: e.clientX, y: e.clientY });
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      };
+
+      pickCleanup = () => {
+        document.removeEventListener('click', onPick, { capture: true });
+        document.removeEventListener('keydown', onEscapeCancel, { capture: true });
+      };
+
+      document.addEventListener('click', onPick, { capture: true, once: true });
+      document.addEventListener('keydown', onEscapeCancel, { capture: true });
+    });
+
+    // Main process toggled the checkbox off while pick mode was still pending
+    window.electronAPI.on('cancel-inspect-mode', () => {
+      if (pickCleanup) {
+        pickCleanup();
+        pickCleanup = null;
+        document.body.style.cursor = '';
+      }
+    });
+
 
 });

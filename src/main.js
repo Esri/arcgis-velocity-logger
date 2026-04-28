@@ -91,6 +91,8 @@ let configManager;
 let appConfig;
 let connectionLineVisible = true; // Track connection line visibility state
 let showMetadataEnabled = false; // Track "Show Metadata" state — logs connection/call metadata for all protocols
+let inspectModeActive = false; // Tracks whether Inspect Element pick mode is active.
+let devToolsOpen = false; // Tracks whether DevTools is currently open (synced via devtools-opened/closed events).
 
 
 /**
@@ -314,6 +316,21 @@ function createWindow() {
 
     mainWindow.on('closed', () => {
       mainWindow = null;
+    });
+
+    // Keep devToolsOpen flag and menu checkboxes in sync regardless of how DevTools was opened/closed.
+    mainWindow.webContents.on('devtools-opened', () => {
+      devToolsOpen = true;
+      createMainMenu();
+    });
+    mainWindow.webContents.on('devtools-closed', () => {
+      devToolsOpen = false;
+      // Also clear inspect pick mode if DevTools was closed externally
+      if (inspectModeActive) {
+        inspectModeActive = false;
+        mainWindow && mainWindow.webContents.send('cancel-inspect-mode');
+      }
+      createMainMenu();
     });
 
     // Re-apply settings on load/reload to ensure config persistence
@@ -1142,8 +1159,29 @@ function buildContextMenu() {
     {
       label: 'Toggle Developer Tools',
       accelerator: 'F12',
+      type: 'checkbox',
+      checked: devToolsOpen,
       click: () => {
         if (mainWindow) mainWindow.webContents.toggleDevTools();
+      }
+    },
+    {
+      label: 'Inspect Element Mode',
+      accelerator: 'F11',
+      type: 'checkbox',
+      checked: inspectModeActive,
+      click: () => {
+        if (!mainWindow) return;
+        inspectModeActive = !inspectModeActive;
+        if (inspectModeActive) {
+          if (!mainWindow.webContents.isDevToolsOpened()) {
+            mainWindow.webContents.openDevTools({ mode: 'detach' });
+          }
+          mainWindow.webContents.send('enter-inspect-mode');
+        } else {
+          mainWindow.webContents.send('cancel-inspect-mode');
+        }
+        createMainMenu();
       }
     },
     {
@@ -1368,6 +1406,8 @@ function createMainMenu() {
         {
           label: 'Toggle Developer Tools',
           accelerator: 'F12',
+          type: 'checkbox',
+          checked: devToolsOpen,
           click: () => {
             if (mainWindow && mainWindow.webContents.isDevToolsOpened()) {
               mainWindow.webContents.closeDevTools();
@@ -1376,7 +1416,26 @@ function createMainMenu() {
             }
           }
         },
-        { 
+        {
+          label: 'Inspect Element Mode',
+          accelerator: 'F11',
+          type: 'checkbox',
+          checked: inspectModeActive,
+          click: () => {
+            if (!mainWindow) return;
+            inspectModeActive = !inspectModeActive;
+            if (inspectModeActive) {
+              if (!mainWindow.webContents.isDevToolsOpened()) {
+                mainWindow.webContents.openDevTools({ mode: 'detach' });
+              }
+              mainWindow.webContents.send('enter-inspect-mode');
+            } else {
+              mainWindow.webContents.send('cancel-inspect-mode');
+            }
+            createMainMenu();
+          }
+        },
+        {
           label: 'About',
           accelerator: 'F2',
           click: () => showAboutDialog()
@@ -1441,6 +1500,20 @@ ipcMain.on('connection-line-state-changed', (event, isVisible) => {
 ipcMain.on('show-metadata-state-changed', (event, isEnabled) => {
   showMetadataEnabled = isEnabled;
   // Rebuild the main menu so its checkbox reflects the new state
+  createMainMenu();
+});
+
+// Inspect element at the coordinates reported by the renderer's pick-mode click.
+ipcMain.on('inspect-element', (event, { x, y }) => {
+  event.sender.inspectElement(x, y);
+  // Clear active state once the pick completes, then sync both menus.
+  inspectModeActive = false;
+  createMainMenu();
+});
+
+// Renderer cancelled inspect mode (Escape key or explicit cancel).
+ipcMain.on('inspect-element-done', () => {
+  inspectModeActive = false;
   createMainMenu();
 });
 

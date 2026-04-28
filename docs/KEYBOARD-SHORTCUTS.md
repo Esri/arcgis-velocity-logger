@@ -12,6 +12,7 @@
 | About dialog | `F2` | `F2` |
 | CLI Reference dialog | `F3` | `F3` |
 | Toggle developer tools | `F12` | `F12` |
+| Toggle Inspect Element Mode | `F11` | `F11` |
 | Configuration dialog | `Cmd+I` | `Ctrl+I` |
 | Close open dialog | `Escape` | `Escape` |
 | Quit | `Cmd+Q` | `Ctrl+Q` |
@@ -38,7 +39,9 @@ Available actions:
 - **Save / Clear Logs**
 - **Show Metadata** — toggle connection/call metadata lines before each log entry
 - **CLI Reference** — open the `F3` dialog
-- **Developer Tools** / **Help** / **About**
+- **Developer Tools** (`F12`, checkbox — checked when open) / **Inspect Element Mode** (`F11`, checkbox — checked while pick mode is active; also checks Developer Tools automatically) / **Help** / **About**
+
+> Both checkboxes are fully synced between the app menu and context menu. Closing DevTools externally automatically unchecks both entries and cancels any active pick mode.
 - **App Config** — Show, Apply, Save, Reset
 - **Launch Config** — Show, Apply, Save
 

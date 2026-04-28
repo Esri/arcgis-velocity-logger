@@ -27,7 +27,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'copy-to-clipboard',
       'open-external-link', 'close-about-dialog', 'close-dialog',
       'help-dialog-ready', 'about-dialog-ready', 'cli-dialog-ready', 'show-cli-dialog', 'connection-line-state-changed',
-      'show-metadata-state-changed'
+      'show-metadata-state-changed',
+      'inspect-element',
+      'inspect-element-done'
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
@@ -63,7 +65,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'toggle-connection-line-menu',
       'toggle-show-metadata-menu',
       'log-metadata',
-      'cli-presets'
+      'cli-presets',
+      'enter-inspect-mode',
+      'cancel-inspect-mode'
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, (event, ...args) => callback(...args));
