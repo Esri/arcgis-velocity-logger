@@ -5,10 +5,16 @@
   },
   "connection": {
     "autoConnect": true,
+    "httpFormat": "delimited",
+    "httpPath": "/",
+    "httpTls": true,
     "ip": "0.0.0.0",
     "mode": "server",
     "port": 5565,
-    "protocol": "tcp"
+    "protocol": "tcp",
+    "wsFormat": "delimited",
+    "wsPath": "/",
+    "wsTls": true
   },
   "headless": {
     "runId": "server-capture",

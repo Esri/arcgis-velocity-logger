@@ -14,13 +14,19 @@
     "grpcHeaderPath": "replace.with.dedicated.uid",
     "grpcHeaderPathKey": "grpc-path",
     "grpcSerialization": "protobuf",
-    "httpFormat": "json",
+    "httpFormat": "delimited",
     "httpPath": "/",
     "httpTls": true,
     "ip": "127.0.0.1",
     "mode": "server",
     "port": 5565,
-    "protocol": "tcp"
+    "protocol": "tcp",
+    "wsFormat": "delimited",
+    "wsHeaders": null,
+    "wsIgnoreFirstMsg": false,
+    "wsPath": "/",
+    "wsSubscriptionMsg": null,
+    "wsTls": true
   },
   "headless": {
     "runId": "sample-run",

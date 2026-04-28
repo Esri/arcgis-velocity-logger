@@ -25,6 +25,7 @@ A cross-platform desktop application for capturing and logging network data from
 | [Documentation Index](./docs/DOCUMENTATION.md) | Full doc index with audience classification and maintenance notes |
 | [gRPC Transport](./docs/GRPC.md) | gRPC modes, serialization formats (Protobuf/Kryo/Text), and TLS |
 | [HTTP Transport](./docs/HTTP.md) | HTTP/HTTPS modes, data formats (JSON/CSV/Esri JSON/GeoJSON/XML), and TLS |
+| [WebSocket Transport](./docs/WEBSOCKET.md) | WebSocket (ws/wss) modes, formats, TLS, subscription messages, custom headers |
 | [Headless Mode](./docs/HEADLESS.md) | No-UI capture: parameters, config file workflow, output formats, done file |
 | [Keyboard Shortcuts](./docs/KEYBOARD-SHORTCUTS.md) | All keyboard shortcuts and context menu reference |
 | [Release Notes](./docs/RELEASE-NOTES.md) | User-facing features and changes by release |

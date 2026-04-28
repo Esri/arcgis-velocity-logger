@@ -2,7 +2,7 @@
 
 ## Application Overview
 
-The ArcGIS Velocity Logger is an Electron desktop app for capturing network data over TCP, UDP, and gRPC. It runs in two modes:
+The ArcGIS Velocity Logger is an Electron desktop app for capturing network data over TCP, UDP, HTTP/HTTPS, WebSocket, and gRPC. It runs in two modes:
 
 - **UI mode** (default) — `npm start`; restores saved config (theme, fonts, window, opacity).
 - **Headless mode** — `electron . runMode=headless`; no BrowserWindow, suitable for servers and CI. See [HEADLESS.md](./HEADLESS.md).
@@ -15,7 +15,7 @@ process.argv
      ▼
 cli-options.parseCommandLineArgs()  →  help/error: print + exit
      │
-     ├── headless ──► headless-runner.js  (TCP/UDP/gRPC → file/stdout)
+     ├── headless ──► headless-runner.js  (TCP/UDP/HTTP/WS/gRPC → file/stdout)
      │
      └── ui ────────► BrowserWindow + IPC + ConfigManager
 ```
@@ -37,7 +37,7 @@ IPC is the only communication path between main and renderer. `preload.js` enfor
 
 ### `main.js`
 - Parses CLI args early via `cli-options.parseCommandLineArgs()`; decides `ui` / `headless` / `help` / `error` before any window is created
-- Manages TCP/UDP/gRPC network connections and forwards data to the renderer via IPC
+- Manages TCP/UDP/HTTP/WebSocket/gRPC network connections and forwards data to the renderer via IPC
 - Owns `ConfigManager`, window lifecycle, file I/O, and error dialogs
 - In headless mode delegates to `headless-runner.runHeadlessSession()` and preserves exit codes: `0` success, `1` config error, `2` runtime error
 
@@ -55,7 +55,7 @@ IPC is the only communication path between main and renderer. `preload.js` enfor
 - Feeds the in-app CLI dialog (`F3`) so terminal help, UI table, and markdown docs stay aligned
 
 ### `headless-runner.js`
-- No-UI TCP/UDP/gRPC capture pipeline
+- No-UI TCP/UDP/HTTP/WebSocket/gRPC capture pipeline
 - Applies `filter`/`exclude` regexes, writes `text`/`jsonl`/`csv` output, honours `maxLogCount`/`durationMs`/`idleTimeoutMs`
 - Writes a JSON `doneFile` on success and failure
 - Exit codes: `0` / `1` / `2`
@@ -100,11 +100,13 @@ docs/
 |----------|-------------|-------------|
 | TCP | Listens on port, accepts connections | Connects to remote host:port |
 | UDP | Binds port, receives datagrams | Sends datagrams to remote |
+| HTTP | Starts HTTP/HTTPS server, accepts POSTs | Sends POST requests to remote endpoint |
+| WebSocket | Starts WS/WSS server, accepts connections | Connects to remote WS/WSS server |
 | gRPC | Hosts `GrpcFeed` / `GrpcFeatureService` | Calls `Watch`/`watch` to subscribe |
 
 Metadata capture: every received message is preceded by a `log-metadata` IPC event. The renderer buffers these in parallel with log lines; Show Metadata toggle shows/hides them retroactively without reconnecting.
 
-See [GRPC.md](./GRPC.md) for full gRPC details.
+See [GRPC.md](./GRPC.md) for full gRPC details. See [HTTP.md](./HTTP.md) for HTTP details. See [WEBSOCKET.md](./WEBSOCKET.md) for WebSocket details.
 
 ## UI Components
 
@@ -112,7 +114,7 @@ See [GRPC.md](./GRPC.md) for full gRPC details.
 15 built-in themes, each a `src/themes/theme-*.css` file loaded dynamically by `theme-loader.js`. A minimal fallback in `themes.css` ensures a usable UI if the loader fails.
 
 ### Header Controls
-Single-row layout; progressively hides lower-priority controls as the window narrows. gRPC options live in a collapsible second row that auto-shows when a gRPC mode is selected.
+Single-row layout; progressively hides lower-priority controls as the window narrows. gRPC and WebSocket options live in collapsible rows that auto-show when the corresponding mode is selected.
 
 ### Dialog System
 
@@ -150,11 +152,11 @@ Single-row layout; progressively hides lower-priority controls as the window nar
 
 - **Event Cleanup**: Proper event listener removal on disconnect/close
 - **Log Buffering**: Parallel log/metadata buffers with bounded growth
-- **Resource Disposal**: Network socket and gRPC stream cleanup
+- **Resource Disposal**: Network socket, WebSocket, and gRPC stream cleanup
 
 ### Network Optimization
 
-- **Connection Management**: Efficient TCP/UDP/gRPC lifecycle handling
+- **Connection Management**: Efficient TCP/UDP/HTTP/WebSocket/gRPC lifecycle handling
 - **Data Buffering**: Optimized receive-path for high-throughput streams
 - **Error Recovery**: Graceful network failure handling with reconnect support
 
@@ -178,6 +180,7 @@ Single-row layout; progressively hides lower-priority controls as the window nar
 - **Network Errors**: Connection failures, port conflicts, timeout handling
 - **File System Errors**: Permission issues, disk full, corrupted config
 - **gRPC Errors**: Certificate issues, serialization failures, stream resets
+- **WebSocket Errors**: Connection failures, invalid headers, TLS certificate issues
 - **Configuration Errors**: Invalid settings, malformed JSON, migration issues
 
 ## Testing Architecture
@@ -223,7 +226,7 @@ See [BUILD.md](./BUILD.md) for all build commands and options.
 
 ### Design Principles
 
-- **DRY (Don't Repeat Yourself)**: Shared logic must be extracted into dedicated utility modules. For example, TLS/certificate-store operations are centralized in `src/tls-utils.js` and consumed by both `grpc-transport.js` and `http-transport.js` rather than duplicated.
+- **DRY (Don't Repeat Yourself)**: Shared logic must be extracted into dedicated utility modules. For example, TLS/certificate-store operations are centralized in `src/tls-utils.js` and data format constants are centralized in `src/format-utils.js` — both consumed by `grpc-transport.js`, `http-transport.js`, and `ws-transport.js` rather than duplicated.
 
 ### Scalability
 

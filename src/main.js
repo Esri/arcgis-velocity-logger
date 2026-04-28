@@ -777,6 +777,12 @@ async function getCurrentLaunchConfig() {
         grpcHeaderPathKey: getVal('grpc-header-path-key') || 'grpc-path',
         grpcSendMethod: getVal('grpc-send-method') || 'stream',
         grpcSerialization: getVal('grpc-serialization') || 'protobuf',
+        httpFormat: getVal('http-format') || 'delimited',
+        httpPath: getVal('http-path') || '/',
+        httpTls: getChecked('http-tls'),
+        httpTlsCaPath: getVal('http-tls-ca-path') || null,
+        httpTlsCertPath: getVal('http-tls-cert-path') || null,
+        httpTlsKeyPath: getVal('http-tls-key-path') || null,
         ip: getVal('host') || '127.0.0.1',
         mode: parts[1] || 'server',
         port: parseInt(getVal('port'), 10) || 5565,
@@ -785,6 +791,15 @@ async function getCurrentLaunchConfig() {
         tlsCertPath: getVal('grpc-tls-cert-path') || null,
         tlsKeyPath: getVal('grpc-tls-key-path') || null,
         useTls: getChecked('grpc-tls'),
+        wsFormat: getVal('ws-format') || 'delimited',
+        wsHeaders: getVal('ws-headers') || null,
+        wsIgnoreFirstMsg: getChecked('ws-ignore-first-msg'),
+        wsPath: getVal('ws-path') || '/',
+        wsSubscriptionMsg: getVal('ws-subscription-msg') || null,
+        wsTls: getChecked('ws-tls'),
+        wsTlsCaPath: getVal('ws-tls-ca-path') || null,
+        wsTlsCertPath: getVal('ws-tls-cert-path') || null,
+        wsTlsKeyPath: getVal('ws-tls-key-path') || null,
       });
     })()
   `);
@@ -806,6 +821,12 @@ async function getCurrentLaunchConfig() {
       grpcHeaderPathKey: s.grpcHeaderPathKey,
       grpcSendMethod: s.grpcSendMethod,
       grpcSerialization: s.grpcSerialization,
+      httpFormat: s.httpFormat,
+      httpPath: s.httpPath,
+      httpTls: s.httpTls,
+      httpTlsCaPath: s.httpTlsCaPath,
+      httpTlsCertPath: s.httpTlsCertPath,
+      httpTlsKeyPath: s.httpTlsKeyPath,
       ip: s.ip,
       mode: s.mode,
       port: s.port,
@@ -814,6 +835,15 @@ async function getCurrentLaunchConfig() {
       tlsCertPath: s.tlsCertPath,
       tlsKeyPath: s.tlsKeyPath,
       useTls: s.useTls,
+      wsFormat: s.wsFormat,
+      wsHeaders: s.wsHeaders,
+      wsIgnoreFirstMsg: s.wsIgnoreFirstMsg,
+      wsPath: s.wsPath,
+      wsSubscriptionMsg: s.wsSubscriptionMsg,
+      wsTls: s.wsTls,
+      wsTlsCaPath: s.wsTlsCaPath,
+      wsTlsCertPath: s.wsTlsCertPath,
+      wsTlsKeyPath: s.wsTlsKeyPath,
     },
     output: {
       appendOutput: false,
@@ -1765,7 +1795,7 @@ ipcMain.on('connect-udp', (event, { type, port, host }) => {
                     const message = `Connection refused by ${host || 'host'}:${port || 'port'}. Ensure a UDP server is listening.`;
                     mainWindow.webContents.send('udp-error', message);
                 } else {
-                    mainWindow.webContents.send('udp-error', `UDP Client error: ${err.message}`);
+                    mainWindow.webContents.send('udp-error', `WebSocket Client error: ${err.message}`);
                 }
                 cleanupUdpSocket();
                 updateUdpButtonStates('disconnected');
@@ -1846,6 +1876,7 @@ ipcMain.on('disconnect-udp', () => {
         updateUdpButtonStates('disconnected');
     }
 });
+
 
 // --- gRPC Connection Handling ---
 const { createGrpcServerTransport, createGrpcClientTransport } = require('./grpc-transport.js');
@@ -1974,6 +2005,73 @@ ipcMain.on('disconnect-http', () => {
     } else {
         mainWindow.webContents.send('http-status', 'No HTTP connection to disconnect');
         updateHttpButtonStates('disconnected');
+    }
+});
+
+
+// --- WebSocket Connection Handling ---
+const { createWsClientTransport, createWsServerTransport } = require('./ws-transport.js');
+const { FORMAT_CONTENT_TYPES: WS_CONTENT_TYPES } = require('./format-utils.js');
+let wsTransport = null;
+
+function updateWsButtonStates(connectionState) {
+    mainWindow.webContents.send('tcp-set-connect-enabled', connectionState === 'disconnected');
+    mainWindow.webContents.send('tcp-set-disconnect-enabled', connectionState === 'connected' || connectionState === 'connecting');
+}
+
+ipcMain.on('connect-ws', (event, { type, port, host, wsFormat, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsPath, wsSubscriptionMsg, wsIgnoreFirstMsg, wsHeaders }) => {
+    currentConnectionDetails = { protocol: 'ws', type, port, host, wsFormat, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsPath };
+    updateWsButtonStates('connecting');
+
+    const contentType = WS_CONTENT_TYPES[wsFormat] || 'text/plain';
+
+    const onData = (data, metadata) => {
+        if (showMetadataEnabled && metadata) {
+            sendMetadataLine(`[metadata] protocol=WebSocket mode=${type} path=${metadata.path || wsPath} content-type=${metadata.contentType || contentType} tls=${metadata.tls || (wsTls ? 'on (WSS)' : 'off (WS)')} remote=${metadata.remote || 'unknown'} format=${wsFormat}`);
+        }
+        mainWindow.webContents.send('log-data', data);
+    };
+
+    try {
+        if (type === 'server') {
+            wsTransport = createWsServerTransport({ ip: host, port, wsFormat, wsPath, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, onData });
+            wsTransport.connect().then((result) => {
+                const scheme = wsTls ? 'wss' : 'ws';
+                mainWindow.webContents.send('ws-status', `WebSocket Server listening on ${scheme}://${result.address.address}:${result.address.port}${wsPath || '/'} [${wsFormat}] Content-Type: ${contentType}\n  ${result.tlsInfo || 'tls=off'}`);
+                updateWsButtonStates('connected');
+            }).catch((err) => {
+                mainWindow.webContents.send('ws-error', `WebSocket Server error: ${err.message}`);
+                wsTransport = null;
+                updateWsButtonStates('disconnected');
+            });
+        } else {
+            wsTransport = createWsClientTransport({ ip: host, port, wsFormat, wsPath, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsSubscriptionMsg, wsIgnoreFirstMsg, wsHeaders, onData });
+            wsTransport.connect().then((result) => {
+                mainWindow.webContents.send('ws-status', `WebSocket Client connected to ${result.address} [${wsFormat}] Content-Type: ${contentType}\n  ${result.tlsInfo || 'tls=off'}`);
+                updateWsButtonStates('connected');
+            }).catch((err) => {
+                mainWindow.webContents.send('ws-error', `WebSocket Client error: ${err.message}`);
+                wsTransport = null;
+                updateWsButtonStates('disconnected');
+            });
+        }
+    } catch (err) {
+        mainWindow.webContents.send('ws-error', `WebSocket error: ${err.message}`);
+        updateWsButtonStates('disconnected');
+    }
+});
+
+ipcMain.on('disconnect-ws', () => {
+    updateWsButtonStates('disconnecting');
+    if (wsTransport) {
+        wsTransport.disconnect();
+        mainWindow.webContents.send('ws-status', 'WebSocket connection closed');
+        wsTransport = null;
+        currentConnectionDetails = null;
+        updateWsButtonStates('disconnected');
+    } else {
+        mainWindow.webContents.send('ws-status', 'No WebSocket connection to disconnect');
+        updateWsButtonStates('disconnected');
     }
 });
 
