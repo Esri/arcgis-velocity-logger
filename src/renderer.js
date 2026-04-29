@@ -432,16 +432,23 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        let trust = 'on';
-        let iconChar = '🔒';
+        // Each trust level gets a visually distinct icon so it is distinguishable
+        // without relying on colour alone (colour-blindness accessibility).
+        // 🔓 open lock  = no TLS (plaintext)
+        // 🔒⚠          = TLS on, self-signed / cert-chain not verified
+        // 🔐            = mTLS — key icon signals mutual authentication
+        // 🔒✓           = TLS on, CA-verified certificate chain
+        let trust, iconChar;
         if (/tls.*off|unsecure|plaintext/i.test(tooltip)) {
-            trust = 'off'; iconChar = '🔓';
+            trust = 'off';         iconChar = '🔓';
         } else if (/self-signed|verification.*skip/i.test(tooltip)) {
-            trust = 'self-signed'; iconChar = '🔒';
+            trust = 'self-signed'; iconChar = '🔒⚠';
         } else if (/mtls|mutual/i.test(tooltip)) {
-            trust = 'mtls'; iconChar = '🔒';
+            trust = 'mtls';        iconChar = '🔐';
         } else if (/ca-verified|custom ca/i.test(tooltip)) {
-            trust = 'ca-verified'; iconChar = '🔒';
+            trust = 'ca-verified'; iconChar = '🔒✓';
+        } else {
+            trust = 'on';          iconChar = '🔒';
         }
 
         badge.dataset.trust = trust;

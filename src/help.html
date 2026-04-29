@@ -184,6 +184,19 @@
                 <h3>Status Bar and Indicators</h3>
                 <p>The status bar at the bottom of the window provides real-time feedback on the application's connection state. It includes a colored dot indicator and descriptive text to show the current status.</p>
 
+                <h4>TLS Trust Badge</h4>
+                <p>When connected over HTTP, WebSocket, or gRPC with TLS, a lock icon appears in the status bar centre. The icon shape <em>and</em> colour both encode the trust level — distinguishable without relying on colour alone. Hover or click for full details:</p>
+                <table class="shortcuts-table">
+                    <thead><tr><th>Icon</th><th>Colour</th><th>Meaning</th></tr></thead>
+                    <tbody>
+                        <tr><td>🔓</td><td>Grey / dimmed</td><td>No TLS — plaintext, unsecure connection</td></tr>
+                        <tr><td>🔒⚠</td><td>Amber / orange</td><td>TLS on, self-signed or cert-chain not verified</td></tr>
+                        <tr><td>🔒</td><td>Amber / orange</td><td>TLS on, OS certificate store (trust level not fully determined)</td></tr>
+                        <tr><td>🔒✓</td><td>Green</td><td>TLS on, CA-verified certificate chain</td></tr>
+                        <tr><td>🔐</td><td>Blue / cyan</td><td>Mutual TLS (mTLS) — both sides present certificates</td></tr>
+                    </tbody>
+                </table>
+
                 <h4>Application States</h4>
                 <table class="shortcuts-table">
                     <thead>

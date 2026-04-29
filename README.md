@@ -32,6 +32,7 @@ A cross-platform desktop application for capturing and logging network data from
 | [Release Process](./docs/RELEASE.md) | GitHub Actions workflow, version tagging, and code signing for all platforms |
 | [Testing](./docs/TESTING.md) | Test commands, suite descriptions, and manual smoke tests |
 | [Theme Refactor Summary](./docs/THEME-REFACTOR-SUMMARY.md) | Theme system refactoring: per-file CSS and dynamic loader |
+| [TLS / SSL Security](./docs/TLS.md) | TLS concepts, certificate formats, OS trust stores, mTLS, auto self-signed certs, and TLS Trust Badge |
 | [Why Electron](./docs/WHY-ELECTRON.md) | Framework rationale and packaging overview |
 
 ### In-App Help
