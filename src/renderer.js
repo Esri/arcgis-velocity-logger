@@ -382,13 +382,84 @@ document.addEventListener('DOMContentLoaded', () => {
         'error': '⚠️'
     };
 
+    /**
+     * Converts a raw tlsInfo string (from transport connect results) into a concise,
+     * human-readable tooltip for the status bar "connected" indicator.
+     * @param {string} raw - The raw tlsInfo string
+     * @returns {string}
+     */
+    function tlsInfoToTooltip(raw) {
+        if (!raw) return '';
+        if (/tls=off/i.test(raw)) {
+            return 'TLS: off — connection is unsecure (plaintext, no encryption)';
+        }
+        if (/self-signed/i.test(raw)) {
+            return 'TLS: self-signed — connection is encrypted but the server certificate is auto-generated and not CA-verified; peer identity is unverified';
+        }
+        if (/cert verification skipped/i.test(raw)) {
+            return 'TLS: self-signed — connection is encrypted but certificate authority verification is skipped; peer identity is unverified';
+        }
+        if (/mtls|client.*cert|cert.*client/i.test(raw)) {
+            return 'TLS: mTLS — mutual TLS; both client and server certificates are verified';
+        }
+        if (/custom certs/i.test(raw)) {
+            return 'TLS: CA-verified — connection is encrypted and the certificate chain is validated against a custom CA';
+        }
+        if (/tls=on/i.test(raw)) {
+            return 'TLS: on — connection is encrypted';
+        }
+        return raw;
+    }
+
+    // The TLS tooltip for the current connection, set on connect and cleared on disconnect.
+    let currentTlsTooltip = '';
+
+    /**
+     * Updates the TLS trust badge in the status bar center.
+     * Shows a lock icon whose colour reflects the trust level, with a hover/click popover.
+     * Pass '' to hide the badge (disconnected / no-TLS protocols).
+     * @param {string} tooltip - The human-readable TLS tooltip, or '' to hide
+     */
+    function updateTlsBadge(tooltip) {
+        const badge   = document.getElementById('tls-badge');
+        const icon    = document.getElementById('tls-badge-icon');
+        const content = document.getElementById('tls-badge-content');
+        if (!badge) return;
+
+        if (!tooltip) {
+            badge.style.display = 'none';
+            badge.classList.remove('pinned');
+            return;
+        }
+
+        let trust = 'on';
+        let iconChar = '🔒';
+        if (/tls.*off|unsecure|plaintext/i.test(tooltip)) {
+            trust = 'off'; iconChar = '🔓';
+        } else if (/self-signed|verification.*skip/i.test(tooltip)) {
+            trust = 'self-signed'; iconChar = '🔒';
+        } else if (/mtls|mutual/i.test(tooltip)) {
+            trust = 'mtls'; iconChar = '🔒';
+        } else if (/ca-verified|custom ca/i.test(tooltip)) {
+            trust = 'ca-verified'; iconChar = '🔒';
+        }
+
+        badge.dataset.trust = trust;
+        badge.title = tooltip; // fallback native tooltip
+        badge.style.display = 'flex';
+        if (icon)    icon.textContent    = iconChar;
+        if (content) content.textContent = tooltip;
+    }
+
     // Function to update the application status display
     function setAppStatus(status) {
         const statusState = status.toLowerCase();
-        
+
         // Update status text
         appStatusText.textContent = status;
         appStatusText.setAttribute('data-state', statusState);
+        // Update TLS trust badge: visible when connected with a TLS-capable protocol
+        updateTlsBadge(statusState === 'connected' ? currentTlsTooltip : '');
 
         // Update status emoji
         appStatusDot.textContent = stateEmojis[statusState] || '⭐'; // Default to a star if state is unknown
@@ -951,87 +1022,60 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const statusElement = document.getElementById('status');
 
-    window.electronAPI.on('tcp-status', (message) => {
-        if (statusElement) {
-            statusElement.textContent = message;
-            statusElement.title = message;
-        }
-        if (statusDisplay) {
-            statusDisplay.textContent = message;
-        }
-    });
+    window.electronAPI.on('tcp-status',  (message) => setStatus(message));
+    window.electronAPI.on('udp-status',  (message) => setStatus(message));
 
-    window.electronAPI.on('udp-status', (message) => {
-        if (statusElement) {
-            statusElement.textContent = message;
-            statusElement.title = message;
+    // For TLS-capable protocols, extract the tlsInfo detail (after '\n  ') and cache it as
+    // a tooltip for the "Connected" state indicator (Option C). TCP and UDP have no TLS.
+    function extractAndCacheTlsTooltip(message) {
+        const detailMatch = message && message.match(/\n\s+(.+)/);
+        if (detailMatch) {
+            currentTlsTooltip = tlsInfoToTooltip(detailMatch[1].trim());
         }
-        if (statusDisplay) {
-            statusDisplay.textContent = message;
-        }
-    });
+        // Disconnect / close messages carry no tlsInfo — leave currentTlsTooltip intact
+        // so the tooltip remains accurate until the connection-state changes to disconnected.
+    }
+
+    window.electronAPI.on('grpc-status', (message) => { extractAndCacheTlsTooltip(message); setStatus(message); });
+    window.electronAPI.on('http-status', (message) => { extractAndCacheTlsTooltip(message); setStatus(message); });
+    window.electronAPI.on('ws-status',   (message) => { extractAndCacheTlsTooltip(message); setStatus(message); });
 
     window.electronAPI.on('udp-error', (message) => {
+        currentTlsTooltip = '';
         showErrorDialog(message);
-        statusDisplay.textContent = `Error: ${message}`;
+        setStatus(`Error: ${message}`);
         setAppStatus(Status.ERROR);
         setConnectionControls('disconnected');
     });
 
     window.electronAPI.on('tcp-error', (message) => {
+        currentTlsTooltip = '';
         showErrorDialog(message);
-        statusDisplay.textContent = `Error: ${message}`;
+        setStatus(`Error: ${message}`);
         setAppStatus(Status.ERROR);
         setConnectionControls('disconnected');
-    });
-
-    window.electronAPI.on('grpc-status', (message) => {
-        if (statusElement) {
-            statusElement.textContent = message;
-            statusElement.title = message;
-        }
-        if (statusDisplay) {
-            statusDisplay.textContent = message;
-        }
     });
 
     window.electronAPI.on('grpc-error', (message) => {
+        currentTlsTooltip = '';
         showErrorDialog(message);
-        statusDisplay.textContent = `Error: ${message}`;
+        setStatus(`Error: ${message}`);
         setAppStatus(Status.ERROR);
         setConnectionControls('disconnected');
-    });
-
-    window.electronAPI.on('http-status', (message) => {
-        if (statusElement) {
-            statusElement.textContent = message;
-            statusElement.title = message;
-        }
-        if (statusDisplay) {
-            statusDisplay.textContent = message;
-        }
     });
 
     window.electronAPI.on('http-error', (message) => {
+        currentTlsTooltip = '';
         showErrorDialog(message);
-        statusDisplay.textContent = `Error: ${message}`;
+        setStatus(`Error: ${message}`);
         setAppStatus(Status.ERROR);
         setConnectionControls('disconnected');
     });
 
-    window.electronAPI.on('ws-status', (message) => {
-        if (statusElement) {
-            statusElement.textContent = message;
-            statusElement.title = message;
-        }
-        if (statusDisplay) {
-            statusDisplay.textContent = message;
-        }
-    });
-
     window.electronAPI.on('ws-error', (message) => {
+        currentTlsTooltip = '';
         showErrorDialog(message);
-        statusDisplay.textContent = `Error: ${message}`;
+        setStatus(`Error: ${message}`);
         setAppStatus(Status.ERROR);
         setConnectionControls('disconnected');
     });
@@ -1052,6 +1096,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.electronAPI.on('udp-connection-state', (state) => {
+        if (state !== 'connected') currentTlsTooltip = '';
         setConnectionControls(state);
         if (state === 'connected') {
             setAppStatus(Status.CONNECTED);
@@ -1073,6 +1118,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.electronAPI.on('tcp-connection-state', (state) => {
+        if (state !== 'connected') currentTlsTooltip = '';
         setConnectionControls(state);
         if (state === 'connected') {
             setAppStatus(Status.CONNECTED);
@@ -1148,5 +1194,88 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
+    // Status popover — click to pin open; click anywhere else to dismiss
+    const statusWrapper = document.getElementById('status-wrapper');
+    if (statusWrapper) {
+        statusWrapper.addEventListener('click', (e) => {
+            // Only toggle pin when there is detail to show (icon is explicitly visible)
+            const icon = document.getElementById('status-info-icon');
+            const hasDetail = icon && icon.style.visibility === 'visible';
+            if (hasDetail) {
+                statusWrapper.classList.toggle('pinned');
+                e.stopPropagation(); // prevent document handler from immediately unpinning
+            }
+        });
+        // Clicking inside the pinned popover should not close it
+        const popover = document.getElementById('status-popover');
+        if (popover) {
+            popover.addEventListener('click', (e) => e.stopPropagation());
+        }
+        document.addEventListener('click', () => {
+            statusWrapper.classList.remove('pinned');
+        });
+    }
+
+    /**
+     * Updates the bottom status bar and its hover/click popover.
+     *
+     * Messages from transports use '\n  ' (newline + indent) to separate the
+     * connection summary from secondary detail (e.g. TLS cert info).
+     * The status bar shows only the first line; the popover shows all lines
+     * with a blank line between the summary and the detail for readability.
+     * The ⓘ icon is shown when there is secondary detail OR when the status
+     * text is truncated by CSS overflow (scrollWidth > clientWidth).
+     */
+    function setStatus(message) {
+        if (!statusDisplay) return;
+        const parts = message ? message.split(/\n\s+/) : [message || ''];
+        // Status bar: first part only — CSS ellipsis trims further if needed
+        statusDisplay.textContent = parts[0];
+
+        // Popover content: summary line, blank separator, then detail lines
+        const content = document.getElementById('status-popover-content');
+        if (content) {
+            content.textContent = parts.length > 1
+                ? parts[0] + '\n\n' + parts.slice(1).join('\n')
+                : parts[0];
+        }
+
+        // Show ⓘ icon when there is secondary detail OR when text is truncated.
+        // Use rAF so the DOM has reflowed and scrollWidth is accurate.
+        const icon = document.getElementById('status-info-icon');
+        if (icon) {
+            requestAnimationFrame(() => {
+                const isTruncated = statusDisplay.scrollWidth > statusDisplay.clientWidth;
+                const hasDetail = parts.length > 1;
+                if (isTruncated || hasDetail) {
+                    icon.style.visibility = 'visible';
+                } else {
+                    icon.style.visibility = 'hidden';
+                    // Also unpin if the detail just went away
+                    const wrapper = document.getElementById('status-wrapper');
+                    if (wrapper) wrapper.classList.remove('pinned');
+                }
+            });
+        }
+    }
+
+    // Initialise icon as hidden on load
+    const _initIcon = document.getElementById('status-info-icon');
+    if (_initIcon) _initIcon.style.visibility = 'hidden';
+
+    // TLS badge click-to-pin handler
+    const tlsBadgeEl = document.getElementById('tls-badge');
+    if (tlsBadgeEl) {
+        tlsBadgeEl.addEventListener('click', (e) => {
+            tlsBadgeEl.classList.toggle('pinned');
+            e.stopPropagation();
+        });
+        document.addEventListener('click', () => tlsBadgeEl.classList.remove('pinned'));
+        const tlsPopoverEl = document.getElementById('tls-badge-popover');
+        if (tlsPopoverEl) {
+            tlsPopoverEl.addEventListener('click', (e) => e.stopPropagation());
+        }
+    }
 
 });
+

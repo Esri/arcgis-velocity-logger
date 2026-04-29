@@ -129,12 +129,24 @@
         <pre id="logs"></pre>
         <div class="status-bar">
             <div class="status-bar-left">
-                <span id="status" aria-live="polite">Disconnected</span>
+                <div id="status-wrapper" class="status-wrapper">
+                    <span id="status" aria-live="polite">Disconnected</span>
+                    <span id="status-info-icon" class="status-info-icon" aria-hidden="true">ⓘ</span>
+                    <div id="status-popover" class="status-popover" role="tooltip">
+                        <pre id="status-popover-content" class="status-popover-content"></pre>
+                    </div>
+                </div>
             </div>
             <div class="status-bar-center">
                 <div id="app-status">
                     <span id="app-status-dot"></span>
                     <span id="app-status-text">Disconnected</span>
+                </div>
+                <div id="tls-badge" class="tls-badge" style="display:none;" aria-label="TLS trust mode">
+                    <span id="tls-badge-icon" class="tls-badge-icon">🔒</span>
+                    <div id="tls-badge-popover" class="tls-badge-popover" role="tooltip">
+                        <pre id="tls-badge-content" class="tls-badge-content"></pre>
+                    </div>
                 </div>
             </div>
             <div class="status-bar-right">

@@ -626,3 +626,170 @@ pre#logs::-webkit-scrollbar-thumb {
 @media (max-width: 560px) {
   #theme-selector { display: none; }
 }
+
+/* ── TLS trust badge (status bar center) ───────────────────────────────── */
+
+.tls-badge {
+    position: relative;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    border-radius: 6px;
+    padding: 1px 5px;
+    border: 1px solid transparent;
+    transition: background-color 0.15s, border-color 0.15s;
+}
+
+.tls-badge:hover,
+.tls-badge.pinned {
+    background-color: rgba(128, 128, 128, 0.15);
+    border-color: var(--border-color);
+}
+
+.tls-badge-icon {
+    font-size: 1em;
+    line-height: 1;
+}
+
+/* Trust-level colour coding via data attribute */
+.tls-badge[data-trust="off"]         .tls-badge-icon { filter: grayscale(1) opacity(0.6); }
+.tls-badge[data-trust="self-signed"] .tls-badge-icon { filter: sepia(1) saturate(3) hue-rotate(5deg); }
+.tls-badge[data-trust="ca-verified"] .tls-badge-icon { filter: none; }
+.tls-badge[data-trust="mtls"]        .tls-badge-icon { filter: none; }
+
+.tls-badge-popover {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%) translateY(6px);
+    z-index: 500;
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 10px 14px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
+    min-width: 260px;
+    max-width: min(480px, 90vw);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.12s ease, transform 0.12s ease;
+    transition-delay: 0s;
+    backdrop-filter: saturate(140%) blur(8px);
+}
+
+.tls-badge:hover .tls-badge-popover {
+    pointer-events: auto;
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    transition-delay: 0.2s;
+}
+
+.tls-badge.pinned .tls-badge-popover {
+    pointer-events: auto;
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    transition-delay: 0s;
+    border-left: 3px solid var(--accent-color, var(--border-color));
+}
+
+.tls-badge-content {
+    margin: 0;
+    font-family: var(--font-family);
+    font-size: 0.82em;
+    line-height: 1.6;
+    color: var(--text-color);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* ── end TLS trust badge ─────────────────────────────────────────────────── */
+
+/* ── Status popover ─────────────────────────────────────────────────────── */
+
+.status-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    max-width: 100%;
+    cursor: default;
+}
+
+.status-info-icon {
+    flex-shrink: 0;
+    font-size: 0.82em;
+    opacity: 0;
+    visibility: hidden;
+    cursor: pointer;
+    color: var(--text-color);
+    transition: opacity 0.15s;
+    user-select: none;
+    line-height: 1;
+}
+
+/* Show icon when wrapper is hovered or popover is pinned, but only if icon is not hidden */
+.status-wrapper:hover .status-info-icon:not([style*="visibility: hidden"]),
+.status-wrapper.pinned .status-info-icon:not([style*="visibility: hidden"]) {
+    opacity: 0.55;
+}
+.status-info-icon:hover {
+    opacity: 1 !important;
+}
+
+.status-popover {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 0;
+    z-index: 500;
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 10px 14px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
+    min-width: 280px;
+    max-width: min(560px, 90vw);
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.12s ease, transform 0.12s ease;
+    transition-delay: 0s;
+    backdrop-filter: saturate(140%) blur(8px);
+}
+
+/* Hover: show after a short intentional delay */
+.status-wrapper:hover .status-popover {
+    pointer-events: auto;
+    opacity: 1;
+    transform: translateY(0);
+    transition-delay: 0.35s;
+}
+
+/* Pinned (clicked): show immediately, no delay */
+.status-wrapper.pinned .status-popover {
+    pointer-events: auto;
+    opacity: 1;
+    transform: translateY(0);
+    transition-delay: 0s;
+}
+
+/* Pinned + hovered: also no delay */
+.status-wrapper.pinned:hover .status-popover {
+    transition-delay: 0s;
+}
+
+/* Thin accent line on the left when pinned */
+.status-wrapper.pinned .status-popover {
+    border-left: 3px solid var(--accent-color, var(--border-color));
+}
+
+.status-popover-content {
+    margin: 0;
+    font-family: var(--font-family);
+    font-size: 0.82em;
+    line-height: 1.6;
+    color: var(--text-color);
+    white-space: pre-wrap;
+    word-break: break-all;
+}
