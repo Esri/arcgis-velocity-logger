@@ -127,20 +127,36 @@ Fields in order:
 - _call headers_ — all gRPC call metadata key-value pairs sent by the client (HTTP/2 request headers, e.g. `content-type`, `grpc-path`, custom headers)
 
 #### gRPC Client metadata
-Three metadata lines are emitted per connection lifecycle:
+Three metadata lines are emitted per connection lifecycle, plus one per received data message:
 
 1. **Connection-established line** — emitted immediately after the `Watch`/`watch` stream opens:
    ```
-   [metadata] protocol=gRPC mode=client serialization=protobuf rpc=Watch remote=127.0.0.1:50051
+   [metadata] protocol=gRPC mode=client serialization=protobuf method=stream rpc=Watch remote=127.0.0.1:50051
    ```
-   Fields: `protocol=gRPC`, `mode=client`, `grpcSerialization=protobuf|text|kryo`, `rpc=Watch` (protobuf) or `rpc=watch` (text/kryo), `remote=HOST:PORT`
+   Fields:
+   - `protocol=gRPC` — always `gRPC`
+   - `mode=client` — always `client` for the client transport
+   - `serialization=protobuf|text|kryo` — the active serialization format
+   - `method=stream|unary` — the configured **gRPC RPC Type** (stream = client-streaming, unary = discrete request/response)
+   - `rpc=Watch|watch` — the **server-streaming RPC** the logger called to subscribe to incoming data. `Watch` (capital W) is the RPC name in the `GrpcFeed` service used by the **protobuf** format (`velocity-grpc.proto`); `watch` (lowercase) is the RPC name in the `GrpcFeatureService` service used by the **text** and **kryo** formats (`feature-service.proto`). Both are server-streaming calls — the logger sends one request and the server pushes a continuous stream of messages back.
+   - `remote=HOST:PORT` — the address of the gRPC server the logger connected to
 
-2. **Response-headers line** — initial metadata sent back from the server (emitted on the stream `metadata` event):
+2. **Per-message line** — emitted for each data message received, immediately before the data line:
+   - Protobuf (`rpc=Watch`): includes `feature=N/TOTAL` indicating which feature within the batch:
+     ```
+     [metadata] protocol=gRPC mode=client serialization=protobuf method=stream rpc=Watch remote=127.0.0.1:50051 feature=1/3
+     ```
+   - Text/kryo (`rpc=watch`): includes `size=N` (byte length of the payload):
+     ```
+     [metadata] protocol=gRPC mode=client serialization=text method=stream rpc=watch remote=127.0.0.1:50051 size=42
+     ```
+
+3. **Response-headers line** — initial metadata sent back from the server (emitted on the stream `metadata` event):
    ```
    [metadata] response-headers: content-type=application/grpc x-server-id=simulator
    ```
 
-3. **Status line** — emitted when the stream ends, including the gRPC status code, details, and any trailing metadata:
+4. **Status line** — emitted when the stream ends, including the gRPC status code, details, and any trailing metadata:
    ```
    [metadata] status: code=0 details="OK"
    ```

@@ -1990,7 +1990,7 @@ ipcMain.on('connect-grpc', (event, { type, port, host, grpcSerialization, grpcSe
     } else { // client
         const onClientMetadata = (line) => sendMetadataLine(line);
         const onClientStatus = (line) => sendMetadataLine(line);
-        grpcTransport = createGrpcClientTransport({ ip: host, port, grpcSerialization, headerPathKey, headerPath, useTls, tlsCaPath, tlsCertPath, tlsKeyPath, onData, onMetadata: onClientMetadata, onStatus: onClientStatus });
+        grpcTransport = createGrpcClientTransport({ ip: host, port, grpcSerialization, grpcSendMethod, headerPathKey, headerPath, useTls, tlsCaPath, tlsCertPath, tlsKeyPath, onData, onMetadata: onClientMetadata, onStatus: onClientStatus });
         grpcTransport.connect().then((result) => {
             mainWindow.webContents.send('grpc-status', `gRPC Client connected to ${result.address} [${ser}] ${headerPathKey}=${headerPath}\n  ${result.tlsInfo || 'tls=off'}`);
             updateGrpcButtonStates('connected');
@@ -2054,7 +2054,7 @@ ipcMain.on('connect-http', (event, { type, port, host, httpFormat, httpTls, http
             updateHttpButtonStates('disconnected');
         });
     } else { // client
-        httpTransport = createHttpClientTransport({ ip: host, port, httpFormat, httpPath, httpTls, httpTlsCaPath, httpTlsCertPath, httpTlsKeyPath });
+        httpTransport = createHttpClientTransport({ ip: host, port, httpFormat, httpPath, httpTls, httpTlsCaPath, httpTlsCertPath, httpTlsKeyPath, onData });
         httpTransport.connect().then((result) => {
             mainWindow.webContents.send('http-status', `HTTP Client connected to ${result.address} [${httpFormat}] Content-Type: ${contentType}\n  ${result.tlsInfo || 'tls=off'}`);
             updateHttpButtonStates('connected');
@@ -2090,6 +2090,7 @@ let wsTransport = null;
 function updateWsButtonStates(connectionState) {
     mainWindow.webContents.send('tcp-set-connect-enabled', connectionState === 'disconnected');
     mainWindow.webContents.send('tcp-set-disconnect-enabled', connectionState === 'connected' || connectionState === 'connecting');
+    mainWindow.webContents.send('tcp-connection-state', connectionState);
 }
 
 ipcMain.on('connect-ws', (event, { type, port, host, wsFormat, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsPath, wsSubscriptionMsg, wsIgnoreFirstMsg, wsHeaders }) => {

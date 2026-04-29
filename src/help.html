@@ -72,6 +72,101 @@
                     <li><strong>TLS:</strong> Enable TLS for the gRPC connection. Uses the OS certificate store automatically.</li>
                     <li><strong>Header Path Key / Path:</strong> Custom gRPC metadata header for endpoint routing (client mode only).</li>
                 </ul>
+
+                <h4>Show Metadata — gRPC Client Fields</h4>
+                <p>When <strong>Show Metadata</strong> is enabled, each received data line is preceded by a <code>[metadata]</code> line. In gRPC Client mode the following fields appear:</p>
+                <table class="shortcuts-table">
+                    <thead>
+                        <tr><th>Field</th><th>Values</th><th>Meaning</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>protocol</code></td>
+                            <td><code>gRPC</code></td>
+                            <td>Always <code>gRPC</code> for gRPC connections.</td>
+                        </tr>
+                        <tr>
+                            <td><code>mode</code></td>
+                            <td><code>client</code></td>
+                            <td>Always <code>client</code> when the logger is connecting out to a server.</td>
+                        </tr>
+                        <tr>
+                            <td><code>serialization</code></td>
+                            <td><code>protobuf</code>, <code>text</code>, <code>kryo</code></td>
+                            <td>The active serialization format selected in the UI.</td>
+                        </tr>
+                        <tr>
+                            <td><code>method</code></td>
+                            <td><code>stream</code>, <code>unary</code></td>
+                            <td>The configured <strong>RPC Type</strong>. <code>stream</code> = Client Streaming (persistent HTTP/2 stream); <code>unary</code> = discrete request/response per message.</td>
+                        </tr>
+                        <tr>
+                            <td><code>rpc</code></td>
+                            <td><code>Watch</code>, <code>watch</code></td>
+                            <td>
+                                The <strong>server-streaming RPC method</strong> the logger called to subscribe to incoming data — the logger sends one request and the server pushes a continuous stream back.<br>
+                                <code>Watch</code> (capital W) — used with <strong>Protobuf</strong> serialization (<code>GrpcFeed.Watch</code> in <code>velocity-grpc.proto</code>).<br>
+                                <code>watch</code> (lowercase) — used with <strong>Text</strong> and <strong>Kryo</strong> serialization (<code>GrpcFeatureService.watch</code> in <code>feature-service.proto</code>).
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><code>remote</code></td>
+                            <td><em>HOST:PORT</em></td>
+                            <td>The address of the gRPC server the logger connected to.</td>
+                        </tr>
+                        <tr>
+                            <td><code>feature</code></td>
+                            <td><em>N/TOTAL</em></td>
+                            <td>Protobuf only. Which feature within the received batch this data line represents (e.g. <code>feature=1/3</code> = first of three features in one message).</td>
+                        </tr>
+                        <tr>
+                            <td><code>size</code></td>
+                            <td><em>bytes</em></td>
+                            <td>Text / Kryo only. Byte length of the raw payload received.</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p>Example metadata line (Protobuf client, one feature in the batch):</p>
+                <pre><code>[metadata] protocol=gRPC mode=client serialization=protobuf method=stream rpc=Watch remote=127.0.0.1:5565 feature=1/1</code></pre>
+
+                <h4>Show Metadata — gRPC Server Fields</h4>
+                <p>In gRPC Server mode one metadata line is emitted per incoming RPC call, showing the call headers sent by the remote client:</p>
+                <table class="shortcuts-table">
+                    <thead>
+                        <tr><th>Field</th><th>Values</th><th>Meaning</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>rpc</code></td>
+                            <td><code>Send</code>, <code>Stream</code>, <code>execute</code>, <code>executeMulti</code></td>
+                            <td>
+                                The RPC method the remote client invoked.<br>
+                                <code>Send</code> / <code>Stream</code> — Protobuf (<code>GrpcFeed</code>): unary and client-streaming respectively.<br>
+                                <code>execute</code> / <code>executeMulti</code> — Text / Kryo (<code>GrpcFeatureService</code>): unary and bidirectional-streaming respectively.
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><code>remote</code></td>
+                            <td><em>ipv4:HOST:PORT</em></td>
+                            <td>Remote client address as reported by the gRPC call (e.g. <code>ipv4:127.0.0.1:54321</code>).</td>
+                        </tr>
+                        <tr>
+                            <td><code>local</code></td>
+                            <td><em>HOST:PORT</em></td>
+                            <td>The local bind address and port the server is listening on.</td>
+                        </tr>
+                        <tr>
+                            <td><code>deadline</code></td>
+                            <td><code>none</code> or ISO-8601 timestamp</td>
+                            <td>The call deadline set by the remote client. <code>none</code> if no deadline was specified.</td>
+                        </tr>
+                        <tr>
+                            <td><em>call headers</em></td>
+                            <td><em>key=value …</em></td>
+                            <td>All gRPC call metadata key-value pairs sent by the client (HTTP/2 request headers, e.g. <code>content-type=application/grpc</code>, <code>grpc-path=my.feed.uid</code>).</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
 
             <div class="help-section">

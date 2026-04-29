@@ -810,11 +810,31 @@ async function runGrpcTransportTests() {
     return connLine.includes('protocol=gRPC') &&
       connLine.includes('mode=client') &&
       connLine.includes('serialization=protobuf') &&
+      connLine.includes('method=stream') &&
       connLine.includes('rpc=Watch') &&
       connLine.includes(`remote=127.0.0.1:${result.port}`);
   });
 
-  await runTest('GrpcClientTransportInternal (text) emits connection-established metadata line with protocol/mode/serialization/rpc/remote', async () => {
+  await runTest('GrpcClientTransportProtobuf emits method=unary in connection metadata when grpcSendMethod=unary', async () => {
+    const server = createGrpcServerTransport({ ip: '127.0.0.1', port: 0, useTls: false, grpcSerialization: 'protobuf', onData: () => {} });
+    const result = await server.connect();
+
+    const metadataLines = [];
+    const client = createGrpcClientTransport({
+      ip: '127.0.0.1', port: result.port, useTls: false, grpcSerialization: 'protobuf',
+      grpcSendMethod: 'unary',
+      onData: () => {},
+      onMetadata: (m) => metadataLines.push(m),
+    });
+    await client.connect();
+    await client.disconnect();
+    await server.disconnect();
+
+    const connLine = metadataLines[0] || '';
+    return connLine.includes('method=unary');
+  });
+
+  await runTest('GrpcClientTransportInternal (text) emits connection-established metadata line with protocol/mode/serialization/method/rpc/remote', async () => {
     const server = createGrpcServerTransport({ ip: '127.0.0.1', port: 0, useTls: false, grpcSerialization: 'text', onData: () => {} });
     const result = await server.connect();
 
@@ -832,11 +852,12 @@ async function runGrpcTransportTests() {
     return connLine.includes('protocol=gRPC') &&
       connLine.includes('mode=client') &&
       connLine.includes('serialization=text') &&
+      connLine.includes('method=stream') &&
       connLine.includes('rpc=watch') &&
       connLine.includes(`remote=127.0.0.1:${result.port}`);
   });
 
-  await runTest('GrpcClientTransportInternal (kryo) emits connection-established metadata line with serialization=kryo', async () => {
+  await runTest('GrpcClientTransportInternal (kryo) emits connection-established metadata line with serialization=kryo and method=stream', async () => {
     const server = createGrpcServerTransport({ ip: '127.0.0.1', port: 0, useTls: false, grpcSerialization: 'kryo', onData: () => {} });
     const result = await server.connect();
 
@@ -854,6 +875,7 @@ async function runGrpcTransportTests() {
     return connLine.includes('protocol=gRPC') &&
       connLine.includes('mode=client') &&
       connLine.includes('serialization=kryo') &&
+      connLine.includes('method=stream') &&
       connLine.includes('rpc=watch') &&
       connLine.includes(`remote=127.0.0.1:${result.port}`);
   });

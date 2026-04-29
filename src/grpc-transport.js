@@ -336,12 +336,13 @@ class GrpcServerTransportProtobuf {
 }
 
 class GrpcClientTransportProtobuf {
-  constructor({ ip, port, onData, onMetadata, onStatus, headerPathKey = 'grpc-path', headerPath = 'replace.with.dedicated.uid', useTls = true, tlsCaPath, tlsCertPath, tlsKeyPath }) {
+  constructor({ ip, port, onData, onMetadata, onStatus, grpcSendMethod = 'stream', headerPathKey = 'grpc-path', headerPath = 'replace.with.dedicated.uid', useTls = true, tlsCaPath, tlsCertPath, tlsKeyPath }) {
     this.ip = ip;
     this.port = port;
     this.onData = onData;
     this.onMetadata = onMetadata || null;
     this.onStatus = onStatus || null;
+    this.grpcSendMethod = grpcSendMethod;
     this.headerPathKey = headerPathKey;
     this.headerPath = headerPath;
     this.useTls = useTls;
@@ -376,15 +377,19 @@ class GrpcClientTransportProtobuf {
         }
         // Emit connection-established metadata line.
         if (this.onMetadata) {
-          this.onMetadata(`[metadata] protocol=gRPC mode=client serialization=protobuf rpc=Watch remote=${address}`);
+          this.onMetadata(`[metadata] protocol=gRPC mode=client serialization=protobuf method=${this.grpcSendMethod} rpc=Watch remote=${address}`);
         }
         // Use Watch (server-streaming) to receive data pushed by the server.
         this.stream = this.client.Watch({ client_id: 'logger' }, this._buildMetadata());
         this.stream.on('data', (request) => {
           if (!this.onData) return;
           if (request.features) {
-            request.features.forEach((feature) => {
+            const featureCount = request.features.length;
+            request.features.forEach((feature, idx) => {
               const csv = featureAttributesToCsv(feature.attributes || [], this.wrapperTypes);
+              if (this.onMetadata) {
+                this.onMetadata(`[metadata] protocol=gRPC mode=client serialization=protobuf method=${this.grpcSendMethod} rpc=Watch remote=${address} feature=${idx + 1}/${featureCount}`);
+              }
               this.onData(csv);
             });
           }
@@ -514,13 +519,14 @@ class GrpcServerTransportInternal {
 }
 
 class GrpcClientTransportInternal {
-  constructor({ ip, port, grpcSerialization = 'text', onData, onMetadata, onStatus, headerPathKey = 'grpc-path', headerPath = 'replace.with.dedicated.uid', useTls = true, tlsCaPath, tlsCertPath, tlsKeyPath }) {
+  constructor({ ip, port, grpcSerialization = 'text', onData, onMetadata, onStatus, grpcSendMethod = 'stream', headerPathKey = 'grpc-path', headerPath = 'replace.with.dedicated.uid', useTls = true, tlsCaPath, tlsCertPath, tlsKeyPath }) {
     this.ip = ip;
     this.port = port;
     this.grpcSerialization = grpcSerialization;
     this.onData = onData;
     this.onMetadata = onMetadata || null;
     this.onStatus = onStatus || null;
+    this.grpcSendMethod = grpcSendMethod;
     this.headerPathKey = headerPathKey;
     this.headerPath = headerPath;
     this.useTls = useTls;
@@ -554,13 +560,16 @@ class GrpcClientTransportInternal {
         }
         // Emit connection-established metadata line.
         if (this.onMetadata) {
-          this.onMetadata(`[metadata] protocol=gRPC mode=client serialization=${this.grpcSerialization} rpc=watch remote=${address}`);
+          this.onMetadata(`[metadata] protocol=gRPC mode=client serialization=${this.grpcSerialization} method=${this.grpcSendMethod} rpc=watch remote=${address}`);
         }
         // Use watch (server-streaming) to receive data pushed by the server.
         this.stream = this.client.watch({ client_id: 'logger' }, this._buildMetadata());
         this.stream.on('data', (request) => {
           if (this.onData) {
             const text = request.bytes ? Buffer.from(request.bytes).toString('utf-8') : '';
+            if (this.onMetadata) {
+              this.onMetadata(`[metadata] protocol=gRPC mode=client serialization=${this.grpcSerialization} method=${this.grpcSendMethod} rpc=watch remote=${address} size=${request.bytes ? request.bytes.length : 0}`);
+            }
             this.onData(text);
           }
         });
