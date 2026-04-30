@@ -19,7 +19,7 @@ This folder contains all technical and user-facing documentation for the ArcGIS 
 | [HEADLESS.md](./HEADLESS.md) | No-UI capture mode: running headless sessions, all headless-specific parameters, config file workflow, output formats, and the `doneFile` artifact |
 | [KEYBOARD-SHORTCUTS.md](./KEYBOARD-SHORTCUTS.md) | All keyboard shortcuts, context menu reference, and in-app Command Line Interface dialog shortcuts |
 | [RELEASE-NOTES.md](./RELEASE-NOTES.md) | User-facing features, changes, and fixes by release |
-| [RELEASE.md](./RELEASE.md) | Release process: GitHub Actions workflow, version tagging, and code signing for macOS, Windows, and Linux |
+| [RELEASE.md](./RELEASE.md) | Release process: `scripts/release.sh` release script, version tagging, and code signing for macOS, Windows, and Linux |
 | [TESTING.md](./TESTING.md) | Test commands, suite descriptions, manual smoke tests, and troubleshooting |
 | [THEME-REFACTOR-SUMMARY.md](./THEME-REFACTOR-SUMMARY.md) | Details of the theme system refactoring: per-file CSS, dynamic loader, and migration notes |
 | [TLS.md](./TLS.md) | TLS/SSL reference: supported protocols, certificate formats, OS trust stores, mTLS, auto self-signed certs, and TLS Trust Badge |

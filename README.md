@@ -29,7 +29,7 @@ A cross-platform desktop application for capturing and logging network data from
 | [Headless Mode](./docs/HEADLESS.md) | No-UI capture: parameters, config file workflow, output formats, done file |
 | [Keyboard Shortcuts](./docs/KEYBOARD-SHORTCUTS.md) | All keyboard shortcuts and context menu reference |
 | [Release Notes](./docs/RELEASE-NOTES.md) | User-facing features and changes by release |
-| [Release Process](./docs/RELEASE.md) | GitHub Actions workflow, version tagging, and code signing for all platforms |
+| [Release Process](./docs/RELEASE.md) | `scripts/release.sh` release script, version tagging, and code signing for all platforms |
 | [Testing](./docs/TESTING.md) | Test commands, suite descriptions, and manual smoke tests |
 | [Theme Refactor Summary](./docs/THEME-REFACTOR-SUMMARY.md) | Theme system refactoring: per-file CSS and dynamic loader |
 | [TLS / SSL Security](./docs/TLS.md) | TLS concepts, certificate formats, OS trust stores, mTLS, auto self-signed certs, and TLS Trust Badge |
@@ -138,7 +138,7 @@ Download the appropriate package from the `dist/` directory:
 | `npm run package:seq:clean` | Sequential | Cleans `dist/` first |
 | `npm run clean` | — | Deletes `dist/` |
 
-For full details on all build options, compression, and artifact names, see [BUILD.md](./docs/BUILD.md). To publish a release via GitHub Actions or locally, see [RELEASE.md](./docs/RELEASE.md).
+For full details on all build options, compression, and artifact names, see [BUILD.md](./docs/BUILD.md). To publish a release using `scripts/release.sh` or manually, see [RELEASE.md](./docs/RELEASE.md).
 
 > **Note:** Cross-platform builds may require additional setup. Build on the target OS for best results.
 
