@@ -340,13 +340,15 @@ function createReceiver(options, { logger, onLine, onError }) {
  * - terminates when maxLogCount / durationMs / idleTimeoutMs is reached
  * - writes a done file (if requested) and exits the Electron app with a stable code
  */
-async function runHeadlessSession(options, { app = null } = {}) {
-  const logger = new RunLogger({
-    logLevel: options.logLevel,
-    stdout: options.stdout,
-    logFile: options.logFile,
-    runId: options.runId,
-  });
+async function runHeadlessSession(options, { app = null, logger = null } = {}) {
+  if (!logger) {
+    logger = new RunLogger({
+      logLevel: options.logLevel,
+      stdout: options.stdout,
+      logFile: options.logFile,
+      runId: options.runId,
+    });
+  }
 
   const filterRegex = options.filter ? new RegExp(options.filter) : null;
   const excludeRegex = options.exclude ? new RegExp(options.exclude) : null;

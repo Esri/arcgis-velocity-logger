@@ -331,7 +331,7 @@ class GrpcServerTransportProtobuf {
 }
 
 class GrpcClientTransportProtobuf {
-  constructor({ ip, port, onData, onMetadata, onStatus, grpcSendMethod = 'stream', headerPathKey = 'grpc-path', headerPath = 'replace.with.dedicated.uid', useTls = true, tlsCaPath, tlsCertPath, tlsKeyPath }) {
+  constructor({ ip, port, onData, onMetadata, onStatus, grpcSendMethod = 'stream', headerPathKey = 'grpc-path', headerPath = 'replace.with.dedicated.uid', useTls = true, tlsCaPath, tlsCertPath, tlsKeyPath, authToken }) {
     this.ip = ip;
     this.port = port;
     this.onData = onData;
@@ -344,6 +344,7 @@ class GrpcClientTransportProtobuf {
     this.tlsCaPath = tlsCaPath;
     this.tlsCertPath = tlsCertPath;
     this.tlsKeyPath = tlsKeyPath;
+    this.authToken = authToken || null;
     this.client = null;
     this.stream = null;
     this._connected = false;
@@ -353,6 +354,9 @@ class GrpcClientTransportProtobuf {
   _buildMetadata() {
     const metadata = new grpc.Metadata();
     metadata.set(this.headerPathKey, this.headerPath);
+    if (this.authToken) {
+      metadata.set('authorization', `Bearer ${this.authToken}`);
+    }
     return metadata;
   }
 
@@ -514,7 +518,7 @@ class GrpcServerTransportInternal {
 }
 
 class GrpcClientTransportInternal {
-  constructor({ ip, port, grpcSerialization = 'text', onData, onMetadata, onStatus, grpcSendMethod = 'stream', headerPathKey = 'grpc-path', headerPath = 'replace.with.dedicated.uid', useTls = true, tlsCaPath, tlsCertPath, tlsKeyPath }) {
+  constructor({ ip, port, grpcSerialization = 'text', onData, onMetadata, onStatus, grpcSendMethod = 'stream', headerPathKey = 'grpc-path', headerPath = 'replace.with.dedicated.uid', useTls = true, tlsCaPath, tlsCertPath, tlsKeyPath, authToken }) {
     this.ip = ip;
     this.port = port;
     this.grpcSerialization = grpcSerialization;
@@ -528,6 +532,7 @@ class GrpcClientTransportInternal {
     this.tlsCaPath = tlsCaPath;
     this.tlsCertPath = tlsCertPath;
     this.tlsKeyPath = tlsKeyPath;
+    this.authToken = authToken || null;
     this.client = null;
     this.stream = null;
     this._connected = false;
@@ -536,6 +541,9 @@ class GrpcClientTransportInternal {
   _buildMetadata() {
     const metadata = new grpc.Metadata();
     metadata.set(this.headerPathKey, this.headerPath);
+    if (this.authToken) {
+      metadata.set('authorization', `Bearer ${this.authToken}`);
+    }
     return metadata;
   }
 

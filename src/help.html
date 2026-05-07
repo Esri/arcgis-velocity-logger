@@ -73,6 +73,40 @@
                     <li><strong>Header Path Key / Path:</strong> Custom gRPC metadata header for endpoint routing (client mode only).</li>
                 </ul>
 
+                <h3>Velocity Login &amp; Output Picker (🔑)</h3>
+                <p>Click the <strong>🔑</strong> button in the toolbar to sign in to your ArcGIS Velocity organization and browse available outputs. This allows you to auto-populate connection settings without manual configuration.</p>
+                <ul>
+                    <li><strong>Portal URL:</strong> Your ArcGIS Online or Enterprise portal URL (default: <code>https://velocitydemo.maps.arcgis.com</code>).</li>
+                    <li><strong>Username / Password:</strong> ArcGIS account credentials. A token is generated and automatically refreshed before expiry.</li>
+                    <li><strong>OAuth 2.0:</strong> Alternative tab for OAuth client credentials. Currently supported only for HTTP Poller outputs.</li>
+                    <li><strong>My Outputs / ORG Outputs:</strong> Segmented toggle to switch scope. "My Outputs" (default) returns only your outputs. "ORG Outputs" adds <code>view=admin</code> to fetch all org outputs (requires admin privileges).</li>
+                    <li><strong>Refresh ⟳:</strong> Re-fetches the output list for the current scope without re-authenticating.</li>
+                    <li><strong>Show / Hide Unsupported:</strong> Client-side filter toggle. Default: shown.</li>
+                    <li><strong>Output Type dropdown:</strong> Filters outputs by type. Each type has a unique icon prefix and colour (see Output Type Reference below).</li>
+                    <li><strong>Output dropdown:</strong> Select a specific output to view its details. Unsupported types shown with ⚠ prefix and muted styling.</li>
+                    <li><strong>Info panel:</strong> Displays the output's label, ID, type (with coloured icon badge), URL, auth type, format, and schema fields.</li>
+                    <li><strong>Apply:</strong> Auto-populates the main window's connection mode, host, port, path, TLS, and format from the selected output. Disabled for unsupported types.</li>
+                    <li><strong>Remember me:</strong> Persists portal URL and username (not password) across sessions.</li>
+                </ul>
+                <p><strong>Authentication:</strong> After applying an output, the Logger automatically attaches a Bearer token to gRPC metadata, HTTP headers, and WebSocket upgrade headers. Token is proactively refreshed at 80% of its lifetime.</p>
+
+                <h4>Output Type Reference</h4>
+                <p>Each output type is shown with a Unicode icon prefix and colour in the dropdowns and info panel:</p>
+                <table class="help-table">
+                    <thead><tr><th>Icon</th><th>Type</th><th>Colour</th><th>Supported</th></tr></thead>
+                    <tbody>
+                        <tr><td style="color:#7c4dff;font-size:1.2em">⬡</td><td><code>grpc</code> — gRPC</td><td><code>#7c4dff</code> purple</td><td>✅</td></tr>
+                        <tr><td style="color:#0097a7;font-size:1.2em">■</td><td><code>http</code> — HTTP</td><td><code>#0097a7</code> teal</td><td>✅</td></tr>
+                        <tr><td style="color:#00897b;font-size:1.2em">◆</td><td><code>websocket</code> — WebSocket</td><td><code>#00897b</code> green</td><td>✅</td></tr>
+                        <tr><td style="color:#546e7a;font-size:1.2em">◗</td><td><code>tcp</code> — TCP</td><td><code>#546e7a</code> slate</td><td>✅</td></tr>
+                        <tr><td style="color:#e53935;font-size:1.2em">▲</td><td><code>kafka</code> — Kafka</td><td><code>#e53935</code> red</td><td>❌</td></tr>
+                        <tr><td style="color:#f57c00;font-size:1.2em">◎</td><td><code>mqtt</code> — MQTT</td><td><code>#f57c00</code> orange</td><td>❌</td></tr>
+                        <tr><td style="color:#8d6e63;font-size:1.2em">▣</td><td><code>file</code> — File</td><td><code>#8d6e63</code> brown</td><td>❌</td></tr>
+                        <tr><td style="color:#0078d4;font-size:1.2em">❖</td><td><code>azure-event-hub</code></td><td><code>#0078d4</code> MS blue</td><td>❌</td></tr>
+                        <tr><td style="color:#0062ad;font-size:1.2em">❖</td><td><code>azure-service-bus</code></td><td><code>#0062ad</code> dark blue</td><td>❌</td></tr>
+                    </tbody>
+                </table>
+
                 <h4>Show Metadata — gRPC Client Fields</h4>
                 <p>When <strong>Show Metadata</strong> is enabled, each received data line is preceded by a <code>[metadata]</code> line. In gRPC Client mode the following fields appear:</p>
                 <table class="shortcuts-table">

@@ -37,7 +37,8 @@ App Config controls how the application _looks_. Launch Config controls what the
   "font": { "size": "13px", "family": "monospace" },
   "dialogSizes": {
     "appConfig": { "width": 650, "height": 380, "x": null, "y": null },
-    "launchConfig": { "width": 500, "height": 400, "x": null, "y": null }
+    "launchConfig": { "width": 500, "height": 400, "x": null, "y": null },
+    "velocityLogin": { "width": 590, "height": 840, "x": null, "y": null }
   }
 }
 ```
@@ -57,6 +58,7 @@ App Config controls how the application _looks_. Launch Config controls what the
 ### Dialog Sizes
 - **dialogSizes.appConfig**: Remembered width, height, and position (x, y) of the App Config dialog
 - **dialogSizes.launchConfig**: Remembered width, height, and position (x, y) of the Launch Config dialog
+- **dialogSizes.velocityLogin**: Remembered width, height, and position (x, y) of the Velocity Login & Output Picker dialog (default: 590 x 840)
 
 Size and position are saved automatically when the user resizes or moves either dialog, and restored on next open. When `x` and `y` are `null` (the default), the dialog is centered by the OS.
 

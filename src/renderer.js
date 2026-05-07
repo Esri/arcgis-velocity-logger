@@ -837,6 +837,86 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ─── Velocity Login / Output Picker ─────────────────────────────────────
+    const velocityLoginBtn = document.getElementById('velocity-login-btn');
+    if (velocityLoginBtn) {
+        velocityLoginBtn.addEventListener('click', () => {
+            window.electronAPI.openVelocityLogin();
+        });
+    }
+
+    window.electronAPI.on('velocity:output-applied', (item) => {
+        if (!item) return;
+        const type = item.outputType || '';
+        const connectionType = document.getElementById('connection-type');
+        const hostInput = document.getElementById('host');
+        const portInput = document.getElementById('port');
+
+        if (type === 'grpc') {
+            connectionType.value = 'grpc-client';
+            connectionType.dispatchEvent(new Event('change'));
+            if (item.url) {
+                hostInput.value = item.url.replace(/^https?:\/\//, '').split(':')[0].split('/')[0];
+                portInput.value = '443';
+            }
+            const headerPathInput = document.getElementById('grpc-header-path');
+            if (headerPathInput && item.headerPath) headerPathInput.value = item.headerPath;
+            const grpcTls = document.getElementById('grpc-tls');
+            if (grpcTls) { grpcTls.checked = true; grpcTls.dispatchEvent(new Event('change')); }
+        } else if (type === 'http') {
+            connectionType.value = 'http-client';
+            connectionType.dispatchEvent(new Event('change'));
+            if (item.url) {
+                try {
+                    const u = new URL(item.url);
+                    hostInput.value = u.hostname;
+                    portInput.value = u.port || (u.protocol === 'https:' ? '443' : '80');
+                    if (httpPathInput) httpPathInput.value = u.pathname || '/';
+                    if (httpTlsCheckbox) httpTlsCheckbox.checked = u.protocol === 'https:';
+                } catch (_) { hostInput.value = item.url; }
+            }
+        } else if (type === 'websocket') {
+            connectionType.value = 'ws-client';
+            connectionType.dispatchEvent(new Event('change'));
+            if (item.url) {
+                try {
+                    const u = new URL(item.url);
+                    hostInput.value = u.hostname;
+                    portInput.value = u.port || (u.protocol === 'wss:' ? '443' : '80');
+                    const wsPathInput = document.getElementById('ws-path');
+                    const wsTlsCheckbox = document.getElementById('ws-tls');
+                    if (wsPathInput) wsPathInput.value = u.pathname || '/';
+                    if (wsTlsCheckbox) wsTlsCheckbox.checked = u.protocol === 'wss:';
+                } catch (_) { hostInput.value = item.url; }
+            }
+        } else if (type === 'tcp') {
+            connectionType.value = 'tcp-client';
+            connectionType.dispatchEvent(new Event('change'));
+            if (item.host) hostInput.value = item.host;
+            if (item.port) portInput.value = item.port;
+        }
+
+        // Show auth badge
+        const authBadge = document.getElementById('auth-badge');
+        const authBadgeContent = document.getElementById('auth-badge-content');
+        if (authBadge) {
+            authBadge.style.display = '';
+            if (authBadgeContent) {
+                authBadgeContent.textContent = `Velocity Output: ${item.label || item.id}\nAuth: ${item.authType || 'token'}`;
+            }
+        }
+
+        addLog(`✓ Output applied — ready to connect (${item.label || item.id})`);
+    });
+
+    window.electronAPI.on('velocity:token-refreshed', () => {
+        addLog('🔑 Velocity token refreshed');
+    });
+
+    window.electronAPI.on('velocity:token-error', (msg) => {
+        addLog(`⚠️ Velocity token refresh failed: ${msg}`);
+    });
+
     // Listen for context menu toggle connection line
     window.electronAPI.on('toggle-connection-line-menu', (checked) => {
         setToggleConnectionLineState(checked);
@@ -857,6 +937,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize auto-scroll toggle button state
     updateAutoScrollButtonState();
+
+    function addLog(message) {
+        if (!message) return;
+        const lines = String(message).split('\n').filter((l) => l.length > 0);
+        if (!lines.length) return;
+        // Status-style logs: no transport metadata pairing; do not affect line counter.
+        logsBuffer.push(...lines);
+        for (let i = 0; i < lines.length; i++) headersBuffer.push(null);
+        renderFromBuffer();
+    }
+
     function renderFromBuffer() {
         if (!logs) return;
         const entries = listOrder === 'ascending' ? logsBuffer : [...logsBuffer].reverse();

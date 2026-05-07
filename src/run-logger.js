@@ -54,8 +54,7 @@ class RunLogger {
     const timestamp = new Date().toISOString();
     const parts = [timestamp, level.toUpperCase()];
     if (this.runId) parts.push(this.runId);
-    parts.push(message);
-    return `[${parts.join('] [')}]`;
+    return `[${parts.join('] [')}] ${message}`;
   }
 
   write(level, message) {

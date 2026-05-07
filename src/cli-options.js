@@ -57,6 +57,7 @@ const VALID_MODES = new Set(['server', 'client']);
 const VALID_SERIALIZATIONS = new Set(['protobuf', 'kryo', 'text']);
 const VALID_GRPC_SEND_METHODS = new Set(['stream', 'unary']);
 const VALID_LOG_LEVELS = new Set(['error', 'warn', 'info', 'debug']);
+const DEFAULT_LOG_LEVEL = 'debug';
 const VALID_ON_ERROR = new Set(['exit', 'continue', 'pause']);
 const VALID_OUTPUT_FORMATS = new Set(['text', 'jsonl', 'csv']);
 const VALID_DATA_FORMATS = new Set(['json', 'delimited', 'esriJson', 'geojson', 'xml']);
@@ -120,32 +121,11 @@ const CLI_OPTION_KEYS = new Set([
   'help-wide',
 ]);
 
-const DEFAULT_HEADLESS_OPTIONS = {
-  runMode: 'headless',
+const APP_DEFAULTS = {
   protocol: 'tcp',
   mode: 'server',
   ip: '127.0.0.1',
   port: 5565,
-  autoConnect: true,
-  connectTimeoutMs: 0,
-  connectRetryIntervalMs: 1000,
-  connectWaitForServer: false,
-  outputFile: null,
-  outputFormat: 'text',
-  appendOutput: false,
-  maxLogCount: null,
-  durationMs: null,
-  idleTimeoutMs: 0,
-  filter: null,
-  exclude: null,
-  explain: true,
-  stdout: true,
-  logLevel: 'info',
-  logFile: null,
-  exitOnComplete: true,
-  onError: 'exit',
-  doneFile: null,
-  runId: null,
   grpcHeaderPath: 'replace.with.dedicated.uid',
   grpcHeaderPathKey: 'grpc-path',
   grpcSerialization: 'protobuf',
@@ -169,6 +149,31 @@ const DEFAULT_HEADLESS_OPTIONS = {
   wsSubscriptionMsg: null,
   wsIgnoreFirstMsg: false,
   wsHeaders: null,
+};
+
+const DEFAULT_HEADLESS_OPTIONS = {
+  ...APP_DEFAULTS,
+  runMode: 'headless',
+  autoConnect: true,
+  connectTimeoutMs: 0,
+  connectRetryIntervalMs: 1000,
+  connectWaitForServer: false,
+  outputFile: null,
+  outputFormat: 'text',
+  appendOutput: false,
+  maxLogCount: null,
+  durationMs: null,
+  idleTimeoutMs: 0,
+  filter: null,
+  exclude: null,
+  explain: true,
+  stdout: true,
+  logLevel: DEFAULT_LOG_LEVEL,
+  logFile: null,
+  exitOnComplete: true,
+  onError: 'exit',
+  doneFile: null,
+  runId: null,
   showMetadata: false,
   config: null,
 };
@@ -1528,7 +1533,7 @@ function parseCommandLineArgs(rawArgv, { isPackaged = false } = {}) {
       'wsFormat', 'wsTls', 'wsPath', 'wsTlsCaPath', 'wsTlsCertPath', 'wsTlsKeyPath',
       'wsSubscriptionMsg', 'wsIgnoreFirstMsg', 'wsHeaders',
     ]);
-    const uiRecognizedKeys = new Set(['runMode', 'help', 'help-detailed', 'help-wide', 'config', 'help-table-wide', 'help-table-narrow', 'explain', ...uiPresetKeys]);
+    const uiRecognizedKeys = new Set(['runMode', 'help', 'help-detailed', 'help-wide', 'config', 'help-table-wide', 'help-table-narrow', 'explain', 'logLevel', 'logFile', ...uiPresetKeys]);
     const ignoredKeys = Object.keys(mergedValues).filter(
       (key) => !uiRecognizedKeys.has(key),
     );
@@ -1558,9 +1563,20 @@ function parseCommandLineArgs(rawArgv, { isPackaged = false } = {}) {
   const explainRaw = rawValues.explain;
   const explain = explainRaw === undefined ? true : parseBoolean(explainRaw, 'explain', []) !== false;
 
+  // ─── Global logLevel / logFile (work in both UI and headless modes) ───
+  const globalLogLevel = (() => {
+    const raw = mergedValues.logLevel;
+    if (raw === undefined) return DEFAULT_LOG_LEVEL;
+    const v = String(raw).trim().toLowerCase();
+    return VALID_LOG_LEVELS.has(v) ? v : DEFAULT_LOG_LEVEL;
+  })();
+  const globalLogFile = mergedValues.logFile ? resolvePathValue(mergedValues.logFile) : null;
+
   const result = {
     mode,
     explain,
+    logLevel: globalLogLevel,
+    logFile: globalLogFile,
     errors,
     warnings,
     rawArgs,
@@ -1780,7 +1796,9 @@ function formatExplainOutput(cliOptions) {
 }
 
 module.exports = {
+  APP_DEFAULTS,
   DEFAULT_HEADLESS_OPTIONS,
+  DEFAULT_LOG_LEVEL,
   CLI_PARAMETER_DEFINITIONS,
   formatCliStartupErrorOutput,
   formatExplainOutput,

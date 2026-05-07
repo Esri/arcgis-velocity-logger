@@ -39,6 +39,7 @@ const defaultConfig = {
   dialogSizes: {
     appConfig: { width: 650, height: 380, x: null, y: null },
     launchConfig: { width: 500, height: 400, x: null, y: null },
+    velocityLogin: { width: 590, height: 840, x: null, y: null },
   }
 };
 
@@ -148,6 +149,7 @@ class ConfigManager {
         ...loadedConfig.dialogSizes,
         appConfig: { ...merged.dialogSizes.appConfig, ...(loadedConfig.dialogSizes.appConfig || {}) },
         launchConfig: { ...merged.dialogSizes.launchConfig, ...(loadedConfig.dialogSizes.launchConfig || {}) },
+        velocityLogin: { ...merged.dialogSizes.velocityLogin, ...(loadedConfig.dialogSizes.velocityLogin || {}) },
       };
     }
     return merged;

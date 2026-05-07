@@ -23,6 +23,7 @@ This folder contains all technical and user-facing documentation for the ArcGIS 
 | [TESTING.md](./TESTING.md) | Test commands, suite descriptions, manual smoke tests, and troubleshooting |
 | [THEME-REFACTOR-SUMMARY.md](./THEME-REFACTOR-SUMMARY.md) | Details of the theme system refactoring: per-file CSS, dynamic loader, and migration notes |
 | [TLS.md](./TLS.md) | TLS/SSL reference: supported protocols, certificate formats, OS trust stores, mTLS, auto self-signed certs, and TLS Trust Badge |
+| [VELOCITY-LOGIN.md](./VELOCITY-LOGIN.md) | ArcGIS Velocity sign-in, output picker, token-based auth, and auto-configuration — Users, Integrators |
 | [WHY-ELECTRON.md](./WHY-ELECTRON.md) | Rationale for choosing Electron: framework comparison, packaging overview, and trade-off analysis |
 
 ## Config Templates

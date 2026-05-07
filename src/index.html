@@ -56,6 +56,9 @@
                 <button id="cli-btn" class="control-button" title="Command Line Interface (F3)" aria-label="Open Command Line Interface dialog">
                     <span class="button-icon" aria-hidden="true" style="font-family: monospace; font-weight: bold; font-size: 13px;">&gt;_</span>
                 </button>
+                <button id="velocity-login-btn" class="control-button" title="Sign In to ArcGIS Velocity: browse outputs and auto-configure connection" aria-label="Sign In to ArcGIS Velocity">
+                    <span class="button-icon" style="font-size: 14px;">🔑</span>
+                </button>
             </div>
         </div>
         <div class="connection-controls">
@@ -74,8 +77,8 @@
                 </select>
                 <input type="text" id="host" placeholder="Host (e.g., 127.0.0.1)" value="127.0.0.1">
                 <input type="number" id="port" placeholder="Port (e.g., 5565)" value="5565">
-                <button id="connect-btn" class="connect-btn">Connect</button>
-                <button id="disconnect-btn" class="disconnect-btn" disabled>Disconnect</button>
+                <button id="connect-btn" class="connect-btn" title="Connect to the configured endpoint and start receiving data">Connect</button>
+                <button id="disconnect-btn" class="disconnect-btn" disabled title="Disconnect from the current connection">Disconnect</button>
             </div>
             <div class="grpc-options-row" aria-label="gRPC options">
                 <select id="grpc-serialization">
@@ -146,6 +149,12 @@
                     <span id="tls-badge-icon" class="tls-badge-icon">🔒</span>
                     <div id="tls-badge-popover" class="tls-badge-popover" role="tooltip">
                         <pre id="tls-badge-content" class="tls-badge-content"></pre>
+                    </div>
+                </div>
+                <div id="auth-badge" class="tls-badge" style="display:none;" aria-label="Velocity auth status">
+                    <span id="auth-badge-icon" class="tls-badge-icon">🔑</span>
+                    <div id="auth-badge-popover" class="tls-badge-popover" role="tooltip">
+                        <pre id="auth-badge-content" class="tls-badge-content"></pre>
                     </div>
                 </div>
             </div>

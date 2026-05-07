@@ -67,10 +67,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'log-metadata',
       'cli-presets',
       'enter-inspect-mode',
-      'cancel-inspect-mode'
+      'cancel-inspect-mode',
+      'velocity:output-applied',
+      'velocity:token-refreshed',
+      'velocity:token-error'
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, (event, ...args) => callback(...args));
     }
-  }
+  },
+  // --- Velocity Login / Output Picker ---
+  openVelocityLogin: () => ipcRenderer.send('velocity:open-login'),
 });
