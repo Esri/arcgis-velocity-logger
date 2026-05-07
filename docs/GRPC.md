@@ -102,7 +102,7 @@ The logger supports all three formats to test and debug both paths.
 
 The logger hosts a gRPC server. Depending on the serialization format:
 
-- **Protobuf**: Hosts a `GrpcFeed` server. Inbound clients send features via `Send` (unary) or `Stream` (client-streaming) RPCs. The `Watch` RPC is also defined in the proto but not handled in this direction — it is used when the logger itself acts as a *client* subscribing to a server.
+- **Protobuf**: Hosts a `GrpcFeed` server. Inbound clients send features via `Send` (unary) or `Stream` (client-streaming) RPCs. The `Watch` RPC is also defined in the proto but not handled in this direction - it is used when the logger itself acts as a *client* subscribing to a server.
 - **Kryo / Text**: Hosts a `GrpcFeatureService` server. Inbound clients send requests via `execute` (unary) or `executeMulti` (bidirectional streaming) RPCs. The `watch` RPC is likewise defined for the reverse client role.
 
 Each received feature is decoded and displayed as a line in the log view.
@@ -117,31 +117,31 @@ One `[metadata]` line is emitted per incoming call. It starts with connection-le
 ```
 
 Fields in order:
-- `protocol=gRPC` — always `gRPC` for gRPC connections
-- `mode=server` — always `server` for the server transport
-- `grpcSerialization=protobuf|text|kryo` — the active serialization format
-- `rpc=Send|Stream|execute|executeMulti` — the RPC method that received the call
-- `remote=` — the remote client address as reported by `call.getPeer()` (e.g. `ipv4:127.0.0.1:54321`)
-- `local=` — the local bind address and port (e.g. `127.0.0.1:50051`)
-- `deadline=` — the call deadline set by the client (`none` if no deadline was set, otherwise an ISO-8601 timestamp)
-- _call headers_ — all gRPC call metadata key-value pairs sent by the client (HTTP/2 request headers, e.g. `content-type`, `grpc-path`, custom headers)
+- `protocol=gRPC` - always `gRPC` for gRPC connections
+- `mode=server` - always `server` for the server transport
+- `grpcSerialization=protobuf|text|kryo` - the active serialization format
+- `rpc=Send|Stream|execute|executeMulti` - the RPC method that received the call
+- `remote=` - the remote client address as reported by `call.getPeer()` (e.g. `ipv4:127.0.0.1:54321`)
+- `local=` - the local bind address and port (e.g. `127.0.0.1:50051`)
+- `deadline=` - the call deadline set by the client (`none` if no deadline was set, otherwise an ISO-8601 timestamp)
+- _call headers_ - all gRPC call metadata key-value pairs sent by the client (HTTP/2 request headers, e.g. `content-type`, `grpc-path`, custom headers)
 
 #### gRPC Client metadata
 Three metadata lines are emitted per connection lifecycle, plus one per received data message:
 
-1. **Connection-established line** — emitted immediately after the `Watch`/`watch` stream opens:
+1. **Connection-established line** - emitted immediately after the `Watch`/`watch` stream opens:
    ```
    [metadata] protocol=gRPC mode=client serialization=protobuf method=stream rpc=Watch remote=127.0.0.1:50051
    ```
    Fields:
-   - `protocol=gRPC` — always `gRPC`
-   - `mode=client` — always `client` for the client transport
-   - `serialization=protobuf|text|kryo` — the active serialization format
-   - `method=stream|unary` — the configured **gRPC RPC Type** (stream = client-streaming, unary = discrete request/response)
-   - `rpc=Watch|watch` — the **server-streaming RPC** the logger called to subscribe to incoming data. `Watch` (capital W) is the RPC name in the `GrpcFeed` service used by the **protobuf** format (`velocity-grpc.proto`); `watch` (lowercase) is the RPC name in the `GrpcFeatureService` service used by the **text** and **kryo** formats (`feature-service.proto`). Both are server-streaming calls — the logger sends one request and the server pushes a continuous stream of messages back.
-   - `remote=HOST:PORT` — the address of the gRPC server the logger connected to
+   - `protocol=gRPC` - always `gRPC`
+   - `mode=client` - always `client` for the client transport
+   - `serialization=protobuf|text|kryo` - the active serialization format
+   - `method=stream|unary` - the configured **gRPC RPC Type** (stream = client-streaming, unary = discrete request/response)
+   - `rpc=Watch|watch` - the **server-streaming RPC** the logger called to subscribe to incoming data. `Watch` (capital W) is the RPC name in the `GrpcFeed` service used by the **protobuf** format (`velocity-grpc.proto`); `watch` (lowercase) is the RPC name in the `GrpcFeatureService` service used by the **text** and **kryo** formats (`feature-service.proto`). Both are server-streaming calls - the logger sends one request and the server pushes a continuous stream of messages back.
+   - `remote=HOST:PORT` - the address of the gRPC server the logger connected to
 
-2. **Per-message line** — emitted for each data message received, immediately before the data line:
+2. **Per-message line** - emitted for each data message received, immediately before the data line:
    - Protobuf (`rpc=Watch`): includes `feature=N/TOTAL` indicating which feature within the batch:
      ```
      [metadata] protocol=gRPC mode=client serialization=protobuf method=stream rpc=Watch remote=127.0.0.1:50051 feature=1/3
@@ -151,12 +151,12 @@ Three metadata lines are emitted per connection lifecycle, plus one per received
      [metadata] protocol=gRPC mode=client serialization=text method=stream rpc=watch remote=127.0.0.1:50051 size=42
      ```
 
-3. **Response-headers line** — initial metadata sent back from the server (emitted on the stream `metadata` event):
+3. **Response-headers line** - initial metadata sent back from the server (emitted on the stream `metadata` event):
    ```
    [metadata] response-headers: content-type=application/grpc x-server-id=simulator
    ```
 
-4. **Status line** — emitted when the stream ends, including the gRPC status code, details, and any trailing metadata:
+4. **Status line** - emitted when the stream ends, including the gRPC status code, details, and any trailing metadata:
    ```
    [metadata] status: code=0 details="OK"
    ```
@@ -271,8 +271,8 @@ electron . runMode=headless protocol=grpc mode=server ip=0.0.0.0 port=50051 useT
 | `grpcSerialization=protobuf` | Use Velocity external GrpcFeed protocol with typed Any-wrapped attributes (default) |
 | `grpcSerialization=kryo` | Use Velocity internal GrpcFeatureService protocol with raw bytes |
 | `grpcSerialization=text` | Use Velocity internal GrpcFeatureService protocol with plain UTF-8 text |
-| `grpcSendMethod=stream` | Client Streaming RPC — multiplexes all messages over a single persistent HTTP/2 stream (default). Higher throughput, lower per-message overhead. Client mode only. |
-| `grpcSendMethod=unary` | Unary RPC — sends each message as a discrete request/response round-trip. Simpler to trace and debug. Client mode only. |
+| `grpcSendMethod=stream` | Client Streaming RPC - multiplexes all messages over a single persistent HTTP/2 stream (default). Higher throughput, lower per-message overhead. Client mode only. |
+| `grpcSendMethod=unary` | Unary RPC - sends each message as a discrete request/response round-trip. Simpler to trace and debug. Client mode only. |
 | `showMetadata=true` | Write connection/call metadata lines to the output before each received message (default: `false`). For server mode: call headers per incoming RPC. For client mode: connection-established, response-headers, and status lines. |
 | `useTls` | Use TLS (SSL) for the gRPC connection (default: `false`). When `true`, uses SSL credentials instead of plaintext. |
 | `tlsCaPath` | Path to a custom CA certificate file (PEM). When omitted with `useTls=true`, OS root certificates are loaded automatically (see [TLS & Certificate Stores](#tls--certificate-stores)). |
@@ -283,14 +283,14 @@ electron . runMode=headless protocol=grpc mode=server ip=0.0.0.0 port=50051 useT
 
 When gRPC is selected as the connection type in the UI, the following controls appear:
 
-- **Serialization** — `Protobuf` (default), `Kryo`, or `Text`
-- **RPC type** — `Client Streaming` (default) or `Unary`. Selects the gRPC call pattern for sending data. Client Streaming opens a persistent stream for high-throughput ingestion. Unary sends each message as an independent request/response round-trip. Only applies in gRPC Client mode. **Locked while connected** (the streaming vs. unary choice is baked into the transport at connect time).
-- **TLS** — Checkbox to enable TLS (SSL) connections. When checked, additional certificate path fields appear.
-- **CA cert path** — Path to a custom CA certificate file (PEM). Leave empty to use OS root certificates automatically.
-- **TLS cert path** — Path to a client/server certificate file (PEM) for mutual TLS.
-- **TLS key path** — Path to a private key file (PEM) for mutual TLS.
-- **Header path key** — gRPC endpoint header path key (default: `grpc-path`). Sent as gRPC metadata on every outgoing call. **Visible only in gRPC Client mode.**
-- **Header path** — gRPC endpoint header path value (default: `replace.with.dedicated.uid`). Sent as gRPC metadata on every outgoing call. **Visible only in gRPC Client mode.**
+- **Serialization** - `Protobuf` (default), `Kryo`, or `Text`
+- **RPC type** - `Client Streaming` (default) or `Unary`. Selects the gRPC call pattern for sending data. Client Streaming opens a persistent stream for high-throughput ingestion. Unary sends each message as an independent request/response round-trip. Only applies in gRPC Client mode. **Locked while connected** (the streaming vs. unary choice is baked into the transport at connect time).
+- **TLS** - Checkbox to enable TLS (SSL) connections. When checked, additional certificate path fields appear.
+- **CA cert path** - Path to a custom CA certificate file (PEM). Leave empty to use OS root certificates automatically.
+- **TLS cert path** - Path to a client/server certificate file (PEM) for mutual TLS.
+- **TLS key path** - Path to a private key file (PEM) for mutual TLS.
+- **Header path key** - gRPC endpoint header path key (default: `grpc-path`). Sent as gRPC metadata on every outgoing call. **Visible only in gRPC Client mode.**
+- **Header path** - gRPC endpoint header path value (default: `replace.with.dedicated.uid`). Sent as gRPC metadata on every outgoing call. **Visible only in gRPC Client mode.**
 
 The serialization and TLS controls are shown for both client and server modes. The header controls are shown only when **gRPC Client** is selected, since they have no effect in server mode (the server only receives incoming connections and never initiates outgoing calls).
 
@@ -345,32 +345,32 @@ When `useTls=true` is set without a custom `tlsCaPath`, the app merges the Node.
 
 The merged set is deduplicated and passed to `grpc.credentials.createSsl()`. The connection log shows the cert breakdown on connect. Examples:
 
-**Client mode — OS root CAs (no custom cert):**
+**Client mode - OS root CAs (no custom cert):**
 ```
 gRPC Client connected to mcstest492.esri.com:7145 [protobuf] grpc-path=dedicated.abc123
   tls=on, 429 trusted CAs loaded, node-bundled=144, os=Windows certificate store (285)
 ```
 
-**Client mode — custom CA cert:**
+**Client mode - custom CA cert:**
 ```
 gRPC Client connected to myserver.example.com:7145 [protobuf] grpc-path=dedicated.abc123
   tls=on, custom certs: ca=./certs/ca.pem
 ```
 
-**Server mode — TLS with cert and key:**
+**Server mode - TLS with cert and key:**
 ```
 gRPC Server listening on 0.0.0.0:50051 [protobuf]
   tls=on, server certs: cert=./certs/server.pem, key=./certs/server-key.pem
 ```
 
-**Any mode — TLS off:**
+**Any mode - TLS off:**
 ```
   tls=off (unsecure)
 ```
 
 To override the automatic OS CA lookup on the client side, set `tlsCaPath` to a PEM file path.
 
-### Server-mode TLS — automatic self-signed certificate
+### Server-mode TLS - automatic self-signed certificate
 
 When `useTls=true` is set on a server transport **without** providing `tlsCertPath` and `tlsKeyPath`, the app automatically generates an **in-memory self-signed certificate** at startup. This lets you run a TLS-secured server immediately with no certificate files required.
 
@@ -384,7 +384,7 @@ tls=on, cert=self-signed (auto-generated), key=self-signed (auto-generated)
 
 Because the certificate is not signed by a trusted CA, connecting clients will reject it by default. Options:
 
-- **Logger / Simulator pairing (same machine):** Both apps use `rejectUnauthorized: false` automatically when the server advertises a self-signed cert — no configuration needed for local testing.
+- **Logger / Simulator pairing (same machine):** Both apps use `rejectUnauthorized: false` automatically when the server advertises a self-signed cert - no configuration needed for local testing.
 - **Custom CA cert:** If you provide your own `tlsCertPath`/`tlsKeyPath`, the cert is used as-is. Clients that have the CA cert in their trust store will connect without warnings.
 - **Providing your own cert:** Generate a self-signed pair with OpenSSL and supply both paths:
 
@@ -396,15 +396,15 @@ Because the certificate is not signed by a trusted CA, connecting clients will r
 
 ### TLS Trust Badge
 
-When connected, the status bar displays a lock icon reflecting the trust level at a glance. No text label is shown beside the icon — hover or click the badge for full details. The icon **shape** and **colour** both encode the trust level so it is unambiguous for colour-blind users.
+When connected, the status bar displays a lock icon reflecting the trust level at a glance. No text label is shown beside the icon - hover or click the badge for full details. The icon **shape** and **colour** both encode the trust level so it is unambiguous for colour-blind users.
 
 | Icon | Colour | Trust Level | Meaning |
 |------|--------|-------------|---------|
-| 🔓 | Grey / dimmed | off | No TLS — plaintext, unsecure connection |
-| 🔒 | Amber | on | TLS on — OS certificate store, trust level not fully determined |
+| 🔓 | Grey / dimmed | off | No TLS - plaintext, unsecure connection |
+| 🔒 | Amber | on | TLS on - OS certificate store, trust level not fully determined |
 | 🔒⚠ | Amber | self-signed | TLS on, but self-signed or cert-chain not verified |
 | 🔒✓ | Green | ca-verified | TLS on, CA-verified certificate chain |
-| 🔐 | Blue / cyan | mtls | Mutual TLS — both client and server present certificates |
+| 🔐 | Blue / cyan | mtls | Mutual TLS - both client and server present certificates |
 
 See [TLS.md](./TLS.md) for full TLS concepts, certificate file formats, OS trust store behaviour, and setup guides.
 
@@ -416,7 +416,7 @@ The classic push scenario: simulator sends features, Logger receives them.
 
 1. Start the Logger in **gRPC Server** mode on port 50051 with **Protobuf** serialization
 2. Start the Simulator in **gRPC Client** mode pointing to `127.0.0.1:50051` with **Protobuf** serialization
-3. Load a CSV file in the Simulator and press Play — decoded features appear in the Logger
+3. Load a CSV file in the Simulator and press Play - decoded features appear in the Logger
 
 ### Example B: Simulator (Server) → Logger (Client)
 
@@ -424,7 +424,7 @@ The reverse scenario: Logger subscribes and receives features pushed by the Simu
 
 1. Start the Simulator in **gRPC Server** mode on port 50051 with **Protobuf** serialization
 2. Load a CSV file in the Simulator but do **not** press Play yet
-3. Start the Logger in **gRPC Client** mode pointing to `127.0.0.1:50051` with **Protobuf** serialization — this calls `Watch` and subscribes
-4. Press Play in the Simulator — decoded features are pushed to the Logger in real time
+3. Start the Logger in **gRPC Client** mode pointing to `127.0.0.1:50051` with **Protobuf** serialization - this calls `Watch` and subscribes
+4. Press Play in the Simulator - decoded features are pushed to the Logger in real time
 
 Both scenarios work with all three serialization formats (protobuf, text, kryo).

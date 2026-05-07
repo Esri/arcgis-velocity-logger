@@ -1,3 +1,22 @@
+/* Theme System for ArcGIS Velocity Logger */
+
+/* Import all individual theme files */
+@import url('./themes/theme-blue.css');
+@import url('./themes/theme-color-blind.css');
+@import url('./themes/theme-dark.css');
+@import url('./themes/theme-dark-gray.css');
+@import url('./themes/theme-green.css');
+@import url('./themes/theme-high-contrast.css');
+@import url('./themes/theme-light.css');
+@import url('./themes/theme-light-gray.css');
+@import url('./themes/theme-midnight.css');
+@import url('./themes/theme-mocha.css');
+@import url('./themes/theme-ocean.css');
+@import url('./themes/theme-rose.css');
+@import url('./themes/theme-rose-dark.css');
+@import url('./themes/theme-sunset.css');
+@import url('./themes/theme-system.css');
+
 /* Dark theme (default fallback) */
 :root {
     --background-color: #1e1e1e;

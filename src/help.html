@@ -79,9 +79,9 @@
                     <li><strong>Portal URL:</strong> Your ArcGIS Online or Enterprise portal URL (default: <code>https://velocitydemo.maps.arcgis.com</code>).</li>
                     <li><strong>Username / Password:</strong> ArcGIS account credentials. A token is generated and automatically refreshed before expiry.</li>
                     <li><strong>OAuth 2.0:</strong> Alternative tab for OAuth client credentials. Currently supported only for HTTP Poller outputs.</li>
-                    <li><strong>My Outputs / ORG Outputs:</strong> Segmented toggle to switch scope. "My Outputs" (default) returns only your outputs. "ORG Outputs" adds <code>view=admin</code> to fetch all org outputs (requires admin privileges).</li>
+                    <li><strong>My Outputs / ORG Outputs:</strong> Segmented toggle to switch scope. "ORG Outputs" is the default and adds <code>view=admin</code> to fetch all org outputs (requires admin privileges). "My Outputs" returns only your outputs.</li>
                     <li><strong>Refresh ⟳:</strong> Re-fetches the output list for the current scope without re-authenticating.</li>
-                    <li><strong>Show / Hide Unsupported:</strong> Client-side filter toggle. Default: shown.</li>
+                    <li><strong>Supported / All:</strong> Client-side filter toggle that shows only supported output types by default, or all output types including unsupported ones.</li>
                     <li><strong>Output Type dropdown:</strong> Filters outputs by type. Each type has a unique icon prefix and colour (see Output Type Reference below).</li>
                     <li><strong>Output dropdown:</strong> Select a specific output to view its details. Unsupported types shown with ⚠ prefix and muted styling.</li>
                     <li><strong>Info panel:</strong> Displays the output's label, ID, type (with coloured icon badge), URL, auth type, format, and schema fields.</li>
@@ -107,7 +107,7 @@
                     </tbody>
                 </table>
 
-                <h4>Show Metadata — gRPC Client Fields</h4>
+                <h4>Show Metadata - gRPC Client Fields</h4>
                 <p>When <strong>Show Metadata</strong> is enabled, each received data line is preceded by a <code>[metadata]</code> line. In gRPC Client mode the following fields appear:</p>
                 <table class="shortcuts-table">
                     <thead>
@@ -160,6 +160,7 @@
                         </tr>
                     </tbody>
                 </table>
+
                 <p>Example metadata line (Protobuf client, one feature in the batch):</p>
                 <pre><code>[metadata] protocol=gRPC mode=client serialization=protobuf method=stream rpc=Watch remote=127.0.0.1:5565 feature=1/1</code></pre>
 
@@ -211,6 +212,17 @@
                     <li><strong>Auto‑Scroll:</strong> Toggle automatic scrolling to newest lines from the header</li>
                     <li><strong>List Order:</strong> Toggle between ascending (oldest first) and descending (newest first) order</li>
                     <li><strong>Line Counter:</strong> Track total messages received</li>
+                    <li><strong>Command Line Interface:</strong> <code>&gt;_</code> opens the CLI reference and option builder dialog (F3)</li>
+                </ul>
+            </div>
+
+            <div class="help-section">
+                <h3>Tooltips</h3>
+                <p>Hover or keyboard-focus controls to show custom tooltips. Tooltips are rendered by the app on all operating systems for consistent behavior on macOS, Windows, and Linux.</p>
+                <ul>
+                    <li><strong>Icons:</strong> Tooltip icons help identify actions such as authentication (🔑), TLS/security (🔒), warnings (⚠), refresh (↻), and command-line tools (<code>&gt;_</code>).</li>
+                    <li><strong>Colors:</strong> Tooltip accents are theme-aware. Info, auth, secure, success, warning, and error states use different accent colors.</li>
+                    <li><strong>Accessibility:</strong> Controls keep ARIA labels while native title tooltips are replaced by the custom renderer.</li>
                 </ul>
             </div>
 
@@ -429,5 +441,6 @@
             }
         });
     </script>
+  <script src="tooltip-utils.js"></script>
 </body>
 </html>

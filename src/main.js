@@ -2322,7 +2322,6 @@ ipcMain.on('velocity:hide-login', () => {
     velocityLoginWindow.hide();
   }
 });
-}
 
 ipcMain.on('velocity:open-login', () => { showVelocityLoginDialog(); });
 
