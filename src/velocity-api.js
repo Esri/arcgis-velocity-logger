@@ -208,6 +208,10 @@ async function getVelocityApiUrl(portalUrl, token) {
 async function listFeeds(velocityUrl, token, adminScope = false) {
   const base = `${velocityUrl.replace(/\/+$/, '')}/iot/feeds?f=json&token=${encodeURIComponent(token)}&num=1000`;
   const url = adminScope ? `${base}&view=admin` : base;
+  if (process.env.NODE_ENV !== 'test') {
+    console.log(`[Auth] Query feeds URL: ${url}`);
+    console.log(`[Auth] Request headers: Authorization: token=${token}`);
+  }
   const feeds = await jsonRequest(url, {
     headers: { 'Authorization': `token=${token}` }
   });
@@ -240,6 +244,10 @@ async function listFeeds(velocityUrl, token, adminScope = false) {
 async function listOutputs(velocityUrl, token, adminScope = false) {
   const base = `${velocityUrl.replace(/\/+$/, '')}/iot/outputs?f=json&token=${encodeURIComponent(token)}&num=1000`;
   const url = adminScope ? `${base}&view=admin` : base;
+  if (process.env.NODE_ENV !== 'test') {
+    console.log(`[Auth] Query outputs URL: ${url}`);
+    console.log(`[Auth] Request headers: Authorization: token=${token}`);
+  }
   const outputs = await jsonRequest(url, {
     headers: { 'Authorization': `token=${token}` }
   });
