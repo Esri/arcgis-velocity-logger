@@ -217,9 +217,9 @@ async function listFeeds(velocityUrl, token, adminScope = false) {
     const shape = Array.isArray(feeds)
       ? `array(${feeds.length})`
       : (feeds && typeof feeds === 'object' ? `object{${Object.keys(feeds).filter(k => !k.startsWith('__')).join(',')}}` : typeof feeds);
-    console.log(`[API][listFeeds] raw response shape: ${shape}`);
+    console.log(`[API] [listFeeds] raw response shape: ${shape}`);
     if (!Array.isArray(feeds)) {
-      console.log(`[API][listFeeds] raw body (first 500): ${(feeds.__rawBody || '').slice(0, 500)}`);
+      console.log(`[API] [listFeeds] raw body (first 500): ${(feeds.__rawBody || '').slice(0, 500)}`);
     }
   }
 
@@ -249,9 +249,9 @@ async function listOutputs(velocityUrl, token, adminScope = false) {
     const shape = Array.isArray(outputs)
       ? `array(${outputs.length})`
       : (outputs && typeof outputs === 'object' ? `object{${Object.keys(outputs).filter(k => !k.startsWith('__')).join(',')}}` : typeof outputs);
-    console.log(`[API][listOutputs] raw response shape: ${shape}`);
+    console.log(`[API] [listOutputs] raw response shape: ${shape}`);
     if (!Array.isArray(outputs)) {
-      console.log(`[API][listOutputs] raw body (first 500): ${(outputs.__rawBody || '').slice(0, 500)}`);
+      console.log(`[API] [listOutputs] raw body (first 500): ${(outputs.__rawBody || '').slice(0, 500)}`);
     }
   }
 
