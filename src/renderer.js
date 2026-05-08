@@ -847,6 +847,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.electronAPI.on('velocity:output-applied', (item) => {
         if (!item) return;
+
+        // Token-only mode: authenticate without changing connection settings
+        if (item.tokenOnly) {
+            const authBadge = document.getElementById('auth-badge');
+            const authBadgeContent = document.getElementById('auth-badge-content');
+            if (authBadge) {
+                authBadge.style.display = '';
+                if (authBadgeContent) {
+                    authBadgeContent.textContent = 'Velocity Token Only\nAuth: token (no output selected)';
+                }
+            }
+            addLog('🔑 Velocity token applied — using your own connection settings');
+            return;
+        }
+
         const type = item.outputType || '';
         const connectionType = document.getElementById('connection-type');
         const hostInput = document.getElementById('host');
