@@ -14,6 +14,7 @@ const {
   getCommandHelpText,
   DEFAULT_HEADLESS_OPTIONS,
 } = require('../src/cli-options.js');
+const { levenshteinDistance } = require('../src/cli-suggestions.js');
 
 function argv(...args) {
   // Simulate unpackaged electron: process.argv = [nodeBinary, mainJs, ...userArgs]
@@ -197,6 +198,25 @@ test('unknown key → error', () => {
   assert.ok(r.errors.some((e) => e.includes('bogus')));
 });
 
+test('unknown key typo suggests closest CLI parameter using Levenshtein distance', () => {
+  assert.strictEqual(levenshteinDistance('protocl', 'protocol'), 1);
+  const r = parseCommandLineArgs(argv('runMode=headless', 'outputFile=./x.log', 'protocl=tcp'));
+  assert.strictEqual(r.mode, 'error');
+  assert.ok(r.errors.some((e) => e.includes("Did you mean 'protocol'?")));
+});
+
+test('unknown help flag typo suggests closest bare help flag', () => {
+  const r = parseCommandLineArgs(argv('--help-detaled'));
+  assert.strictEqual(r.mode, 'error');
+  assert.ok(r.errors.some((e) => e.includes("Did you mean '--help-detailed'?")));
+});
+
+test('distant unknown key does not produce a misleading suggestion', () => {
+  const r = parseCommandLineArgs(argv('runMode=headless', 'outputFile=./x.log', 'mysteryOption=true'));
+  assert.strictEqual(r.mode, 'error');
+  assert.ok(!r.errors.some((e) => e.includes('Did you mean')));
+});
+
 test('unknown positional argument → error', () => {
   const r = parseCommandLineArgs(argv('runMode=headless', 'outputFile=./x.log', 'bogus'));
   assert.strictEqual(r.mode, 'error');
@@ -217,15 +237,16 @@ test('explicit help still wins over invalid CLI params', () => {
   assert.ok(r.helpText.includes('help-table-narrow'));
 });
 
-test('formatCliStartupErrorOutput matches simulator-style invalid parameter messaging', () => {
+test('formatCliStartupErrorOutput keeps unknown-parameter output concise', () => {
   const cliArgs = parseCommandLineArgs(argv('foo=true'));
   assert.strictEqual(cliArgs.mode, 'error');
 
   const output = formatCliStartupErrorOutput(cliArgs);
   assert.ok(output.includes('CLI startup aborted due to invalid command-line parameters. The application will exit without launching.'));
   assert.ok(output.includes('CLI error: Unknown CLI parameter: foo. These parameters are not supported. Review valid CLI parameters with: electron . help=true'));
-  assert.ok(output.includes('ArcGIS Velocity Logger command-line help'));
-  assert.ok(output.includes('Layout: help (Name | Supported Values | Default | Purpose)'));
+  assert.ok(output.includes('CLI help: run electron . help=true (or --help) to view supported parameters.'));
+  assert.ok(!output.includes('ArcGIS Velocity Logger command-line help'));
+  assert.ok(!output.includes('Layout: help (Name | Supported Values | Default | Purpose)'));
 });
 
 test('formatCliStartupErrorOutput keeps positional-argument guidance and appends help', () => {

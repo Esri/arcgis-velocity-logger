@@ -35,6 +35,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { formatDidYouMean } = require('./cli-suggestions');
 
 const IS_WINDOWS_CONSOLE = os.platform() === 'win32';
 const CLI_SYMBOLS = {
@@ -120,6 +121,17 @@ const CLI_OPTION_KEYS = new Set([
   'help-table-wide',
   'help-wide',
 ]);
+
+const CLI_OPTION_ALIASES = new Set(['host', 'silent']);
+const CLI_PARAMETER_CANDIDATES = [...CLI_OPTION_KEYS, ...CLI_OPTION_ALIASES];
+const CLI_HELP_FLAG_CANDIDATES = [
+  '--help',
+  '-h',
+  '--help-detailed',
+  '--help-table-wide',
+  '--help-table-narrow',
+  '--help-wide',
+];
 
 const APP_DEFAULTS = {
   protocol: 'tcp',
@@ -846,6 +858,8 @@ function getCommandLineReferenceData() {
       '127.0.0.1 is the default loopback/local-only address; 0.0.0.0 is a typical server bind value when remote clients should connect.',
       'connectWaitForServer and connectRetryIntervalMs apply to TCP client mode only. connectWaitForServer=false (the default) disables retry. Pair connectWaitForServer=true with connectTimeoutMs for a deadline and connectRetryIntervalMs to tune retry spacing.',
       'help is the compact default without the example column. help-wide adds examples. help-table-narrow / help-table-wide give full ASCII table layouts. Aliases: --help, -h, h.',
+      'Unknown CLI parameter typos use Levenshtein edit distance for "Did you mean ...?" suggestions when a close valid parameter or help flag exists. Unknown-parameter errors show a help command such as electron . help=true, but do not print the full help table automatically.',
+      'Typo strategy comparison: exact allowlist validation decides whether an option is valid; character-overlap scoring is simple but ignores order; Damerau-Levenshtein also treats adjacent swaps as one edit but is more complex; Levenshtein is used here because it is deterministic, dependency-free, and matches common CLI mistakes such as missing letters, extra letters, missing hyphens, and substitutions.',
       'When multiple help layouts are requested together, help-table-narrow wins over help-table-wide, wins over help-detailed, wins over help-wide, wins over help.',
     ],
     examples: [
@@ -900,6 +914,8 @@ function getStandardHelpText() {
     '  - Default ip is 127.0.0.1 for loopback/local-only use. 0.0.0.0 is a typical server bind value when other machines should be allowed to connect.',
     '  - connectWaitForServer / connectRetryIntervalMs apply to TCP client mode only. connectWaitForServer=false (the default) disables retry. Pair with connectTimeoutMs for a deadline.',
     '  - help is the compact default. help-wide adds the Example column. help-detailed gives the full verbose listing. help-table-narrow / help-table-wide give full ASCII table layouts. Aliases: --help, -h, h.',
+    '  - Unknown CLI parameter typos use Levenshtein edit distance for "Did you mean ...?" suggestions when a close valid parameter or help flag exists. Unknown-parameter errors show a help command such as electron . help=true, but do not print the full help table automatically.',
+    '  - Typo strategy comparison: exact allowlist validation decides whether an option is valid; character-overlap scoring is simple but ignores order; Damerau-Levenshtein also treats adjacent swaps as one edit but is more complex; Levenshtein is used here because it is deterministic, dependency-free, and matches common CLI mistakes such as missing letters, extra letters, missing hyphens, and substitutions.',
   ]));
 
   lines.push(...buildHelpSection('Examples', [
@@ -953,6 +969,22 @@ function mergeHelpLayout(currentLayout, nextLayout) {
   if (!currentLayout) return nextLayout;
   return getHelpLayoutPriority(nextLayout) >= getHelpLayoutPriority(currentLayout)
     ? nextLayout : currentLayout;
+}
+
+function formatUnknownCliParametersError(unknownParameters) {
+  const parameterList = [...new Set(unknownParameters)].sort();
+  const label = parameterList.length === 1 ? 'parameter' : 'parameters';
+  const formattedParameters = parameterList.map((parameter) => {
+    const candidates = String(parameter).startsWith('-')
+      ? CLI_HELP_FLAG_CANDIDATES
+      : CLI_PARAMETER_CANDIDATES;
+    const suggestion = formatDidYouMean(parameter, candidates);
+    return suggestion ? `${parameter}.${suggestion}` : parameter;
+  });
+  const details = formattedParameters.join(', ');
+  const separator = details.endsWith('?') ? ' ' : '. ';
+
+  return `Unknown CLI ${label}: ${details}${separator}These parameters are not supported.`;
 }
 
 function expandHomeDir(value) {
@@ -1043,6 +1075,7 @@ function sliceUserArgs(rawArgv, isPackaged) {
 function parseRawArgs(rawArgs) {
   const values = {};
   const positional = [];
+  const unknownFlags = [];
   let helpLayout = null;
 
   rawArgs.forEach((arg) => {
@@ -1070,7 +1103,11 @@ function parseRawArgs(rawArgs) {
     const normalizedArg = arg.startsWith('--') ? arg.slice(2) : arg;
     const separatorIndex = normalizedArg.indexOf('=');
 
-    if (separatorIndex === -1) { positional.push(arg); return; }
+    if (separatorIndex === -1) {
+      if (arg.startsWith('-')) { unknownFlags.push(arg); return; }
+      positional.push(arg);
+      return;
+    }
 
     const key = normalizedArg.slice(0, separatorIndex).trim();
     const value = normalizedArg.slice(separatorIndex + 1).trim();
@@ -1095,7 +1132,7 @@ function parseRawArgs(rawArgs) {
     }
   });
 
-  return { values, positional, helpLayout };
+  return { values, positional, helpLayout, unknownFlags };
 }
 
 function validateHeadlessOptions(values, errors, warnings) {
@@ -1372,6 +1409,7 @@ function getCompactHelpText() {
   lines.push('');
   lines.push(...getCompactExampleUsageLines());
   lines.push('Aliases: runMode=silent = runMode=headless  |  host=<value> = ip=<value>  |  h / -h / --help = help=true');
+  lines.push('Typo help: exact allowlist validation rejects invalid options; close-match suggestions use Levenshtein edit distance. Unknown-parameter errors show a help command, not the full help table.');
   lines.push('More help: help-wide=true  |  help-detailed=true  |  help-table-wide=true  |  help-table-narrow=true');
 
   return lines.join('\n').trimEnd();
@@ -1410,6 +1448,7 @@ function getCompactNoExampleHelpText() {
   lines.push('');
   lines.push(...getCompactExampleUsageLines());
   lines.push('Aliases: runMode=silent = runMode=headless  |  host=<value> = ip=<value>  |  h / -h / --help = help=true');
+  lines.push('Typo help: exact allowlist validation rejects invalid options; close-match suggestions use Levenshtein edit distance. Unknown-parameter errors show a help command, not the full help table.');
   lines.push('More help: help-wide=true  |  help-detailed=true  |  help-table-wide=true  |  help-table-narrow=true');
 
   return lines.join('\n').trimEnd();
@@ -1428,6 +1467,7 @@ function formatCliStartupErrorOutput(cliArgs, {
 } = {}) {
   const normalizedErrors = Array.isArray(cliArgs?.errors) ? cliArgs.errors : [];
   const helpText = cliArgs?.helpText || getCommandHelpText();
+  const hasUnknownCliParameter = normalizedErrors.some((error) => String(error || '').trim().startsWith('Unknown CLI parameter'));
 
   const startupLines = [
     'CLI startup aborted due to invalid command-line parameters. The application will exit without launching.',
@@ -1440,6 +1480,11 @@ function formatCliStartupErrorOutput(cliArgs, {
     }
     startupLines.push(`CLI error: ${detail} Review valid CLI parameters with: ${helpCommandExample}`);
   });
+
+  if (hasUnknownCliParameter) {
+    startupLines.push(`CLI help: run ${helpCommandExample} (or --help) to view supported parameters.`);
+    return startupLines.join('\n');
+  }
 
   return `${startupLines.join('\n')}\n\n${helpText}`;
 }
@@ -1454,7 +1499,7 @@ function formatCliStartupErrorOutput(cliArgs, {
  */
 function parseCommandLineArgs(rawArgv, { isPackaged = false } = {}) {
   const rawArgs = sliceUserArgs(rawArgv, isPackaged);
-  const { values: rawValues, positional, helpLayout: rawHelpLayout } = parseRawArgs(rawArgs);
+  const { values: rawValues, positional, helpLayout: rawHelpLayout, unknownFlags } = parseRawArgs(rawArgs);
   let helpLayout = rawHelpLayout;
 
   if (parseBoolean(rawValues.help, 'help', []) === true || parseBoolean(rawValues.h, 'h', []) === true) {
@@ -1499,11 +1544,10 @@ function parseCommandLineArgs(rawArgv, { isPackaged = false } = {}) {
       `Unknown CLI argument${positional.length === 1 ? '' : 's'}: ${positional.join(', ')}. Use name=value syntax for supported CLI parameters.`,
     );
   }
-  const unknownKeys = Object.keys(rawValues).filter((key) => !CLI_OPTION_KEYS.has(key) && key !== 'host' && key !== 'silent');
-  if (unknownKeys.length > 0) {
-    errors.push(
-      `Unknown CLI parameter${unknownKeys.length === 1 ? '' : 's'}: ${unknownKeys.join(', ')}.`,
-    );
+  const unknownKeys = Object.keys(rawValues).filter((key) => !CLI_OPTION_KEYS.has(key) && !CLI_OPTION_ALIASES.has(key));
+  const unknownParameters = [...unknownKeys, ...unknownFlags];
+  if (unknownParameters.length > 0) {
+    errors.push(formatUnknownCliParametersError(unknownParameters));
   }
 
   let configLoad = { path: null, values: {} };

@@ -120,7 +120,7 @@ The default `ip` value is **`127.0.0.1`**.
 - `runMode=silent` is treated the same as `runMode=headless`
 - `host=<value>` is accepted as an alias for `ip=<value>`
 - `h`, `-h`, `--help`, and `help=true` all print the compact 4-column summary and exit
-- Unknown CLI parameters are not ignored: the app prints a startup-aborted message, shows an inline example such as `electron . help-table-narrow=true`, prints the compact CLI help automatically, and exits without launching
+- Unknown CLI parameters are not ignored: the app prints a startup-aborted message, shows a `Did you mean ...?` suggestion when a close valid name exists, shows how to open help (for example `electron . help=true` or `--help`), and exits without launching. It does **not** dump the full help table for unknown-parameter errors because that output is too verbose.
 - Bare arguments that are not help shortcuts must use `name=value` syntax (for example, `port=5565`)
 - `--help-detailed` and `help-detailed=true` print the full verbose parameter-by-parameter listing and exit
 - `--help-table-wide` and `help-table-wide=true` print the wide ASCII table help layout and exit
@@ -137,6 +137,30 @@ The default `ip` value is **`127.0.0.1`**.
 | Wide table | `npm run help:cli:wide`, `--help-table-wide`, `help-table-wide=true` | Best for larger terminals. |
 | Narrow table | `npm run help:cli:narrow`, `--help-table-narrow`, `help-table-narrow=true` | Best for narrower terminals. |
 | Compact (with example) | `--help-wide`, `help-wide=true` | Compact 5-column summary when you also want the example column. |
+
+## Typo Suggestions
+
+Unknown CLI parameter names and unknown help flags use **Levenshtein edit distance** to choose `Did you mean ...?` suggestions when the misspelling is close enough to a supported option.
+
+Levenshtein distance is a formal edit-distance algorithm: it counts the minimum number of single-character **insertions**, **deletions**, and **substitutions** needed to transform one string into another. That is different from the previous release-script character-overlap heuristic, which only counted whether the misspelled input's characters appeared somewhere in a candidate option. Character overlap is fast, but it ignores character order and can over-score unrelated options that happen to share letters. Edit distance is the better CLI choice because typical mistakes are missing letters, extra letters, swapped-adjacent letters counted as two edits, or one wrong character.
+
+| Approach | What it does | Pros | Cons | Used here? |
+| --- | --- | --- | --- | --- |
+| Exact allowlist validation | Checks whether the provided parameter exactly matches a supported parameter or alias. | Safe, deterministic, prevents unsupported options from being accepted. | No typo recovery by itself. | **Yes** — always used first to decide whether input is valid. |
+| Character-overlap scoring | Counts shared characters between the typo and each candidate. | Very simple and shell-friendly. | Ignores order and edit operations; unrelated options with shared letters can score too high. | **No** — replaced for suggestions. |
+| Levenshtein edit distance | Counts insertions, deletions, and substitutions. | Predictable for CLI typos such as missing letters, extra letters, missing hyphens, and substitutions; dependency-free implementation. | Adjacent transpositions count as two edits. | **Yes** — used for `Did you mean ...?` suggestions in the app CLI. |
+| Damerau-Levenshtein | Like Levenshtein, but adjacent transpositions count as one edit. | Slightly better for swapped adjacent letters. | More complex; current thresholds already handle common swapped-letter cases well enough. | No — considered but not needed. |
+| Prefix/substring matching | Suggests candidates that start with or contain the typo. | Useful for autocomplete. | Poor fit for misspellings in the middle of a flag or parameter. | No. |
+
+The validation flow is: **exact allowlist check first**, then if the name is unknown, **Levenshtein suggestion only when the edit distance is below a conservative threshold**. Distant unknown parameters do not get a suggestion, avoiding misleading output. Unknown-parameter startup errors stay concise: they show the bad parameter, any `Did you mean ...?` suggestion, and a help command such as `electron . help=true`; the full help table is only shown when you explicitly request help.
+
+Examples:
+
+```text
+Unknown CLI parameter: protocl. Did you mean 'protocol'? These parameters are not supported.
+Unknown CLI parameter: outputFil. Did you mean 'outputFile'? These parameters are not supported.
+Unknown CLI parameter: --help-detaled. Did you mean '--help-detailed'? These parameters are not supported.
+```
 
 ## Usage Examples
 
