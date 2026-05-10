@@ -243,8 +243,13 @@ test('formatCliStartupErrorOutput keeps unknown-parameter output concise', () =>
 
   const output = formatCliStartupErrorOutput(cliArgs);
   assert.ok(output.includes('CLI startup aborted due to invalid command-line parameters. The application will exit without launching.'));
-  assert.ok(output.includes('CLI error: Unknown CLI parameter: foo. These parameters are not supported. Review valid CLI parameters with: electron . help=true'));
+  // Help hint appears before the error detail for quick actionable guidance.
   assert.ok(output.includes('CLI help: run electron . help=true (or --help) to view supported parameters.'));
+  // Error is now rendered as a styled block with icon prefix.
+  assert.ok(output.includes('ERROR:  Unknown CLI parameter: foo.'));
+  // The old inline "These parameters are not supported." and "Review valid CLI parameters with:" are gone.
+  assert.ok(!output.includes('These parameters are not supported.'));
+  assert.ok(!output.includes('Review valid CLI parameters with:'));
   assert.ok(!output.includes('ArcGIS Velocity Logger command-line help'));
   assert.ok(!output.includes('Layout: help (Name | Supported Values | Default | Purpose)'));
 });
@@ -254,7 +259,8 @@ test('formatCliStartupErrorOutput keeps positional-argument guidance and appends
   assert.strictEqual(cliArgs.mode, 'error');
 
   const output = formatCliStartupErrorOutput(cliArgs);
-  assert.ok(output.includes('CLI error: Unknown CLI argument: bogus. Use name=value syntax for supported CLI parameters. Review valid CLI parameters with: electron . help=true'));
+  // Positional arg errors use "Unknown CLI argument" (not "parameter"), so no help-hint-first behaviour.
+  assert.ok(output.includes('ERROR:  Unknown CLI argument: bogus. Use name=value syntax for supported CLI parameters.'));
   assert.ok(output.includes('\n\nArcGIS Velocity Logger command-line help\n'));
 });
 

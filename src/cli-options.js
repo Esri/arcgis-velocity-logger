@@ -971,20 +971,28 @@ function mergeHelpLayout(currentLayout, nextLayout) {
     ? nextLayout : currentLayout;
 }
 
+// Internal sentinel used to split the "Did you mean" hint from the main
+// error message so formatCliStartupErrorOutput can render each part on its
+// own line.  The null-byte character (\x00) is never valid in CLI parameter
+// names, so it is safe to use as a separator here.
+const _SUGGESTION_SENTINEL = '\x00SUGGESTION\x00';
+
 function formatUnknownCliParametersError(unknownParameters) {
   const parameterList = [...new Set(unknownParameters)].sort();
-  const label = parameterList.length === 1 ? 'parameter' : 'parameters';
-  const formattedParameters = parameterList.map((parameter) => {
+
+  // Build one entry per unknown parameter so each gets its own error block.
+  const entries = parameterList.map((parameter) => {
     const candidates = String(parameter).startsWith('-')
       ? CLI_HELP_FLAG_CANDIDATES
       : CLI_PARAMETER_CANDIDATES;
     const suggestion = formatDidYouMean(parameter, candidates);
-    return suggestion ? `${parameter}.${suggestion}` : parameter;
+    const label = 'parameter';
+    const base = `Unknown CLI ${label}: ${parameter}.`;
+    return suggestion ? `${base}${_SUGGESTION_SENTINEL}${suggestion.trim()}` : base;
   });
-  const details = formattedParameters.join(', ');
-  const separator = details.endsWith('?') ? ' ' : '. ';
 
-  return `Unknown CLI ${label}: ${details}${separator}These parameters are not supported.`;
+  // Join multiple entries with a newline so the caller can split them apart.
+  return entries.join('\n');
 }
 
 function expandHomeDir(value) {
@@ -1467,26 +1475,51 @@ function formatCliStartupErrorOutput(cliArgs, {
 } = {}) {
   const normalizedErrors = Array.isArray(cliArgs?.errors) ? cliArgs.errors : [];
   const helpText = cliArgs?.helpText || getCommandHelpText();
-  const hasUnknownCliParameter = normalizedErrors.some((error) => String(error || '').trim().startsWith('Unknown CLI parameter'));
+  const errorIcon = CLI_SYMBOLS.error;
 
-  const startupLines = [
+  // Expand any multi-entry error strings (produced by formatUnknownCliParametersError
+  // when more than one unknown parameter was supplied) into individual entries.
+  const expandedErrors = [];
+  normalizedErrors.forEach((error) => {
+    const raw = String(error || '').trim();
+    // Each entry from formatUnknownCliParametersError is newline-separated when
+    // multiple unknown params exist.
+    raw.split('\n').forEach((line) => {
+      if (line) expandedErrors.push(line);
+    });
+  });
+
+  const hasUnknownCliParameter = expandedErrors.some((e) => e.startsWith('Unknown CLI parameter'));
+
+  const lines = [
     'CLI startup aborted due to invalid command-line parameters. The application will exit without launching.',
   ];
 
-  normalizedErrors.forEach((error) => {
-    let detail = String(error || '').trim();
-    if (detail.startsWith('Unknown CLI parameter') && !detail.includes('not supported')) {
-      detail = `${detail} These parameters are not supported.`;
+  if (hasUnknownCliParameter) {
+    // Help hint comes first, before the error details, so the actionable next
+    // step is visible immediately without having to scroll past long error blocks.
+    lines.push(`CLI help: run ${helpCommandExample} (or --help) to view supported parameters.`);
+  }
+
+  expandedErrors.forEach((entry) => {
+    if (entry.includes(_SUGGESTION_SENTINEL)) {
+      // Split the sentinel-separated pair into error text and suggestion.
+      const [errorPart, suggestionPart] = entry.split(_SUGGESTION_SENTINEL);
+      lines.push(`${errorIcon}  ERROR:  ${errorPart.trim()}`);
+      lines.push(`     ${suggestionPart.trim()}`);
+    } else if (entry.startsWith('Unknown CLI')) {
+      lines.push(`${errorIcon}  ERROR:  ${entry}`);
+    } else {
+      // Non–unknown-parameter error (e.g. invalid value).  Keep a clean prefix.
+      lines.push(`${errorIcon}  ERROR:  ${entry}`);
     }
-    startupLines.push(`CLI error: ${detail} Review valid CLI parameters with: ${helpCommandExample}`);
   });
 
   if (hasUnknownCliParameter) {
-    startupLines.push(`CLI help: run ${helpCommandExample} (or --help) to view supported parameters.`);
-    return startupLines.join('\n');
+    return lines.join('\n');
   }
 
-  return `${startupLines.join('\n')}\n\n${helpText}`;
+  return `${lines.join('\n')}\n\n${helpText}`;
 }
 
 /**
@@ -1827,8 +1860,19 @@ function formatExplainOutput(cliOptions) {
     lines.push('');
     lines.push('  Errors');
     lines.push(sectionDivider);
-    cliOptions.errors.forEach((e) => {
-      lines.push(`    ${CLI_SYMBOLS.error}  ${e}`);
+    cliOptions.errors.forEach((rawError) => {
+      // A single error string may contain multiple newline-separated entries
+      // (produced by formatUnknownCliParametersError for multiple unknown params).
+      String(rawError || '').split('\n').forEach((entry) => {
+        if (!entry) return;
+        if (entry.includes(_SUGGESTION_SENTINEL)) {
+          const [errorPart, suggestionPart] = entry.split(_SUGGESTION_SENTINEL);
+          lines.push(`    ${CLI_SYMBOLS.error}  ${errorPart.trim()}`);
+          lines.push(`         ${suggestionPart.trim()}`);
+        } else {
+          lines.push(`    ${CLI_SYMBOLS.error}  ${entry}`);
+        }
+      });
     });
   }
 
