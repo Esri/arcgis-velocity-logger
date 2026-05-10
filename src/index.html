@@ -131,15 +131,36 @@
             </div>
         </div>
         <pre id="logs"></pre>
-        <div class="status-bar">
-            <div class="status-bar-left">
-                <div id="status-wrapper" class="status-wrapper">
-                    <span id="status" aria-live="polite">Disconnected</span>
-                    <span id="status-info-icon" class="status-info-icon" aria-hidden="true">ⓘ</span>
-                    <div id="status-popover" class="status-popover" role="tooltip">
+        <div id="activity-strip" class="activity-strip hidden pinned expanded" role="region" aria-label="Activity strip" aria-live="polite">
+            <div id="status-wrapper" class="status-wrapper activity-card">
+                <button id="activity-toggle-btn" class="activity-action-btn" type="button" aria-expanded="true" aria-label="Collapse activity strip details" data-tooltip="Collapse activity strip details" data-tooltip-icon="⌃" data-tooltip-kind="info">⌃</button>
+                <span id="status-info-icon" class="status-info-icon" aria-hidden="true">ⓘ</span>
+                <div class="activity-content">
+                    <div class="activity-summary-row">
+                        <span id="status" class="activity-summary" data-tooltip-trigger="click">Waiting for activity</span>
+                    </div>
+                    <div id="status-popover" class="status-popover activity-detail" role="group" aria-label="Activity strip details">
                         <pre id="status-popover-content" class="status-popover-content"></pre>
                     </div>
                 </div>
+                <span id="activity-time" class="activity-time" aria-label="Activity time" data-tooltip-trigger="click"></span>
+                <div class="activity-history-controls" role="group" aria-label="Activity history navigation">
+                    <button id="activity-newest-btn" class="activity-action-btn activity-history-btn" type="button" aria-label="Show newest activity" data-tooltip="Show newest activity update" data-tooltip-icon="⇱" data-tooltip-kind="info"><span class="button-icon icon-activity-newest" aria-hidden="true"></span></button>
+                    <button id="activity-previous-btn" class="activity-action-btn activity-history-btn" type="button" aria-label="Show newer activity" data-tooltip="Show newer activity update" data-tooltip-icon="↑" data-tooltip-kind="info"><span class="button-icon icon-activity-previous" aria-hidden="true"></span></button>
+                    <span id="activity-history-position" class="activity-history-position" aria-live="polite">0 / 0</span>
+                    <button id="activity-next-btn" class="activity-action-btn activity-history-btn" type="button" aria-label="Show older activity" data-tooltip="Show older activity update" data-tooltip-icon="↓" data-tooltip-kind="info"><span class="button-icon icon-activity-next" aria-hidden="true"></span></button>
+                    <button id="activity-oldest-btn" class="activity-action-btn activity-history-btn" type="button" aria-label="Show oldest activity" data-tooltip="Show oldest activity update" data-tooltip-icon="⇲" data-tooltip-kind="info"><span class="button-icon icon-activity-oldest" aria-hidden="true"></span></button>
+                </div>
+                <button id="activity-connection-filter-btn" class="activity-action-btn activity-filter-btn active" type="button" aria-pressed="true" aria-label="Show connection activity only" data-tooltip="Connection activity filter is on. Only connection, transport, and TLS status lines are shown. Click to show all activity lines." data-tooltip-icon="🔌" data-tooltip-kind="info"><span class="button-icon icon-activity-connection-filter" aria-hidden="true"></span></button>
+                <button id="activity-pin-btn" class="activity-action-btn activity-pin-btn active" type="button" aria-pressed="true" aria-label="Unpin activity strip" data-tooltip="Activity strip is pinned and will stay visible. Click to auto-hide future activity updates." data-tooltip-icon="📌" data-tooltip-kind="info"><span class="button-icon icon-activity-pin" aria-hidden="true"></span></button>
+            </div>
+        </div>
+        <div class="status-bar">
+            <div class="status-bar-left">
+                <button id="toggle-status-line-btn" class="control-button" type="button" disabled aria-pressed="false" aria-label="Show Activity Strip" data-tooltip="Show Activity Strip" data-tooltip-icon="▤" data-tooltip-kind="info">
+                    <span class="button-icon icon-status-toggle" aria-hidden="true"></span>
+                </button>
+                <div class="separator" aria-hidden="true"></div>
             </div>
             <div class="status-bar-center">
                 <div id="app-status">
@@ -171,17 +192,12 @@
     <script src="./velocity-auth-utils.js"></script>
     <script src="./renderer.js"></script>
     <script>
-    // Responsive UI: hide title, connection-status, and status-bar-left at small widths
+    // Responsive UI: hide nonessential header text at small widths while keeping footer center locked.
     (function() {
         const title = document.getElementById('app-title');
         const originalText = title.textContent;
         const connectionStatus = document.getElementById('connection-status');
-        const statusBarLeft = document.querySelector('.status-bar-left');
         const appStatusText = document.getElementById('app-status-text');
-        const statusBarRight = document.querySelector('.status-bar-right');
-        const statusBarCenter = document.querySelector('.status-bar-center');
-        // For right alignment utility
-        const statusBar = document.querySelector('.status-bar');
         const lineCounter = document.getElementById('line-counter');
         // Use the global lineCount variable from renderer.js
 
@@ -195,21 +211,15 @@
 
             const lineCount = window.lineCount !== undefined ? window.lineCount : 0;
 
-            // Hide connection-status, hide status-bar-left, hide app-status-text, right-align status-bar-right if < 510px
+            // Hide long labels on narrow windows, but keep footer center controls physically centered.
             if (window.innerWidth < 560) {
                 if (lineCounter) lineCounter.textContent = window.lineCount;
                 if (connectionStatus) connectionStatus.style.display = 'none';
-                if (statusBarLeft) statusBarLeft.style.display = 'none';
                 if (appStatusText) appStatusText.style.display = 'none';
-                if (statusBarCenter) statusBarCenter.classList.add('align-left');
-                if (statusBar) statusBar.classList.add('compact-status-bar');
             } else {
                 if (lineCounter) lineCounter.textContent = `Lines Received: ${lineCount}`;
                 if (connectionStatus) connectionStatus.style.display = '';
-                if (statusBarLeft) statusBarLeft.style.display = '';
                 if (appStatusText) appStatusText.style.display = '';
-                if (statusBarCenter) statusBarCenter.classList.remove('align-left');
-                if (statusBar) statusBar.classList.remove('compact-status-bar');
             }
 
             // Progressive header control visibility

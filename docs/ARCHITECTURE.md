@@ -31,7 +31,7 @@ cli-options.js   CLI parsing          themes/*.css     Per-theme CSS vars
 headless-runner  (unused in UI)       preload.js       IPC security bridge
 ```
 
-IPC is the only communication path between main and renderer. `preload.js` enforces a whitelist of allowed channels (see [Security Bridge](#security-bridge)).
+IPC is the only communication path between main and renderer. `preload.js` enforces a whitelist of allowed channels (see [Security Bridge](#security-bridge-preloadjs)).
 
 ## Core Components
 

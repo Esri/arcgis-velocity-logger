@@ -48,6 +48,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const httpPathInput = document.getElementById('http-path');
     const logs = document.getElementById('logs');
     const statusDisplay = document.getElementById('status');
+    const activityStrip = document.getElementById('activity-strip');
+    const activityToggleBtn = document.getElementById('activity-toggle-btn');
+    const activityPinBtn = document.getElementById('activity-pin-btn');
+    const activityConnectionFilterBtn = document.getElementById('activity-connection-filter-btn');
+    const statusLineToggleBtn = document.getElementById('toggle-status-line-btn');
+    const activityNewestBtn = document.getElementById('activity-newest-btn');
+    const activityPreviousBtn = document.getElementById('activity-previous-btn');
+    const activityNextBtn = document.getElementById('activity-next-btn');
+    const activityOldestBtn = document.getElementById('activity-oldest-btn');
+    const activityHistoryPosition = document.getElementById('activity-history-position');
+    const activityTime = document.getElementById('activity-time');
     const lineCounter = document.getElementById('line-counter');
     const connectionDot = document.getElementById('connection-dot');
     const connectionText = document.getElementById('connection-text');
@@ -369,6 +380,278 @@ document.addEventListener('DOMContentLoaded', () => {
     let lineCount = 0;
     // Expose lineCount globally for responsive UI in index.html
     window.lineCount = lineCount;
+    let activityPinned = true;
+    let activityExpanded = true;
+    let activityConnectionFilterEnabled = true;
+    let activityHasShown = false;
+    let activityHideTimer = null;
+    const activityHistory = [];
+    let activityHistoryIndex = 0;
+
+    function inferActivityCategory(message) {
+        const text = String(message || '').toLowerCase();
+        if (/token|auth|sign in|oauth|credential/.test(text)) return 'auth';
+        if (/logs saved|saving logs|saved to/.test(text)) return 'system';
+        if (/\b(tcp|udp|grpc|http|websocket|ws|wss|tls|ssl|certificate|cert|connect|connecting|connected|disconnect|disconnecting|disconnected|listen|listening|client|server|transport|endpoint|socket|port|host)\b/.test(text)) return 'connection';
+        return 'activity';
+    }
+
+    function parseActivityMessage(message, options = {}) {
+        const parts = message ? String(message).split(/\n\s+/) : [''];
+        const category = options.category || inferActivityCategory(message);
+        return {
+            summary: parts[0] || 'Activity update',
+            details: parts.slice(1),
+            message: String(message || ''),
+            timestamp: new Date(),
+            category,
+        };
+    }
+
+    function isConnectionActivity(item) {
+        return Boolean(item && item.category === 'connection');
+    }
+
+    function getVisibleActivityHistory() {
+        return activityConnectionFilterEnabled
+            ? activityHistory.filter(isConnectionActivity)
+            : activityHistory;
+    }
+
+    function formatActivityTimestamp(timestamp) {
+        return {
+            inline: timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            date: timestamp.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+            time: timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' }),
+            full: timestamp.toLocaleString([], { dateStyle: 'full', timeStyle: 'medium' }),
+        };
+    }
+
+    function getActivityVisualState(item) {
+        const text = `${item.summary}\n${item.details.join('\n')}`;
+        if (/error|failed|cannot/i.test(text)) return { icon: '⚠', kind: 'error' };
+        if (/token|auth|velocity/i.test(text)) return { icon: '🔑', kind: 'auth' };
+        if (/connected|saved|applied|enabled/i.test(text)) return { icon: '✓', kind: 'success' };
+        return { icon: 'ⓘ', kind: 'info' };
+    }
+
+    function buildActivityTooltip(item) {
+        const timestamp = formatActivityTimestamp(item.timestamp);
+        const lines = [
+            'Activity Strip',
+            `Status: ${item.summary}`,
+            `Date: ${timestamp.date}`,
+            `Time: ${timestamp.time}`,
+        ];
+        if (item.details.length) {
+            lines.push('---', 'Details:');
+            item.details.forEach((detail) => lines.push(`- ${detail}`));
+        }
+        return lines.join('\n');
+    }
+
+    function isActivityVisible() {
+        return Boolean(activityStrip && activityHasShown && !activityStrip.classList.contains('hidden'));
+    }
+
+    function updateStatusLineToggleState() {
+        if (!statusLineToggleBtn) return;
+        const hasActivity = activityHistory.length > 0;
+        const visible = isActivityVisible();
+        statusLineToggleBtn.disabled = !hasActivity;
+        statusLineToggleBtn.setAttribute('aria-pressed', visible ? 'true' : 'false');
+        statusLineToggleBtn.setAttribute('aria-label', visible ? 'Hide Activity Strip' : 'Show Activity Strip');
+        statusLineToggleBtn.dataset.tooltip = visible ? 'Hide Activity Strip' : 'Show Activity Strip';
+        statusLineToggleBtn.dataset.tooltipIcon = '▤';
+        statusLineToggleBtn.dataset.tooltipKind = 'info';
+    }
+
+    function updateActivityHistoryControls() {
+        const visibleHistory = getVisibleActivityHistory();
+        const count = visibleHistory.length;
+        const canGoNewer = count > 0 && activityHistoryIndex > 0;
+        const canGoOlder = count > 0 && activityHistoryIndex < count - 1;
+
+        if (activityNewestBtn) activityNewestBtn.disabled = !canGoNewer;
+        if (activityPreviousBtn) activityPreviousBtn.disabled = !canGoNewer;
+        if (activityNextBtn) activityNextBtn.disabled = !canGoOlder;
+        if (activityOldestBtn) activityOldestBtn.disabled = !canGoOlder;
+        if (activityHistoryPosition) {
+            activityHistoryPosition.textContent = count ? `${activityHistoryIndex + 1} / ${count}` : '0 / 0';
+            activityHistoryPosition.setAttribute('aria-label', count
+                ? `Showing ${activityConnectionFilterEnabled ? 'connection ' : ''}activity ${activityHistoryIndex + 1} of ${count}, newest first`
+                : (activityConnectionFilterEnabled ? 'No connection activity history yet' : 'No activity history yet'));
+        }
+    }
+
+    function renderActivityHistoryItem() {
+        const visibleHistory = getVisibleActivityHistory();
+        if (activityHistoryIndex >= visibleHistory.length) activityHistoryIndex = Math.max(0, visibleHistory.length - 1);
+        const item = visibleHistory[activityHistoryIndex];
+        if (!item || !statusDisplay) {
+            const emptySummary = activityConnectionFilterEnabled && activityHistory.length
+                ? 'No connection activity yet'
+                : 'No activity yet';
+            if (statusDisplay) {
+                statusDisplay.textContent = emptySummary;
+                statusDisplay.dataset.tooltip = `Activity Strip\nStatus: ${emptySummary}\nFilter: ${activityConnectionFilterEnabled ? 'Connection activity only' : 'All activity'}`;
+                statusDisplay.dataset.tooltipIcon = '🔌';
+                statusDisplay.dataset.tooltipKind = 'info';
+                statusDisplay.setAttribute('aria-label', emptySummary);
+            }
+            if (activityTime) activityTime.textContent = '';
+            const content = document.getElementById('status-popover-content');
+            if (content) content.textContent = '';
+            if (activityStrip) activityStrip.classList.toggle('has-detail', false);
+            const icon = document.getElementById('status-info-icon');
+            if (icon) icon.textContent = '🔌';
+            updateActivityHistoryControls();
+            updateActivityStripState();
+            updateStatusLineToggleState();
+            return;
+        }
+
+        const hasDetail = item.details.length > 0;
+        const timestamp = formatActivityTimestamp(item.timestamp);
+        const visualState = getActivityVisualState(item);
+        const activityTooltip = buildActivityTooltip(item);
+        statusDisplay.textContent = item.summary;
+        statusDisplay.dataset.tooltip = activityTooltip;
+        statusDisplay.dataset.tooltipIcon = visualState.icon;
+        statusDisplay.dataset.tooltipKind = visualState.kind;
+        statusDisplay.setAttribute('aria-label', activityTooltip.replace(/\n+/g, ' '));
+        if (activityTime) {
+            activityTime.textContent = timestamp.inline;
+            activityTime.dataset.tooltip = `Activity Time\nDate: ${timestamp.date}\nTime: ${timestamp.time}`;
+            activityTime.dataset.tooltipIcon = '🕒';
+            activityTime.dataset.tooltipKind = 'info';
+            activityTime.setAttribute('aria-label', `Activity time ${timestamp.full}`);
+        }
+        const content = document.getElementById('status-popover-content');
+        if (content) {
+            content.textContent = hasDetail ? item.details.join('\n') : '';
+        }
+        if (activityStrip) {
+            activityStrip.classList.toggle('has-detail', hasDetail);
+        }
+        const icon = document.getElementById('status-info-icon');
+        if (icon) {
+            icon.textContent = visualState.icon;
+        }
+        updateActivityHistoryControls();
+        updateActivityStripState();
+        updateStatusLineToggleState();
+    }
+
+    function showActivityHistory(index) {
+        const visibleHistory = getVisibleActivityHistory();
+        if (!activityHistory.length) return;
+        activityHistoryIndex = visibleHistory.length
+            ? Math.max(0, Math.min(index, visibleHistory.length - 1))
+            : 0;
+        if (activityStrip) activityStrip.classList.remove('hidden');
+        activityHasShown = true;
+        renderActivityHistoryItem();
+        scheduleActivityAutoHide();
+    }
+
+    function updateActivityStripState() {
+        if (!activityStrip) return;
+        const isVisible = activityHasShown && !activityStrip.classList.contains('hidden');
+        activityStrip.classList.toggle('pinned', activityPinned);
+        activityStrip.classList.toggle('collapsed', !activityExpanded);
+        activityStrip.classList.toggle('expanded', activityExpanded);
+        document.body.classList.toggle('activity-strip-visible', isVisible);
+        const hasDetail = activityStrip.classList.contains('has-detail');
+        document.body.classList.toggle('activity-strip-collapsed', isVisible && (!activityExpanded || !hasDetail));
+
+        if (activityToggleBtn) {
+            activityToggleBtn.disabled = !hasDetail;
+            activityToggleBtn.textContent = activityExpanded ? '⌃' : '⌄';
+            activityToggleBtn.setAttribute('aria-expanded', activityExpanded ? 'true' : 'false');
+            activityToggleBtn.setAttribute('aria-label', activityExpanded ? 'Collapse activity strip details' : 'Expand activity strip details');
+            activityToggleBtn.dataset.tooltip = activityExpanded
+                ? (hasDetail ? 'Collapse activity strip details and keep only the summary visible.' : 'No additional activity details are available for this update.')
+                : 'Expand activity strip details.';
+            activityToggleBtn.dataset.tooltipIcon = activityExpanded ? '⌃' : '⌄';
+            activityToggleBtn.dataset.tooltipKind = 'info';
+        }
+
+        if (activityPinBtn) {
+            const icon = activityPinBtn.querySelector('.button-icon');
+            activityPinBtn.classList.toggle('active', activityPinned);
+            if (icon) {
+                icon.className = `button-icon ${activityPinned ? 'icon-activity-pin' : 'icon-activity-pin-off'}`;
+            }
+            activityPinBtn.setAttribute('aria-pressed', activityPinned ? 'true' : 'false');
+            activityPinBtn.setAttribute('aria-label', activityPinned ? 'Unpin activity strip' : 'Pin activity strip');
+            activityPinBtn.dataset.tooltip = activityPinned
+                ? 'Activity strip is pinned and will stay visible. Click to auto-hide future activity updates.'
+                : 'Activity strip will auto-hide after updates. Click to keep it pinned open.';
+            activityPinBtn.dataset.tooltipIcon = activityPinned ? '📌' : '📍';
+            activityPinBtn.dataset.tooltipKind = 'info';
+        }
+
+        if (activityConnectionFilterBtn) {
+            const icon = activityConnectionFilterBtn.querySelector('.button-icon');
+            activityConnectionFilterBtn.classList.toggle('active', activityConnectionFilterEnabled);
+            if (icon) {
+                icon.className = `button-icon ${activityConnectionFilterEnabled ? 'icon-activity-connection-filter' : 'icon-activity-connection-filter-off'}`;
+            }
+            activityConnectionFilterBtn.setAttribute('aria-pressed', activityConnectionFilterEnabled ? 'true' : 'false');
+            activityConnectionFilterBtn.setAttribute('aria-label', activityConnectionFilterEnabled ? 'Show all activity lines' : 'Show connection activity only');
+            activityConnectionFilterBtn.dataset.tooltip = activityConnectionFilterEnabled
+                ? 'Connection activity filter is on. Only connection, transport, and TLS status lines are shown. Click to show all activity lines.'
+                : 'Connection activity filter is off. All Activity Strip lines are shown. Click to show only connection, transport, and TLS status lines.';
+            activityConnectionFilterBtn.dataset.tooltipIcon = activityConnectionFilterEnabled ? '🔌' : '☰';
+            activityConnectionFilterBtn.dataset.tooltipKind = 'info';
+        }
+        updateActivityHistoryControls();
+        updateStatusLineToggleState();
+    }
+
+    function scheduleActivityAutoHide() {
+        clearTimeout(activityHideTimer);
+        if (!activityStrip || activityPinned) return;
+        activityHideTimer = setTimeout(() => {
+            if (activityPinned) return;
+            activityStrip.classList.add('hidden');
+            updateActivityStripState();
+        }, 5200);
+    }
+
+    function revealActivityStrip() {
+        if (!activityStrip) return;
+        activityHasShown = true;
+        activityStrip.classList.remove('hidden');
+        updateActivityStripState();
+        scheduleActivityAutoHide();
+    }
+
+    function setActivityPinned(pinned) {
+        activityPinned = Boolean(pinned);
+        if (activityPinned && activityStrip) {
+            clearTimeout(activityHideTimer);
+            activityHasShown = true;
+            activityStrip.classList.remove('hidden');
+        }
+        updateActivityStripState();
+        scheduleActivityAutoHide();
+    }
+
+    function setActivityExpanded(expanded) {
+        activityExpanded = Boolean(expanded);
+        if (activityStrip && activityHasShown) activityStrip.classList.remove('hidden');
+        updateActivityStripState();
+    }
+
+    function setActivityConnectionFilter(enabled) {
+        activityConnectionFilterEnabled = Boolean(enabled);
+        activityHistoryIndex = 0;
+        renderActivityHistoryItem();
+        if (activityStrip && activityHasShown) activityStrip.classList.remove('hidden');
+        updateActivityStripState();
+    }
 
     // Define application statuses
     const Status = {
@@ -527,9 +810,9 @@ document.addEventListener('DOMContentLoaded', () => {
         updateAuthBadge({ tokenSendingEnabled: enabled, error: '' });
         window.electronAPI.send('velocity:set-token-sending', enabled);
         if (logChange) {
-            addLog(enabled
+            setStatus(enabled
                 ? '🔑 Velocity token sending enabled for new client connections'
-                : '◇ Velocity token sending disabled for new client connections');
+                : '◇ Velocity token sending disabled for new client connections', { category: 'auth' });
         }
     }
 
@@ -822,11 +1105,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (connectionType.startsWith('tcp')) {
             const type = connectionType.split('-')[1];
-            statusDisplay.textContent = `Connecting via TCP ${type} to ${host}:${port}...`;
+            setStatus(`Connecting via TCP ${type} to ${host}:${port}...`, { category: 'connection' });
             window.electronAPI.send('connect-tcp', { type, port, host });
         } else if (connectionType.startsWith('udp')) {
             const type = connectionType.split('-')[1];
-            statusDisplay.textContent = `Connecting via UDP ${type} to ${host}:${port}...`;
+            setStatus(`Connecting via UDP ${type} to ${host}:${port}...`, { category: 'connection' });
             window.electronAPI.send('connect-udp', { type, port, host });
         } else if (connectionType.startsWith('grpc')) {
             const type = connectionType.split('-')[1];
@@ -841,7 +1124,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const tlsLabel = useTls ? 'tls=on' : 'tls=off';
             const methodLabel = grpcSendMethod === 'unary' ? 'unary' : 'streaming';
             const headerLabel = type === 'client' ? ` ${headerPathKey}=${headerPath}` : '';
-            statusDisplay.textContent = `Connecting via gRPC ${type} to ${host}:${port} [${serialization}] ${methodLabel} ${tlsLabel}${headerLabel}...`;
+            setStatus(`Connecting via gRPC ${type} to ${host}:${port} [${serialization}] ${methodLabel} ${tlsLabel}${headerLabel}...`, { category: 'connection' });
             window.electronAPI.send('connect-grpc', { type, port, host, grpcSerialization: serialization, grpcSendMethod, headerPathKey, headerPath, useTls, tlsCaPath, tlsCertPath, tlsKeyPath });
         } else if (connectionType.startsWith('http')) {
             const type = connectionType.split('-')[1];
@@ -852,7 +1135,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const httpTlsKeyPath = httpTlsKeyInput ? httpTlsKeyInput.value || undefined : undefined;
             const httpPath = httpPathInput ? httpPathInput.value || '/' : '/';
             const tlsLabel = httpTls ? 'tls=on' : 'tls=off';
-            statusDisplay.textContent = `Connecting via HTTP ${type} to ${host}:${port} [${httpFormat}] ${tlsLabel} path=${httpPath}...`;
+            setStatus(`Connecting via HTTP ${type} to ${host}:${port} [${httpFormat}] ${tlsLabel} path=${httpPath}...`, { category: 'connection' });
             window.electronAPI.send('connect-http', { type, port, host, httpFormat, httpTls, httpTlsCaPath, httpTlsCertPath, httpTlsKeyPath, httpPath });
         } else if (connectionType.startsWith('ws')) {
             const type = connectionType.split('-')[1];
@@ -868,7 +1151,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const wsIgnoreFirstMsg = (document.getElementById('ws-ignore-first-msg') || {}).checked || false;
             const wsHeaders = (document.getElementById('ws-headers') || {}).value || undefined;
             const scheme = wsTls ? 'wss' : 'ws';
-            statusDisplay.textContent = `Connecting via WebSocket ${type} to ${scheme}://${host}:${port}${wsPath} [${wsFormat}]...`;
+            setStatus(`Connecting via WebSocket ${type} to ${scheme}://${host}:${port}${wsPath} [${wsFormat}]...`, { category: 'connection' });
             window.electronAPI.send('connect-ws', { type, port, host, wsFormat, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsPath, wsSubscriptionMsg, wsIgnoreFirstMsg, wsHeaders });
         }
     });
@@ -876,7 +1159,7 @@ document.addEventListener('DOMContentLoaded', () => {
     disconnectBtn.addEventListener('click', () => {
         if (disconnectBtn.disabled) return;
         const connectionType = connectionTypeSelect.value;
-        statusDisplay.textContent = 'Disconnecting...';
+        setStatus('Disconnecting...', { category: 'connection' });
         setAppStatus(Status.DISCONNECTING);
         if (connectionType.startsWith('tcp')) {
             window.electronAPI.send('disconnect-tcp');
@@ -895,9 +1178,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const logContent = logs.textContent;
         const result = await window.electronAPI.invoke('save-logs', logContent);
         if (result && result.success) {
-            statusDisplay.textContent = `Logs saved to ${result.filePath}`;
+            setStatus(`Logs saved to ${result.filePath}`, { category: 'system' });
         } else if (result && result.error) {
-            statusDisplay.textContent = `Error saving logs: ${result.error}`;
+            setStatus(`Error saving logs: ${result.error}`, { category: 'system' });
             setAppStatus(Status.ERROR);
         }
     });
@@ -1010,7 +1293,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Token-only mode: authenticate without changing connection settings
         if (item.tokenOnly) {
-            addLog('🔑 Velocity token applied — using your own connection settings');
+            setStatus('🔑 Velocity token applied — using your own connection settings', { category: 'auth' });
             return;
         }
 
@@ -1068,7 +1351,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.electronAPI.on('velocity:token-refreshed', (state) => {
         updateAuthBadge({ hasToken: true, expires: state && state.expires ? state.expires : velocityAuthState.expires, error: '' });
-        addLog('🔑 Velocity token refreshed');
+        setStatus('Velocity token refreshed', { category: 'auth' });
     });
 
     window.electronAPI.on('velocity:token-state', (state) => {
@@ -1286,10 +1569,8 @@ document.addEventListener('DOMContentLoaded', () => {
       logs.style.fontFamily = fontFamily;
     });
 
-    const statusElement = document.getElementById('status');
-
-    window.electronAPI.on('tcp-status',  (message) => setStatus(message));
-    window.electronAPI.on('udp-status',  (message) => setStatus(message));
+    window.electronAPI.on('tcp-status',  (message) => setStatus(message, { category: 'connection' }));
+    window.electronAPI.on('udp-status',  (message) => setStatus(message, { category: 'connection' }));
 
     // For TLS-capable protocols, extract the tlsInfo detail (after '\n  ') and cache it as
     // a tooltip for the "Connected" state indicator (Option C). TCP and UDP have no TLS.
@@ -1302,14 +1583,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // so the tooltip remains accurate until the connection-state changes to disconnected.
     }
 
-    window.electronAPI.on('grpc-status', (message) => { extractAndCacheTlsTooltip(message); setStatus(message); });
-    window.electronAPI.on('http-status', (message) => { extractAndCacheTlsTooltip(message); setStatus(message); });
-    window.electronAPI.on('ws-status',   (message) => { extractAndCacheTlsTooltip(message); setStatus(message); });
+    window.electronAPI.on('grpc-status', (message) => { extractAndCacheTlsTooltip(message); setStatus(message, { category: 'connection' }); });
+    window.electronAPI.on('http-status', (message) => { extractAndCacheTlsTooltip(message); setStatus(message, { category: 'connection' }); });
+    window.electronAPI.on('ws-status',   (message) => { extractAndCacheTlsTooltip(message); setStatus(message, { category: 'connection' }); });
 
     window.electronAPI.on('udp-error', (message) => {
         currentTlsTooltip = '';
         showErrorDialog(message);
-        setStatus(`Error: ${message}`);
+        setStatus(`Error: ${message}`, { category: 'connection' });
         setAppStatus(Status.ERROR);
         setConnectionControls('disconnected');
     });
@@ -1317,7 +1598,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.electronAPI.on('tcp-error', (message) => {
         currentTlsTooltip = '';
         showErrorDialog(message);
-        setStatus(`Error: ${message}`);
+        setStatus(`Error: ${message}`, { category: 'connection' });
         setAppStatus(Status.ERROR);
         setConnectionControls('disconnected');
     });
@@ -1325,7 +1606,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.electronAPI.on('grpc-error', (message) => {
         currentTlsTooltip = '';
         showErrorDialog(message);
-        setStatus(`Error: ${message}`);
+        setStatus(`Error: ${message}`, { category: 'connection' });
         setAppStatus(Status.ERROR);
         setConnectionControls('disconnected');
     });
@@ -1333,7 +1614,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.electronAPI.on('http-error', (message) => {
         currentTlsTooltip = '';
         showErrorDialog(message);
-        setStatus(`Error: ${message}`);
+        setStatus(`Error: ${message}`, { category: 'connection' });
         setAppStatus(Status.ERROR);
         setConnectionControls('disconnected');
     });
@@ -1341,7 +1622,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.electronAPI.on('ws-error', (message) => {
         currentTlsTooltip = '';
         showErrorDialog(message);
-        setStatus(`Error: ${message}`);
+        setStatus(`Error: ${message}`, { category: 'connection' });
         setAppStatus(Status.ERROR);
         setConnectionControls('disconnected');
     });
@@ -1402,9 +1683,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const logContent = logs.textContent;
         const result = await window.electronAPI.invoke('save-logs', logContent);
         if (result && result.success) {
-            statusDisplay.textContent = `Logs saved to ${result.filePath}`;
+            setStatus(`Logs saved to ${result.filePath}`, { category: 'system' });
         } else if (result && result.error) {
-            statusDisplay.textContent = `Error saving logs: ${result.error}`;
+            setStatus(`Error saving logs: ${result.error}`, { category: 'system' });
             setAppStatus(Status.ERROR);
         }
     });
@@ -1460,74 +1741,77 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Status popover - click to pin open; click anywhere else to dismiss
+    // Activity strip controls: explicit expand/collapse and pin/unpin.
     const statusWrapper = document.getElementById('status-wrapper');
-    if (statusWrapper) {
-        statusWrapper.addEventListener('click', (e) => {
-            // Only toggle pin when there is detail to show (icon is explicitly visible)
-            const icon = document.getElementById('status-info-icon');
-            const hasDetail = icon && icon.style.visibility === 'visible';
-            if (hasDetail) {
-                statusWrapper.classList.toggle('pinned');
-                e.stopPropagation(); // prevent document handler from immediately unpinning
-            }
-        });
-        // Clicking inside the pinned popover should not close it
-        const popover = document.getElementById('status-popover');
-        if (popover) {
-            popover.addEventListener('click', (e) => e.stopPropagation());
-        }
-        document.addEventListener('click', () => {
-            statusWrapper.classList.remove('pinned');
+    if (activityToggleBtn) {
+        activityToggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setActivityExpanded(!activityExpanded);
         });
     }
+    if (activityPinBtn) {
+        activityPinBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setActivityPinned(!activityPinned);
+        });
+    }
+    if (activityConnectionFilterBtn) {
+        activityConnectionFilterBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setActivityConnectionFilter(!activityConnectionFilterEnabled);
+        });
+    }
+    if (statusLineToggleBtn) {
+        statusLineToggleBtn.addEventListener('click', () => {
+            if (!activityHistory.length || !activityStrip) return;
+            if (activityStrip.classList.contains('hidden')) {
+                showActivityHistory(activityHistoryIndex);
+            } else {
+                activityStrip.classList.add('hidden');
+                updateActivityStripState();
+            }
+        });
+    }
+    if (activityNewestBtn) activityNewestBtn.addEventListener('click', () => showActivityHistory(0));
+    if (activityPreviousBtn) activityPreviousBtn.addEventListener('click', () => showActivityHistory(activityHistoryIndex - 1));
+    if (activityNextBtn) activityNextBtn.addEventListener('click', () => showActivityHistory(activityHistoryIndex + 1));
+    if (activityOldestBtn) activityOldestBtn.addEventListener('click', () => showActivityHistory(getVisibleActivityHistory().length - 1));
+    if (statusWrapper) {
+        statusWrapper.addEventListener('mouseenter', () => clearTimeout(activityHideTimer));
+        statusWrapper.addEventListener('mouseleave', scheduleActivityAutoHide);
+    }
+    updateActivityStripState();
 
     /**
-     * Updates the bottom status bar and its hover/click popover.
+     * Stores an activity update and renders it in the activity strip.
      *
      * Messages from transports use '\n  ' (newline + indent) to separate the
      * connection summary from secondary detail (e.g. TLS cert info).
-     * The status bar shows only the first line; the popover shows all lines
-     * with a blank line between the summary and the detail for readability.
-     * The ⓘ icon is shown when there is secondary detail OR when the status
-     * text is truncated by CSS overflow (scrollWidth > clientWidth).
+     * History is newest-first. New activity always jumps to the top/newest item.
      */
-    function setStatus(message) {
-        if (!statusDisplay) return;
-        const parts = message ? message.split(/\n\s+/) : [message || ''];
-        // Status bar: first part only - CSS ellipsis trims further if needed
-        statusDisplay.textContent = parts[0];
+    function setStatus(message, options = {}) {
+        if (!statusDisplay || !message) return;
+        const item = parseActivityMessage(message, options);
+        activityHistory.unshift(item);
 
-        // Popover content: summary line, blank separator, then detail lines
-        const content = document.getElementById('status-popover-content');
-        if (content) {
-            content.textContent = parts.length > 1
-                ? parts[0] + '\n\n' + parts.slice(1).join('\n')
-                : parts[0];
+        if (!activityConnectionFilterEnabled || isConnectionActivity(item)) {
+            activityHistoryIndex = 0;
+            renderActivityHistoryItem();
+            revealActivityStrip();
+            return;
         }
 
-        // Show ⓘ icon when there is secondary detail OR when text is truncated.
-        // Use rAF so the DOM has reflowed and scrollWidth is accurate.
-        const icon = document.getElementById('status-info-icon');
-        if (icon) {
-            requestAnimationFrame(() => {
-                const isTruncated = statusDisplay.scrollWidth > statusDisplay.clientWidth;
-                const hasDetail = parts.length > 1;
-                if (isTruncated || hasDetail) {
-                    icon.style.visibility = 'visible';
-                } else {
-                    icon.style.visibility = 'hidden';
-                    // Also unpin if the detail just went away
-                    const wrapper = document.getElementById('status-wrapper');
-                    if (wrapper) wrapper.classList.remove('pinned');
-                }
-            });
+        if (!getVisibleActivityHistory().length) {
+            activityHistoryIndex = 0;
+            renderActivityHistoryItem();
+            revealActivityStrip();
+            return;
         }
+
+        updateActivityHistoryControls();
+        updateActivityStripState();
+        updateStatusLineToggleState();
     }
-
-    // Initialise icon as hidden on load
-    const _initIcon = document.getElementById('status-info-icon');
-    if (_initIcon) _initIcon.style.visibility = 'hidden';
 
     // TLS badge: click toggles TLS when disconnected; otherwise click pins details.
     const tlsBadgeEl = document.getElementById('tls-badge');

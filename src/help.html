@@ -218,20 +218,32 @@
 
             <div class="help-section">
                 <h3>Tooltips</h3>
-                <p>Hover or keyboard-focus controls to show custom tooltips. Tooltips are rendered by the app on all operating systems for consistent behavior on macOS, Windows, and Linux.</p>
+                <p>Hover or focus controls for custom, theme-aware tooltips. Some dense status fields, such as the Activity Strip text, open details on click.</p>
                 <ul>
-                    <li><strong>Icons:</strong> Tooltip icons help identify actions such as authentication (🔑), TLS/security (🔒), warnings (⚠), refresh (↻), and command-line tools (<code>&gt;_</code>).</li>
-                    <li><strong>Colors:</strong> Tooltip accents are theme-aware. Info, auth, secure, success, warning, and error states use different accent colors.</li>
-                    <li><strong>Accessibility:</strong> Controls keep ARIA labels while native title tooltips are replaced by the custom renderer.</li>
+                    <li><strong>Icons/colours:</strong> Auth, TLS, warning, success, and error states use distinct theme-aware accents.</li>
+                    <li><strong>Accessibility:</strong> Controls keep ARIA labels while native title tooltips are replaced.</li>
                 </ul>
             </div>
 
             <div class="help-section">
                 <h3>Status Bar and Indicators</h3>
-                <p>The status bar at the bottom of the window provides real-time feedback on the application's connection state. It includes a colored dot indicator and descriptive text to show the current status.</p>
+                <p>The footer keeps connection state, TLS, and auth centered. Longer status messages appear in the <strong>Activity Strip</strong>.</p>
+
+                <h4>Activity Strip</h4>
+                <p>Appears after the first activity update. It is in the main layout, pinned by default, filters to connection activity by default, and stores newest-first history. Click the status text for full status and time details.</p>
+                <table class="shortcuts-table">
+                    <thead><tr><th>Control</th><th>Meaning</th></tr></thead>
+                    <tbody>
+                        <tr><td>▤</td><td>Show or hide the strip.</td></tr>
+                        <tr><td>⌃ / ⌄</td><td>Collapse or expand details.</td></tr>
+                        <tr><td>⇱ / ↑ / ↓ / ⇲</td><td>Navigate newest-first history.</td></tr>
+                        <tr><td>Connection filter</td><td>Switch between connection-only and all activity.</td></tr>
+                        <tr><td>Pin</td><td>Keep visible or auto-hide future updates.</td></tr>
+                    </tbody>
+                </table>
 
                 <h4>TLS Trust Badge</h4>
-                <p>When HTTP, WebSocket, or gRPC is selected, a lock icon appears in the status bar centre. While disconnected, click it to toggle TLS for the selected protocol; it stays synchronized with the Use TLS checkbox, certificate fields, default port behavior, and the next connection. While connected, click it to pin details and disconnect before changing TLS. Hover for a formatted tooltip with encryption state, certificate trust, endpoint, action, and auth context:</p>
+                <p>For HTTP, WebSocket, and gRPC, the footer lock mirrors the selected protocol's TLS setting while disconnected. Connected tooltips describe encryption and certificate trust.</p>
                 <table class="shortcuts-table">
                     <thead><tr><th>Icon</th><th>Colour</th><th>Meaning</th></tr></thead>
                     <tbody>
@@ -245,7 +257,7 @@
                 </table>
 
                 <h4>Velocity Auth Badge</h4>
-                <p>The key badge is separate from TLS. It shows whether an ArcGIS Velocity token is available and whether it will be sent with new gRPC, HTTP, and WebSocket client connections. Click the badge to toggle token sending on or off. The tooltip never displays the raw bearer token; it only shows safe details such as selected output, auth type, expiry, and the next toggle action.</p>
+                <p>The key badge is separate from TLS. It shows token availability and whether new supported client connections send the token. Raw bearer tokens are never displayed.</p>
                 <table class="shortcuts-table">
                     <thead><tr><th>Badge</th><th>Meaning</th></tr></thead>
                     <tbody>

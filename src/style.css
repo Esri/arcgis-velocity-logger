@@ -160,6 +160,51 @@ body {
     mask-image: url('assets/connection-hide.svg');
 }
 
+.icon-status-toggle {
+    -webkit-mask-image: url('assets/status-toggle.svg');
+    mask-image: url('assets/status-toggle.svg');
+}
+
+.icon-activity-newest {
+    -webkit-mask-image: url('assets/activity-newest.svg');
+    mask-image: url('assets/activity-newest.svg');
+}
+
+.icon-activity-previous {
+    -webkit-mask-image: url('assets/activity-previous.svg');
+    mask-image: url('assets/activity-previous.svg');
+}
+
+.icon-activity-next {
+    -webkit-mask-image: url('assets/activity-next.svg');
+    mask-image: url('assets/activity-next.svg');
+}
+
+.icon-activity-oldest {
+    -webkit-mask-image: url('assets/activity-oldest.svg');
+    mask-image: url('assets/activity-oldest.svg');
+}
+
+.icon-activity-connection-filter {
+    -webkit-mask-image: url('assets/activity-connection-filter.svg');
+    mask-image: url('assets/activity-connection-filter.svg');
+}
+
+.icon-activity-connection-filter-off {
+    -webkit-mask-image: url('assets/activity-connection-filter-off.svg');
+    mask-image: url('assets/activity-connection-filter-off.svg');
+}
+
+.icon-activity-pin {
+    -webkit-mask-image: url('assets/activity-pin.svg');
+    mask-image: url('assets/activity-pin.svg');
+}
+
+.icon-activity-pin-off {
+    -webkit-mask-image: url('assets/activity-pin-off.svg');
+    mask-image: url('assets/activity-pin-off.svg');
+}
+
 .connection-svg-line {
     stroke: currentColor;
     stroke-width: 10;
@@ -170,19 +215,243 @@ body {
     fill: currentColor;
 }
 
-/* Status Bar - Perfect centering using CSS Grid */
+/* Activity strip - pinned/collapsible operational status */
+.activity-strip {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: stretch;
+    width: 100%;
+    max-height: 156px;
+    margin: 2px 0 2px;
+    overflow: hidden;
+    pointer-events: auto;
+    opacity: 1;
+    transform: translateY(0);
+    transition: max-height 0.18s ease, opacity 0.18s ease, margin 0.18s ease, transform 0.18s ease;
+}
+
+.activity-strip.hidden {
+    max-height: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    opacity: 0;
+    transform: translateY(4px);
+    pointer-events: none;
+}
+
+.activity-card {
+    width: 100%;
+    max-width: none;
+    min-height: 40px;
+    padding: 7px 10px 7px 8px;
+    border: 1px solid var(--logs-border-color);
+    border-left: 3px solid color-mix(in srgb, var(--accent-color, var(--button-info-bg)) 76%, var(--logs-border-color));
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--logs-bg-color) 96%, var(--surface-color) 4%);
+    box-shadow: 0 1px 6px rgba(0,0,0,0.18);
+    pointer-events: auto;
+}
+
+.activity-strip:not(.pinned) .activity-card {
+    border-left-color: color-mix(in srgb, var(--text-color) 38%, transparent);
+}
+
+.activity-action-btn {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-color);
+    cursor: pointer;
+    font: inherit;
+    line-height: 1;
+    opacity: 0.78;
+    transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease, transform 0.1s ease;
+}
+
+.activity-action-btn:hover,
+.activity-action-btn:focus-visible,
+.activity-action-btn.active {
+    opacity: 1;
+    background: rgba(128, 128, 128, 0.16);
+    border-color: var(--border-color);
+    outline: none;
+}
+
+.activity-filter-btn,
+.activity-pin-btn {
+    color: color-mix(in srgb, var(--text-color) 76%, transparent);
+    border-color: color-mix(in srgb, var(--border-color) 58%, transparent);
+    background: color-mix(in srgb, var(--surface-color) 80%, #000 20%);
+}
+
+.activity-filter-btn .button-icon,
+.activity-pin-btn .button-icon {
+    width: 15px;
+    height: 15px;
+}
+
+.activity-filter-btn.active,
+.activity-pin-btn.active {
+    color: var(--button-toggle-on-text, var(--button-text));
+    background: linear-gradient(180deg,
+        color-mix(in srgb, var(--button-toggle-on-bg) 94%, #fff 6%),
+        var(--button-toggle-on-bg));
+    border-color: color-mix(in srgb, var(--button-toggle-on-bg) 72%, var(--border-color));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--button-toggle-on-bg) 28%, transparent),
+                0 0 12px color-mix(in srgb, var(--button-toggle-on-bg) 28%, transparent);
+}
+
+.activity-filter-btn:not(.active):hover,
+.activity-filter-btn:not(.active):focus-visible,
+.activity-pin-btn:not(.active):hover,
+.activity-pin-btn:not(.active):focus-visible {
+    color: var(--text-color);
+    background: color-mix(in srgb, var(--button-info-bg) 16%, transparent);
+    border-color: color-mix(in srgb, var(--button-info-bg) 44%, var(--border-color));
+}
+
+.activity-action-btn:active {
+    transform: scale(0.96);
+}
+
+.activity-action-btn:disabled {
+    cursor: default;
+    opacity: 0.38;
+    background: transparent;
+    border-color: transparent;
+    transform: none;
+}
+
+.activity-history-controls {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 3px;
+    border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--surface-color) 84%, #000 16%);
+}
+
+.activity-time {
+    flex: 0 0 auto;
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    padding: 0 9px;
+    border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--surface-color) 84%, #000 16%);
+    color: color-mix(in srgb, var(--text-color) 72%, transparent);
+    font-size: 0.74em;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    user-select: text;
+    cursor: pointer;
+}
+
+.activity-history-btn {
+    width: 26px;
+    height: 26px;
+}
+
+.activity-history-btn .button-icon {
+    width: 14px;
+    height: 14px;
+}
+
+.activity-history-position {
+    min-width: 42px;
+    text-align: center;
+    color: color-mix(in srgb, var(--text-color) 72%, transparent);
+    font-size: 0.72em;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    user-select: none;
+}
+
+.activity-content {
+    min-width: 0;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+}
+
+.activity-summary-row {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+}
+
+.activity-summary {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.9em;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--text-color);
+}
+
+.activity-summary[data-tooltip] {
+    cursor: pointer;
+}
+
+.activity-detail {
+    display: block;
+    overflow: hidden;
+    max-height: 90px;
+    transition: max-height 0.18s ease, opacity 0.16s ease, margin-top 0.16s ease;
+}
+
+.activity-strip.collapsed .activity-detail,
+.activity-strip:not(.has-detail) .activity-detail {
+    max-height: 0;
+    opacity: 0;
+    margin-top: 0;
+    pointer-events: none;
+}
+
+.activity-strip.collapsed .activity-card {
+    min-height: 40px;
+}
+
+.activity-strip.collapsed {
+    max-height: 48px;
+}
+
+.activity-strip.hidden.collapsed {
+    max-height: 0;
+}
+
+/* Status Bar - true center-locked footer controls */
 .status-bar {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
     height: 30px;
-    background: var(--surface-color);
+    background: var(--status-bg-color, var(--surface-color));
     border-top: 1px solid var(--border-color);
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
-    justify-content: space-between;
-    padding: 0 8px; /* Match side padding with app container for alignment */
+    justify-content: stretch;
+    padding: 0 12px; /* Match simulator footer spacing */
     z-index: 100;
     font-family: var(--font-family);
     backdrop-filter: saturate(120%) blur(6px);
@@ -194,6 +463,34 @@ body {
     align-items: center;
     gap: 8px;
     justify-self: start;
+    grid-column: 1;
+}
+
+.status-bar-left .separator {
+    width: 1px;
+    height: 20px;
+    background-color: var(--border-color);
+    opacity: 0.72;
+    margin: 0 4px;
+}
+
+#toggle-status-line-btn {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    padding: 6px;
+    border-radius: 5px;
+}
+
+#toggle-status-line-btn:not(:disabled)[aria-pressed="true"] {
+    background-color: var(--button-toggle-on-bg);
+    color: var(--button-toggle-on-text, var(--button-text));
+}
+
+#toggle-status-line-btn:disabled {
+    cursor: default;
+    opacity: 0.45;
 }
 
 .status-bar-center {
@@ -201,6 +498,8 @@ body {
     justify-content: center;
     align-items: center;
     gap: 8px;
+    grid-column: 2;
+    justify-self: center;
 }
 
 .status-bar-right {
@@ -210,6 +509,7 @@ body {
     align-items: center;
     gap: 8px;
     justify-self: end;
+    grid-column: 3;
 }
 
 /* Compact Status Bar for smaller screens */
@@ -758,13 +1058,13 @@ pre#logs::-webkit-scrollbar-thumb {
 
 /* ── end TLS trust badge ─────────────────────────────────────────────────── */
 
-/* ── Status popover ─────────────────────────────────────────────────────── */
+/* ── Activity Strip details ─────────────────────────────────────────────── */
 
 .status-wrapper {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 8px;
     min-width: 0;
     max-width: 100%;
     cursor: default;
@@ -772,79 +1072,44 @@ pre#logs::-webkit-scrollbar-thumb {
 
 .status-info-icon {
     flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
     font-size: 0.82em;
-    opacity: 0;
-    visibility: hidden;
-    cursor: pointer;
-    color: var(--text-color);
-    transition: opacity 0.15s;
+    opacity: 0.72;
+    visibility: visible;
+    color: var(--accent-color, var(--button-info-bg));
+    background: color-mix(in srgb, var(--accent-color, var(--button-info-bg)) 14%, transparent);
     user-select: none;
     line-height: 1;
 }
 
-/* Show icon when wrapper is hovered or popover is pinned, but only if icon is not hidden */
-.status-wrapper:hover .status-info-icon:not([style*="visibility: hidden"]),
-.status-wrapper.pinned .status-info-icon:not([style*="visibility: hidden"]) {
-    opacity: 0.55;
-}
-.status-info-icon:hover {
-    opacity: 1 !important;
-}
-
 .status-popover {
-    position: absolute;
-    bottom: calc(100% + 10px);
-    left: 0;
-    z-index: 500;
-    background: var(--surface-color);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    padding: 10px 14px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
-    min-width: 280px;
-    max-width: min(560px, 90vw);
-    pointer-events: none;
-    opacity: 0;
-    transform: translateY(6px);
-    transition: opacity 0.12s ease, transform 0.12s ease;
-    transition-delay: 0s;
-    backdrop-filter: saturate(140%) blur(8px);
-}
-
-/* Hover: show after a short intentional delay */
-.status-wrapper:hover .status-popover {
+    position: static;
+    z-index: auto;
+    min-width: 0;
+    max-width: none;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
     pointer-events: auto;
     opacity: 1;
-    transform: translateY(0);
-    transition-delay: 0.35s;
-}
-
-/* Pinned (clicked): show immediately, no delay */
-.status-wrapper.pinned .status-popover {
-    pointer-events: auto;
-    opacity: 1;
-    transform: translateY(0);
-    transition-delay: 0s;
-}
-
-/* Pinned + hovered: also no delay */
-.status-wrapper.pinned:hover .status-popover {
-    transition-delay: 0s;
-}
-
-/* Thin accent line on the left when pinned */
-.status-wrapper.pinned .status-popover {
-    border-left: 3px solid var(--accent-color, var(--border-color));
+    transform: none;
+    backdrop-filter: none;
 }
 
 .status-popover-content {
     margin: 0;
     font-family: var(--font-family);
     font-size: 0.82em;
-    line-height: 1.6;
-    color: var(--text-color);
+    line-height: 1.45;
+    color: color-mix(in srgb, var(--text-color) 82%, transparent);
     white-space: pre-wrap;
-    word-break: break-all;
+    word-break: break-word;
 }
 
 /* Custom tooltips (replaces unreliable native title tooltips) */

@@ -307,6 +307,10 @@
     return normalizeTooltipText(target.getAttribute('data-tooltip')) ? target : null;
   }
 
+  function isClickTriggered(target) {
+    return target && String(target.getAttribute('data-tooltip-trigger') || '').toLowerCase() === 'click';
+  }
+
   function setTooltipContent(target) {
     const text = normalizeTooltipText(target.getAttribute('data-tooltip'));
     const icon = inferTooltipIcon(text, target);
@@ -346,18 +350,20 @@
     positionTooltip(activeTarget);
   }
 
-  function showTooltip(target) {
+  function showTooltip(target, immediate = false) {
     clearTimeout(hideTimer);
     clearTimeout(showTimer);
     ensureTooltipElement();
     activeTarget = target;
-    showTimer = setTimeout(() => {
+    const render = () => {
       if (!activeTarget) return;
       setTooltipContent(activeTarget);
       tooltipEl.classList.add('visible');
       tooltipEl.setAttribute('aria-hidden', 'false');
       positionTooltip(activeTarget);
-    }, 500);
+    };
+    if (immediate) render();
+    else showTimer = setTimeout(render, 500);
   }
 
   function hideTooltip() {
@@ -381,19 +387,36 @@
 
     document.addEventListener('mouseover', (event) => {
       const target = getTooltipTarget(event.target);
-      if (target) showTooltip(target);
+      if (target && !isClickTriggered(target)) showTooltip(target);
     });
 
     document.addEventListener('mouseout', (event) => {
+      if (activeTarget && isClickTriggered(activeTarget)) return;
       if (activeTarget && !activeTarget.contains(event.relatedTarget) && (!tooltipEl || !tooltipEl.contains(event.relatedTarget))) hideTooltip();
     });
 
     document.addEventListener('focusin', (event) => {
       const target = getTooltipTarget(event.target);
-      if (target) showTooltip(target);
+      if (target && !isClickTriggered(target)) showTooltip(target);
+    });
+
+    document.addEventListener('click', (event) => {
+      if (tooltipEl && tooltipEl.contains(event.target)) return;
+      const target = getTooltipTarget(event.target);
+      if (!target || !isClickTriggered(target)) {
+        if (activeTarget && isClickTriggered(activeTarget)) hideTooltip();
+        return;
+      }
+      event.stopPropagation();
+      if (activeTarget === target && tooltipEl && tooltipEl.classList.contains('visible')) {
+        hideTooltip();
+        return;
+      }
+      showTooltip(target, true);
     });
 
     document.addEventListener('focusout', (event) => {
+      if (activeTarget && isClickTriggered(activeTarget)) return;
       if (tooltipEl && tooltipEl.contains(event.relatedTarget)) return;
       hideTooltip();
     });
@@ -423,7 +446,7 @@
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['title', 'data-tooltip', 'data-tooltip-icon', 'data-tooltip-kind', 'aria-label'],
+      attributeFilter: ['title', 'data-tooltip', 'data-tooltip-icon', 'data-tooltip-kind', 'data-tooltip-trigger', 'aria-label'],
     });
   }
 

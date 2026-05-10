@@ -61,6 +61,33 @@ function delay(ms) {
   assert.strictEqual(tooltip.querySelector('.custom-tooltip-icon').textContent, '🔑');
   assert(tooltip.classList.contains('custom-tooltip-auth'), 'visible tooltip should refresh kind styling');
 
+  dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  await delay(120);
+
+  const clickTarget = dom.window.document.createElement('span');
+  clickTarget.dataset.tooltip = 'Activity Strip\nStatus: Full status line\nDate: Sunday, May 10, 2026\nTime: 10:00:00 AM PDT';
+  clickTarget.dataset.tooltipTrigger = 'click';
+  clickTarget.textContent = 'Full status line';
+  dom.window.document.body.appendChild(clickTarget);
+
+  clickTarget.dispatchEvent(new dom.window.MouseEvent('mouseover', { bubbles: true }));
+  await delay(550);
+  assert(!tooltip.classList.contains('visible'), 'click-triggered tooltip should not open on hover');
+
+  clickTarget.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+  await delay(20);
+  assert(tooltip.classList.contains('visible'), 'click-triggered tooltip should open immediately on click');
+  assert.match(tooltip.textContent, /Activity Strip/, 'click-triggered tooltip should render full activity title');
+  assert.match(tooltip.textContent, /Sunday, May 10, 2026/, 'click-triggered tooltip should include full date');
+
+  clickTarget.dispatchEvent(new dom.window.MouseEvent('mouseout', { bubbles: true, relatedTarget: dom.window.document.body }));
+  await delay(120);
+  assert(tooltip.classList.contains('visible'), 'click-triggered tooltip should stay visible after mouseout');
+
+  dom.window.document.body.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+  await delay(120);
+  assert(!tooltip.classList.contains('visible'), 'click-triggered tooltip should close on outside click');
+
   console.log('tooltip-utils tests passed');
 })().catch((err) => {
   console.error(err);
