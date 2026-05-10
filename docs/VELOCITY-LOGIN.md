@@ -15,7 +15,8 @@ The **🔑 Sign In to ArcGIS Velocity** button in the toolbar opens a modal dial
 4. Use the **Type** dropdown to filter outputs (gRPC, HTTP, WebSocket, TCP, etc.).
 5. Select an output to view its details (URL, auth type, format, schema fields).
 6. Click **Apply** — the main window auto-configures: connection mode, host, port, path, TLS, and format.
-7. Click **Connect** as usual to start receiving data.
+7. Check the footer **🔑 Token On / Token Off** badge. Click it to control whether the Velocity token is sent with new client connections.
+8. Click **Connect** as usual to start receiving data.
 
 ## Authentication
 
@@ -30,6 +31,19 @@ The **🔑 Sign In to ArcGIS Velocity** button in the toolbar opens a modal dial
 - Tokens are refreshed proactively at **80% of their lifetime** (e.g., a 60-minute token refreshes at 48 minutes).
 - On failure, retries with exponential backoff (1s, 2s, 4s… up to 5 attempts).
 - Status messages in the log indicate token refresh events and failures.
+- The footer **🔑 Token On / ◇ Token Off** badge shows whether an authenticated token is available and whether it will be sent with new gRPC, HTTP, and WebSocket client connections.
+- The app never displays the raw bearer token in the tooltip or status popover. The tooltip shows safe metadata only: selected output, auth type, expiry time, and toggle action.
+
+### Token Sending Toggle
+
+The login dialog supports two usage modes:
+
+1. **Use Token Only** — sign in and use the Velocity token with your own manually configured connection settings. The footer badge defaults to **🔑 Token On**.
+2. **Apply an Output** — sign in, select an output, and apply its connection settings. Outputs with `arcgis`, `token`, `bearer`, OAuth, or unspecified auth on token-capable transports default to **🔑 Token On**. Outputs with `basic`, `none`, TCP, or unsupported auth default to **◇ Token Off**.
+
+Click the footer badge to toggle token sending for **new** client connections. Active gRPC and HTTP client transports hot-swap the refreshed token when possible; WebSocket upgrade headers are fixed at connect time, so reconnect after changing the toggle.
+
+The **🔒 TLS badge** is intentionally separate: it describes encryption and certificate trust only. The **🔑 auth badge** describes token availability and whether the token is sent.
 
 ## OAuth 2.0
 
@@ -91,8 +105,13 @@ Tooltips are rendered by the app's custom tooltip system on all operating system
 | All | Show all output types, including those not yet supported by the Logger |
 | Type dropdown | Each option is prefixed with a type icon. Unsupported types show ⚠ prefix. |
 | Output dropdown | Each option is prefixed with a type icon. Unsupported items show ⚠ prefix and italic muted styling. |
+| Use Token Only | "Use Velocity token for authentication only — keep your own connection settings in the main window" |
 | Apply | "Apply the selected output connection settings to the main window." Disabled for unsupported types. |
 | Close | "Close this dialog without applying." |
+| Footer 🔑 Token On | "Token On — Velocity token will be sent with new gRPC, HTTP, and WebSocket client connections. Scope: New client connections only. Token: Hidden for security. Selected output: … Auth type: … Expires: … Action: Click to turn token sending off for new client connections." |
+| Footer ◇ Token Off | "Token Off — A Velocity token is available, but it will not be sent with new client connections. Scope: New client connections only. Token: Hidden for security. Selected output: … Auth type: … Expires: … Action: Click to turn token sending on for new client connections." |
+| Footer ⚠ Token Error | "Token Error — Velocity token refresh failed. Token: Hidden for security. Status: … Action: Sign in again if reconnecting fails." |
+| Footer 🔒… TLS badge | Mirrors the selected protocol's Use TLS checkbox while disconnected. Example configured tooltip: "TLS Configured — HTTP Client will use HTTPS on the next connection. Scope: New HTTP connections only. Encryption: Enabled in the UI. Certificate trust: Checked after connection. Endpoint: … Action: Click to turn TLS off for HTTP Client. Auth: Token status is shown separately by the key badge." Connected trust tooltips describe encryption and certificate trust only. |
 
 ## Credential Storage
 

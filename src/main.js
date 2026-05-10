@@ -144,7 +144,35 @@ let udpSocket;
 let currentConnectionDetails = null;
 
 const { generateToken, generateOAuthToken, getVelocityApiUrl, listOutputs, getOutputDetails, TokenManager } = require('./velocity-api.js');
+const { shouldSendVelocityTokenByDefault } = require('./velocity-auth-utils.js');
 const velocityTokenManager = new TokenManager();
+let velocitySendAuthToken = false;
+
+function getVelocityAuthTokenForConnection() {
+  return velocitySendAuthToken && velocityTokenManager.isAuthenticated ? velocityTokenManager.token : null;
+}
+
+function hotSwapVelocityAuthToken() {
+  const token = getVelocityAuthTokenForConnection();
+  if (grpcTransport && grpcTransport.authToken !== undefined) {
+    grpcTransport.authToken = token;
+  }
+  if (httpTransport && httpTransport.authToken !== undefined) {
+    httpTransport.authToken = token;
+  }
+  // WS transport cannot change upgrade headers mid-session; the toggle applies on reconnect.
+}
+
+function sendVelocityTokenState(reason = 'updated') {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('velocity:token-state', {
+      hasToken: velocityTokenManager.isAuthenticated,
+      tokenSendingEnabled: velocitySendAuthToken,
+      expires: velocityTokenManager.expires || 0,
+      reason,
+    });
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 let sockets = [];
@@ -2128,7 +2156,7 @@ ipcMain.on('connect-grpc', (event, { type, port, host, grpcSerialization, grpcSe
     } else { // client
         const onClientMetadata = (line) => sendMetadataLine(line);
         const onClientStatus = (line) => sendMetadataLine(line);
-        grpcTransport = createGrpcClientTransport({ ip: host, port, grpcSerialization, grpcSendMethod, headerPathKey, headerPath, useTls, tlsCaPath, tlsCertPath, tlsKeyPath, authToken: velocityTokenManager.token || null, onData, onMetadata: onClientMetadata, onStatus: onClientStatus });
+        grpcTransport = createGrpcClientTransport({ ip: host, port, grpcSerialization, grpcSendMethod, headerPathKey, headerPath, useTls, tlsCaPath, tlsCertPath, tlsKeyPath, authToken: getVelocityAuthTokenForConnection(), onData, onMetadata: onClientMetadata, onStatus: onClientStatus });
         grpcTransport.connect().then((result) => {
             mainWindow.webContents.send('grpc-status', `gRPC Client connected to ${result.address} [${ser}] ${headerPathKey}=${headerPath}\n  ${result.tlsInfo || 'tls=off'}`);
             updateGrpcButtonStates('connected');
@@ -2192,7 +2220,7 @@ ipcMain.on('connect-http', (event, { type, port, host, httpFormat, httpTls, http
             updateHttpButtonStates('disconnected');
         });
     } else { // client
-        httpTransport = createHttpClientTransport({ ip: host, port, httpFormat, httpPath, httpTls, httpTlsCaPath, httpTlsCertPath, httpTlsKeyPath, authToken: velocityTokenManager.token || null, onData });
+        httpTransport = createHttpClientTransport({ ip: host, port, httpFormat, httpPath, httpTls, httpTlsCaPath, httpTlsCertPath, httpTlsKeyPath, authToken: getVelocityAuthTokenForConnection(), onData });
         httpTransport.connect().then((result) => {
             mainWindow.webContents.send('http-status', `HTTP Client connected to ${result.address} [${httpFormat}] Content-Type: ${contentType}\n  ${result.tlsInfo || 'tls=off'}`);
             updateHttpButtonStates('connected');
@@ -2256,7 +2284,7 @@ ipcMain.on('connect-ws', (event, { type, port, host, wsFormat, wsTls, wsTlsCaPat
                 updateWsButtonStates('disconnected');
             });
         } else {
-            wsTransport = createWsClientTransport({ ip: host, port, wsFormat, wsPath, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsSubscriptionMsg, wsIgnoreFirstMsg, wsHeaders, authToken: velocityTokenManager.token || null, onData });
+            wsTransport = createWsClientTransport({ ip: host, port, wsFormat, wsPath, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsSubscriptionMsg, wsIgnoreFirstMsg, wsHeaders, authToken: getVelocityAuthTokenForConnection(), onData });
             wsTransport.connect().then((result) => {
                 mainWindow.webContents.send('ws-status', `WebSocket Client connected to ${result.address} [${wsFormat}] Content-Type: ${contentType}\n  ${result.tlsInfo || 'tls=off'}`);
                 updateWsButtonStates('connected');
@@ -2367,6 +2395,7 @@ ipcMain.on('velocity:open-login', () => { showVelocityLoginDialog(); });
 ipcMain.handle('velocity:login', async (event, { portalUrl, username, password }) => {
   velocityLog('info', `[Auth] Sign-in attempt (password) to ${portalUrl} as "${username}"`);
   try {
+    velocitySendAuthToken = false;
     const tokenResult = await generateToken(portalUrl, username, password);
     const velocityUrl = await getVelocityApiUrl(portalUrl, tokenResult.token);
     await velocityTokenManager.loginWithPassword(portalUrl, username, password);
@@ -2382,6 +2411,7 @@ ipcMain.handle('velocity:login', async (event, { portalUrl, username, password }
 ipcMain.handle('velocity:login-oauth', async (event, { portalUrl, clientId, clientSecret }) => {
   velocityLog('info', `[Auth] OAuth sign-in attempt to ${portalUrl} with client "${clientId}"`);
   try {
+    velocitySendAuthToken = false;
     const tokenResult = await generateOAuthToken(portalUrl, clientId, clientSecret);
     const velocityUrl = await getVelocityApiUrl(portalUrl, tokenResult.token);
     await velocityTokenManager.loginWithOAuth(portalUrl, clientId, clientSecret);
@@ -2425,21 +2455,24 @@ ipcMain.handle('velocity:get-stored-credentials', async () => {
 });
 
 ipcMain.on('velocity:apply-item', (event, item) => {
+  velocitySendAuthToken = shouldSendVelocityTokenByDefault(item);
+  hotSwapVelocityAuthToken();
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('velocity:output-applied', item);
   }
+  sendVelocityTokenState('item-applied');
 });
 
-velocityTokenManager.on('refreshed', (token) => {
-  // Hot-swap token on active client transports
-  if (grpcTransport && grpcTransport.authToken !== undefined) {
-    grpcTransport.authToken = token;
-  }
-  if (httpTransport && httpTransport.authToken !== undefined) {
-    httpTransport.authToken = token;
-  }
-  // WS transport doesn't support mid-session header changes (token used at connect time only)
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('velocity:token-refreshed', token);
+ipcMain.on('velocity:set-token-sending', (event, enabled) => {
+  velocitySendAuthToken = !!enabled;
+  hotSwapVelocityAuthToken();
+  sendVelocityTokenState('user-toggle');
+});
+
+velocityTokenManager.on('refreshed', () => {
+  hotSwapVelocityAuthToken();
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('velocity:token-refreshed', { expires: velocityTokenManager.expires || 0 });
+  sendVelocityTokenState('refreshed');
 });
 
 velocityTokenManager.on('error', (err) => {

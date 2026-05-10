@@ -169,6 +169,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const HTTP_PORT_TLS_ON = 8443;
     const HTTP_PORT_TLS_OFF = 8080;
     let lastProtocolDefault = 5565;
+    let currentAppStatusState = 'disconnected';
+    let currentTlsTooltip = '';
 
     function updateGrpcRowVisibility() {
         const isGrpc = connectionTypeSelect.value.startsWith('grpc');
@@ -248,6 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateGrpcSerializationTooltip();
         updateConnectionModeTooltip();
         updateWsFormatTooltip();
+        refreshTlsBadge();
     }
 
     connectionTypeSelect.addEventListener('change', updateGrpcRowVisibility);
@@ -278,6 +281,7 @@ document.addEventListener('DOMContentLoaded', () => {
         grpcTlsCaInput.style.display = show ? '' : 'none';
         grpcTlsCertInput.style.display = show ? '' : 'none';
         grpcTlsKeyInput.style.display = show ? '' : 'none';
+        refreshTlsBadge();
     });
 
     // HTTP TLS checkbox handler
@@ -299,6 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     lastProtocolDefault = HTTP_PORT_TLS_OFF;
                 }
             }
+            refreshTlsBadge();
         });
     }
 
@@ -324,6 +329,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     lastProtocolDefault = HTTP_PORT_TLS_OFF;
                 }
             }
+            refreshTlsBadge();
         });
     }
 
@@ -391,28 +397,152 @@ document.addEventListener('DOMContentLoaded', () => {
     function tlsInfoToTooltip(raw) {
         if (!raw) return '';
         if (/tls=off/i.test(raw)) {
-            return 'TLS: off - connection is unsecure (plaintext, no encryption)';
+            return 'TLS Off — this connection is plaintext and unsecure.\nEncryption: No.\nCertificate trust: Not applicable.\nAuthentication is shown separately by the key badge.';
         }
         if (/self-signed/i.test(raw)) {
-            return 'TLS: self-signed - connection is encrypted but the server certificate is auto-generated and not CA-verified; peer identity is unverified';
+            return 'TLS Self-Signed — traffic is encrypted, but the certificate is not CA-verified.\nEncryption: Yes.\nCertificate trust: Self-signed or local-only; peer identity is not fully verified.\nUse this for development/testing, not production.';
         }
         if (/cert verification skipped/i.test(raw)) {
-            return 'TLS: self-signed - connection is encrypted but certificate authority verification is skipped; peer identity is unverified';
+            return 'TLS Verification Skipped — traffic is encrypted, but certificate authority checks are disabled.\nEncryption: Yes.\nCertificate trust: Not verified; peer identity is unverified.\nUse this only for development or trusted private networks.';
         }
         if (/mtls|client.*cert|cert.*client/i.test(raw)) {
-            return 'TLS: mTLS - mutual TLS; both client and server certificates are verified';
+            return 'Mutual TLS — encrypted connection with certificate-based client authentication.\nEncryption: Yes.\nCertificate trust: Client and server certificates are used.\nToken authentication is shown separately by the key badge.';
         }
         if (/custom certs/i.test(raw)) {
-            return 'TLS: CA-verified - connection is encrypted and the certificate chain is validated against a custom CA';
+            return 'TLS Verified — encrypted connection with a certificate chain validated by a custom CA.\nEncryption: Yes.\nCertificate trust: Verified against the configured CA certificate.\nAuthentication is shown separately by the key badge.';
         }
         if (/tls=on/i.test(raw)) {
-            return 'TLS: on - connection is encrypted';
+            return 'TLS On — traffic is encrypted.\nEncryption: Yes.\nCertificate trust: Uses the OS trust store or configured TLS options.\nAuthentication is shown separately by the key badge.';
         }
         return raw;
     }
 
-    // The TLS tooltip for the current connection, set on connect and cleared on disconnect.
-    let currentTlsTooltip = '';
+    function getSelectedTlsControl() {
+        const value = connectionTypeSelect.value || '';
+        const mode = value.endsWith('-server') ? 'Server' : 'Client';
+        if (value.startsWith('grpc')) {
+            return { checkbox: grpcTlsCheckbox, protocol: 'gRPC', mode, secureName: 'TLS', unsecureName: 'unsecure gRPC' };
+        }
+        if (value.startsWith('http')) {
+            return { checkbox: httpTlsCheckbox, protocol: 'HTTP', mode, secureName: 'HTTPS', unsecureName: 'HTTP' };
+        }
+        if (value.startsWith('ws')) {
+            return { checkbox: wsTlsCheckbox, protocol: 'WebSocket', mode, secureName: 'WSS', unsecureName: 'WS' };
+        }
+        return null;
+    }
+
+    function canToggleTlsFromFooter() {
+        return currentAppStatusState === 'disconnected' || currentAppStatusState === 'error';
+    }
+
+    function getConfiguredTlsTooltip() {
+        const selected = getSelectedTlsControl();
+        if (!selected || !selected.checkbox) return '';
+
+        const enabled = selected.checkbox.checked;
+        const canToggle = canToggleTlsFromFooter();
+        const endpoint = `${hostInput.value || 'host'}:${portInput.value || 'port'}`;
+        const action = canToggle
+            ? `Click to turn TLS ${enabled ? 'off' : 'on'} for ${selected.protocol} ${selected.mode}.`
+            : `Disconnect before changing TLS for this ${selected.protocol} ${selected.mode} connection.`;
+
+        if (enabled) {
+            return `TLS Configured — ${selected.protocol} ${selected.mode} will use ${selected.secureName} on the next connection.\nScope: New ${selected.protocol} connections only.\nEncryption: Enabled in the UI.\nCertificate trust: Checked after connection.\nEndpoint: ${endpoint}.\nAction: ${action}\nAuth: Token status is shown separately by the key badge.`;
+        }
+
+        return `TLS Off — ${selected.protocol} ${selected.mode} will use ${selected.unsecureName} / plaintext on the next connection.\nScope: New ${selected.protocol} connections only.\nEncryption: No.\nCertificate trust: Not applicable.\nEndpoint: ${endpoint}.\nAction: ${action}\nAuth: Token status is shown separately by the key badge.`;
+    }
+
+    function getTlsBadgeTooltipForStatus(statusState) {
+        if (statusState === 'connected' && currentTlsTooltip && getSelectedTlsControl()) return currentTlsTooltip;
+        return getConfiguredTlsTooltip();
+    }
+
+    function refreshTlsBadge() {
+        updateTlsBadge(getTlsBadgeTooltipForStatus(currentAppStatusState));
+    }
+
+    const velocityAuthUtils = window.VelocityAuthUtils || {};
+    const shouldSendVelocityTokenByDefault = velocityAuthUtils.shouldSendVelocityTokenByDefault || (() => false);
+    const describeVelocityAuthType = velocityAuthUtils.describeVelocityAuthType || ((authType) => authType || 'not specified');
+    let velocityAuthState = {
+        hasToken: false,
+        tokenSendingEnabled: false,
+        contextLabel: 'No output selected',
+        authType: 'token',
+        expires: 0,
+        error: '',
+    };
+
+    function formatTokenExpiry(expires) {
+        if (!expires) return 'Unknown';
+        const date = new Date(expires);
+        if (Number.isNaN(date.getTime())) return 'Unknown';
+        return date.toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+    }
+
+    function updateAuthBadge(nextState = {}) {
+        velocityAuthState = { ...velocityAuthState, ...nextState };
+        const wrapper = document.getElementById('auth-badge-wrapper');
+        const badge = document.getElementById('auth-badge');
+        const icon = document.getElementById('auth-badge-icon');
+        const label = document.getElementById('auth-badge-label');
+        const content = document.getElementById('auth-badge-content');
+        if (!badge) return;
+
+        if (!velocityAuthState.hasToken && !velocityAuthState.error) {
+            if (wrapper) wrapper.style.display = 'none';
+            badge.style.display = 'none';
+            badge.classList.remove('pinned');
+            return;
+        }
+
+        const isError = Boolean(velocityAuthState.error);
+        const isOn = velocityAuthState.hasToken && velocityAuthState.tokenSendingEnabled && !isError;
+        const state = isError ? 'error' : (isOn ? 'on' : 'off');
+        const iconText = isError ? '⚠' : (isOn ? '🔑' : '◇');
+        const labelText = isError ? 'Token Error' : (isOn ? 'Token On' : 'Token Off');
+        const actionText = isOn
+            ? 'Click to turn token sending off for new client connections.'
+            : 'Click to turn token sending on for new client connections.';
+        const tooltip = isError
+            ? `Token Error — Velocity token refresh failed.\nToken: Hidden for security.\nStatus: ${velocityAuthState.error}\nAction: Sign in again if reconnecting fails.`
+            : `${labelText} — ${isOn ? 'Velocity token will be sent with new gRPC, HTTP, and WebSocket client connections.' : 'A Velocity token is available, but it will not be sent with new client connections.'}\nScope: New client connections only.\nToken: Hidden for security.\nSelected output: ${velocityAuthState.contextLabel}.\nAuth type: ${describeVelocityAuthType(velocityAuthState.authType)}.\nExpires: ${formatTokenExpiry(velocityAuthState.expires)}.\nAction: ${actionText}`;
+
+        badge.dataset.authState = state;
+        badge.dataset.tooltip = tooltip;
+        badge.dataset.tooltipIcon = isError ? '⚠' : '🔑';
+        badge.dataset.tooltipKind = isError ? 'error' : 'auth';
+        badge.setAttribute('aria-label', tooltip.replace(/\n+/g, ' '));
+        badge.setAttribute('aria-pressed', isOn ? 'true' : 'false');
+        if (wrapper) wrapper.style.display = 'flex';
+        badge.style.display = 'flex';
+        if (icon) icon.textContent = iconText;
+        if (label) label.textContent = labelText;
+        if (content) content.textContent = tooltip;
+    }
+
+    function setVelocityTokenSending(enabled, logChange = true) {
+        updateAuthBadge({ tokenSendingEnabled: enabled, error: '' });
+        window.electronAPI.send('velocity:set-token-sending', enabled);
+        if (logChange) {
+            addLog(enabled
+                ? '🔑 Velocity token sending enabled for new client connections'
+                : '◇ Velocity token sending disabled for new client connections');
+        }
+    }
+
+    function updateAuthFromVelocityItem(item) {
+        const tokenSendingEnabled = shouldSendVelocityTokenByDefault(item);
+        updateAuthBadge({
+            hasToken: true,
+            tokenSendingEnabled,
+            contextLabel: item.tokenOnly ? 'Custom connection settings (no output selected)' : (item.label || item.id || 'Selected output'),
+            authType: item.authType || (tokenSendingEnabled ? 'token' : 'none'),
+            error: '',
+        });
+    }
 
     /**
      * Updates the TLS trust badge in the status bar center.
@@ -439,7 +569,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // 🔐            = mTLS - key icon signals mutual authentication
         // 🔒✓           = TLS on, CA-verified certificate chain
         let trust, iconChar;
-        if (/tls.*off|unsecure|plaintext/i.test(tooltip)) {
+        if (/tls configured|enabled in the ui|checked after connection/i.test(tooltip)) {
+            trust = 'configured';  iconChar = '🔒…';
+        } else if (/tls.*off|unsecure|plaintext/i.test(tooltip)) {
             trust = 'off';         iconChar = '🔓';
         } else if (/self-signed|verification.*skip/i.test(tooltip)) {
             trust = 'self-signed'; iconChar = '🔒⚠';
@@ -452,7 +584,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         badge.dataset.trust = trust;
-        badge.title = tooltip; // fallback native tooltip
+        badge.dataset.tlsToggleable = canToggleTlsFromFooter() && getSelectedTlsControl() ? 'true' : 'false';
+        badge.dataset.tooltip = tooltip;
+        badge.dataset.tooltipIcon = iconChar;
+        badge.dataset.tooltipKind = trust === 'off' || trust === 'self-signed' ? 'warning' : 'secure';
+        badge.setAttribute('aria-label', tooltip.replace(/\n+/g, ' '));
+        const selected = getSelectedTlsControl();
+        badge.setAttribute('aria-pressed', selected && selected.checkbox && selected.checkbox.checked ? 'true' : 'false');
         badge.style.display = 'flex';
         if (icon)    icon.textContent    = iconChar;
         if (content) content.textContent = tooltip;
@@ -461,12 +599,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Function to update the application status display
     function setAppStatus(status) {
         const statusState = status.toLowerCase();
+        currentAppStatusState = statusState;
 
         // Update status text
         appStatusText.textContent = status;
         appStatusText.setAttribute('data-state', statusState);
-        // Update TLS trust badge: visible when connected with a TLS-capable protocol
-        updateTlsBadge(statusState === 'connected' ? currentTlsTooltip : '');
+        // Update TLS badge: configured state while disconnected, actual trust when connected.
+        refreshTlsBadge();
 
         // Update status emoji
         appStatusDot.textContent = stateEmojis[statusState] || '⭐'; // Default to a star if state is unknown
@@ -839,25 +978,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ─── Velocity Login / Output Picker ─────────────────────────────────────
     const velocityLoginBtn = document.getElementById('velocity-login-btn');
+    const authBadge = document.getElementById('auth-badge');
     if (velocityLoginBtn) {
         velocityLoginBtn.addEventListener('click', () => {
             window.electronAPI.openVelocityLogin();
         });
     }
 
+    if (authBadge) {
+        const toggleAuthBadge = (event) => {
+            event.stopPropagation();
+            if (!velocityAuthState.hasToken || velocityAuthState.error) return;
+            setVelocityTokenSending(!velocityAuthState.tokenSendingEnabled);
+        };
+        authBadge.addEventListener('click', toggleAuthBadge);
+        authBadge.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                toggleAuthBadge(event);
+            }
+        });
+        const authPopover = document.getElementById('auth-badge-popover');
+        if (authPopover) {
+            authPopover.addEventListener('click', (event) => event.stopPropagation());
+        }
+    }
+
     window.electronAPI.on('velocity:output-applied', (item) => {
         if (!item) return;
+        updateAuthFromVelocityItem(item);
 
         // Token-only mode: authenticate without changing connection settings
         if (item.tokenOnly) {
-            const authBadge = document.getElementById('auth-badge');
-            const authBadgeContent = document.getElementById('auth-badge-content');
-            if (authBadge) {
-                authBadge.style.display = '';
-                if (authBadgeContent) {
-                    authBadgeContent.textContent = 'Velocity Token Only\nAuth: token (no output selected)';
-                }
-            }
             addLog('🔑 Velocity token applied — using your own connection settings');
             return;
         }
@@ -911,24 +1063,25 @@ document.addEventListener('DOMContentLoaded', () => {
             if (item.port) portInput.value = item.port;
         }
 
-        // Show auth badge
-        const authBadge = document.getElementById('auth-badge');
-        const authBadgeContent = document.getElementById('auth-badge-content');
-        if (authBadge) {
-            authBadge.style.display = '';
-            if (authBadgeContent) {
-                authBadgeContent.textContent = `Velocity Output: ${item.label || item.id}\nAuth: ${item.authType || 'token'}`;
-            }
-        }
-
         addLog(`✓ Output applied - ready to connect (${item.label || item.id})`);
     });
 
-    window.electronAPI.on('velocity:token-refreshed', () => {
+    window.electronAPI.on('velocity:token-refreshed', (state) => {
+        updateAuthBadge({ hasToken: true, expires: state && state.expires ? state.expires : velocityAuthState.expires, error: '' });
         addLog('🔑 Velocity token refreshed');
     });
 
+    window.electronAPI.on('velocity:token-state', (state) => {
+        if (!state) return;
+        updateAuthBadge({
+            hasToken: Boolean(state.hasToken),
+            tokenSendingEnabled: Boolean(state.tokenSendingEnabled),
+            expires: state.expires || velocityAuthState.expires,
+        });
+    });
+
     window.electronAPI.on('velocity:token-error', (msg) => {
+        updateAuthBadge({ hasToken: true, error: msg || 'Unknown token refresh error' });
         addLog(`⚠️ Velocity token refresh failed: ${msg}`);
     });
 
@@ -1376,12 +1529,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const _initIcon = document.getElementById('status-info-icon');
     if (_initIcon) _initIcon.style.visibility = 'hidden';
 
-    // TLS badge click-to-pin handler
+    // TLS badge: click toggles TLS when disconnected; otherwise click pins details.
     const tlsBadgeEl = document.getElementById('tls-badge');
     if (tlsBadgeEl) {
-        tlsBadgeEl.addEventListener('click', (e) => {
-            tlsBadgeEl.classList.toggle('pinned');
+        const handleTlsBadgeActivation = (e) => {
             e.stopPropagation();
+            const selected = getSelectedTlsControl();
+            if (!selected || !selected.checkbox) return;
+            if (!canToggleTlsFromFooter()) {
+                tlsBadgeEl.classList.toggle('pinned');
+                return;
+            }
+            selected.checkbox.checked = !selected.checkbox.checked;
+            selected.checkbox.dispatchEvent(new Event('change'));
+            addLog(selected.checkbox.checked
+                ? `🔒 TLS enabled for ${selected.protocol} ${selected.mode}`
+                : `🔓 TLS disabled for ${selected.protocol} ${selected.mode}`);
+            refreshTlsBadge();
+        };
+        tlsBadgeEl.addEventListener('click', handleTlsBadgeActivation);
+        tlsBadgeEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleTlsBadgeActivation(e);
+            }
         });
         document.addEventListener('click', () => tlsBadgeEl.classList.remove('pinned'));
         const tlsPopoverEl = document.getElementById('tls-badge-popover');

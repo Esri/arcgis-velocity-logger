@@ -146,18 +146,21 @@
                     <span id="app-status-dot"></span>
                     <span id="app-status-text">Disconnected</span>
                 </div>
-                <div id="tls-badge" class="tls-badge" style="display:none;" aria-label="TLS trust mode">
-                    <span id="tls-badge-icon" class="tls-badge-icon">🔒</span>
+                <div id="tls-badge" class="tls-badge" role="button" tabindex="0" style="display:none;" aria-label="TLS status" aria-pressed="false" data-tooltip="TLS status" data-tooltip-icon="🔒" data-tooltip-kind="secure">
+                    <span id="tls-badge-icon" class="tls-badge-icon" aria-hidden="true">🔒</span>
                     <div id="tls-badge-popover" class="tls-badge-popover" role="tooltip">
                         <pre id="tls-badge-content" class="tls-badge-content"></pre>
                     </div>
                 </div>
-                <div id="auth-badge" class="tls-badge" style="display:none;" aria-label="Velocity auth status">
-                    <span id="auth-badge-icon" class="tls-badge-icon">🔑</span>
-                    <div id="auth-badge-popover" class="tls-badge-popover" role="tooltip">
-                        <pre id="auth-badge-content" class="tls-badge-content"></pre>
-                    </div>
-                </div>
+                <span id="auth-badge-wrapper" class="auth-badge-wrapper" style="display:none;">
+                    <span id="auth-badge" class="tls-badge auth-badge" role="button" tabindex="0" aria-label="Velocity token sending is off" aria-pressed="false" data-tooltip="Velocity token status" data-tooltip-icon="🔑" data-tooltip-kind="auth">
+                        <span id="auth-badge-icon" class="tls-badge-icon" aria-hidden="true">🔑</span>
+                        <span id="auth-badge-label" class="auth-badge-label">Token Off</span>
+                    </span>
+                    <span id="auth-badge-popover" class="tls-badge-popover" role="tooltip">
+                        <span id="auth-badge-content" class="tls-badge-content"></span>
+                    </span>
+                </span>
             </div>
             <div class="status-bar-right">
                 <span id="line-counter" aria-live="polite">Lines Received: 0</span>
@@ -165,6 +168,7 @@
         </div>
     </div>
 
+    <script src="./velocity-auth-utils.js"></script>
     <script src="./renderer.js"></script>
     <script>
     // Responsive UI: hide title, connection-status, and status-bar-left at small widths

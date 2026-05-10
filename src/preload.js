@@ -29,7 +29,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'help-dialog-ready', 'about-dialog-ready', 'cli-dialog-ready', 'show-cli-dialog', 'connection-line-state-changed',
       'show-metadata-state-changed',
       'inspect-element',
-      'inspect-element-done'
+      'inspect-element-done',
+      'velocity:set-token-sending'
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
@@ -70,7 +71,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'cancel-inspect-mode',
       'velocity:output-applied',
       'velocity:token-refreshed',
-      'velocity:token-error'
+      'velocity:token-error',
+      'velocity:token-state'
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, (event, ...args) => callback(...args));
