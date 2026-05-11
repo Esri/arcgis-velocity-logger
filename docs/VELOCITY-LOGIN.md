@@ -31,7 +31,7 @@ The **🔑 Sign In to ArcGIS Velocity** button in the toolbar opens a modal dial
 - Tokens refresh at **80% of lifetime** and retry with exponential backoff on failure.
 - The footer auth badge shows whether a token is available and sent with new gRPC, HTTP, and WebSocket client connections.
 - Token refresh/toggle notices go to the **Activity Strip**; failures still appear in logs.
-- The Activity Strip is in the main layout, pinned by default, and filters to connection activity by default. Use its filter toggle for all activity, arrows for history, pin for auto-hide, and status text click for full details/time.
+- The Activity Strip is in the main layout, pinned by default, and filters to connection activity by default. Use its filter toggle for all activity, arrows for history, pin for auto-hide, and status text hover/click for details; click keeps details open while logs update.
 - Raw bearer tokens are never shown; tooltips show safe metadata only.
 
 ### Token Sending Toggle

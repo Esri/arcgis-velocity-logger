@@ -88,6 +88,31 @@ function delay(ms) {
   await delay(120);
   assert(!tooltip.classList.contains('visible'), 'click-triggered tooltip should close on outside click');
 
+  const bothTarget = dom.window.document.createElement('span');
+  bothTarget.dataset.tooltip = 'Activity Strip\nStatus: Connection established\nDate: Sunday, May 10, 2026\nTime: 10:01:00 AM PDT';
+  bothTarget.dataset.tooltipTrigger = 'both';
+  bothTarget.dataset.tooltipPersistScroll = 'true';
+  bothTarget.textContent = 'Connection established';
+  dom.window.document.body.appendChild(bothTarget);
+
+  bothTarget.dispatchEvent(new dom.window.MouseEvent('mouseover', { bubbles: true }));
+  await delay(550);
+  assert(tooltip.classList.contains('visible'), 'both-triggered tooltip should open on hover');
+  dom.window.dispatchEvent(new dom.window.Event('scroll', { bubbles: true }));
+  await delay(120);
+  assert(!tooltip.classList.contains('visible'), 'hover-open both-triggered tooltip should close on scroll');
+
+  bothTarget.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+  await delay(20);
+  assert(tooltip.classList.contains('visible'), 'both-triggered tooltip should open immediately on click');
+  dom.window.dispatchEvent(new dom.window.Event('scroll', { bubbles: true }));
+  await delay(120);
+  assert(tooltip.classList.contains('visible'), 'click-open persistent tooltip should stay visible on scroll');
+
+  dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  await delay(120);
+  assert(!tooltip.classList.contains('visible'), 'persistent click tooltip should still close on Escape');
+
   console.log('tooltip-utils tests passed');
 })().catch((err) => {
   console.error(err);

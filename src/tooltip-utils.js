@@ -25,6 +25,7 @@
   let showTimer;
   let hideTimer;
   let activeTooltipText = '';
+  let activeTooltipMode = '';
   let nativeTitleSuppressorInstalled = false;
   let originalSetAttribute;
   let originalRemoveAttribute;
@@ -307,8 +308,21 @@
     return normalizeTooltipText(target.getAttribute('data-tooltip')) ? target : null;
   }
 
-  function isClickTriggered(target) {
-    return target && String(target.getAttribute('data-tooltip-trigger') || '').toLowerCase() === 'click';
+  function getTooltipTrigger(target) {
+    return String((target && target.getAttribute('data-tooltip-trigger')) || 'hover').toLowerCase();
+  }
+
+  function supportsHoverTrigger(target) {
+    return getTooltipTrigger(target) !== 'click';
+  }
+
+  function supportsClickTrigger(target) {
+    const trigger = getTooltipTrigger(target);
+    return trigger === 'click' || trigger === 'both';
+  }
+
+  function shouldPersistOnScroll(target) {
+    return target && String(target.getAttribute('data-tooltip-persist-scroll') || '').toLowerCase() === 'true';
   }
 
   function setTooltipContent(target) {
@@ -350,13 +364,14 @@
     positionTooltip(activeTarget);
   }
 
-  function showTooltip(target, immediate = false) {
+  function showTooltip(target, immediate = false, mode = 'hover') {
     clearTimeout(hideTimer);
     clearTimeout(showTimer);
     ensureTooltipElement();
     activeTarget = target;
     const render = () => {
       if (!activeTarget) return;
+      activeTooltipMode = mode;
       setTooltipContent(activeTarget);
       tooltipEl.classList.add('visible');
       tooltipEl.setAttribute('aria-hidden', 'false');
@@ -372,6 +387,7 @@
       if (activeTarget) activeTarget.removeAttribute('aria-describedby');
       activeTarget = null;
       activeTooltipText = '';
+      activeTooltipMode = '';
       if (tooltipEl) {
         tooltipEl.classList.remove('visible');
         tooltipEl.setAttribute('aria-hidden', 'true');
@@ -387,43 +403,49 @@
 
     document.addEventListener('mouseover', (event) => {
       const target = getTooltipTarget(event.target);
-      if (target && !isClickTriggered(target)) showTooltip(target);
+      if (target && supportsHoverTrigger(target)) showTooltip(target, false, 'hover');
     });
 
     document.addEventListener('mouseout', (event) => {
-      if (activeTarget && isClickTriggered(activeTarget)) return;
+      if (activeTarget && activeTooltipMode === 'click') return;
       if (activeTarget && !activeTarget.contains(event.relatedTarget) && (!tooltipEl || !tooltipEl.contains(event.relatedTarget))) hideTooltip();
     });
 
     document.addEventListener('focusin', (event) => {
       const target = getTooltipTarget(event.target);
-      if (target && !isClickTriggered(target)) showTooltip(target);
+      if (target && supportsHoverTrigger(target)) showTooltip(target, false, 'hover');
     });
 
     document.addEventListener('click', (event) => {
       if (tooltipEl && tooltipEl.contains(event.target)) return;
       const target = getTooltipTarget(event.target);
-      if (!target || !isClickTriggered(target)) {
-        if (activeTarget && isClickTriggered(activeTarget)) hideTooltip();
+      if (!target || !supportsClickTrigger(target)) {
+        if (activeTarget && activeTooltipMode === 'click') hideTooltip();
         return;
       }
       event.stopPropagation();
-      if (activeTarget === target && tooltipEl && tooltipEl.classList.contains('visible')) {
+      if (activeTarget === target && activeTooltipMode === 'click' && tooltipEl && tooltipEl.classList.contains('visible')) {
         hideTooltip();
         return;
       }
-      showTooltip(target, true);
+      showTooltip(target, true, 'click');
     });
 
     document.addEventListener('focusout', (event) => {
-      if (activeTarget && isClickTriggered(activeTarget)) return;
+      if (activeTarget && activeTooltipMode === 'click') return;
       if (tooltipEl && tooltipEl.contains(event.relatedTarget)) return;
       hideTooltip();
     });
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') hideTooltip();
     });
-    window.addEventListener('scroll', hideTooltip, true);
+    window.addEventListener('scroll', () => {
+      if (activeTarget && activeTooltipMode === 'click' && shouldPersistOnScroll(activeTarget)) {
+        positionTooltip(activeTarget);
+        return;
+      }
+      hideTooltip();
+    }, true);
     window.addEventListener('resize', hideTooltip);
 
     const observer = new MutationObserver((mutations) => {
@@ -446,7 +468,7 @@
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['title', 'data-tooltip', 'data-tooltip-icon', 'data-tooltip-kind', 'data-tooltip-trigger', 'aria-label'],
+      attributeFilter: ['title', 'data-tooltip', 'data-tooltip-icon', 'data-tooltip-kind', 'data-tooltip-trigger', 'data-tooltip-persist-scroll', 'aria-label'],
     });
   }
 
