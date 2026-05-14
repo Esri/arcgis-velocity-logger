@@ -75,7 +75,8 @@
   "build": {
     "appId": "com.esri.arcgis-velocity-logger",
     "productName": "ArcGIS Velocity Logger",
-    "afterPack": "scripts/external-sign.js",
+    "executableName": "VelocityLogger",
+    "afterSign": "scripts/external-sign.js",
     "afterAllArtifactBuild": "scripts/external-sign.js",
     "files": [
       "src/**/*",
