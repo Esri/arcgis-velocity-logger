@@ -1,6 +1,6 @@
 {
   "name": "arcgis-velocity-logger",
-  "productName": "arcgis-velocity-logger",
+  "productName": "ArcGIS Velocity Logger",
   "version": "1.0.2",
   "description": "ArcGIS Velocity Logger",
   "main": "src/main.js",
@@ -74,7 +74,9 @@
   },
   "build": {
     "appId": "com.esri.arcgis-velocity-logger",
-    "productName": "arcgis-velocity-logger",
+    "productName": "ArcGIS Velocity Logger",
+    "afterPack": "scripts/external-sign.js",
+    "afterAllArtifactBuild": "scripts/external-sign.js",
     "files": [
       "src/**/*",
       "!src/themes/README.md",
@@ -91,11 +93,11 @@
         "dmg",
         "zip"
       ],
-      "artifactName": "${productName}-${version}-mac.${ext}"
+      "artifactName": "arcgis-velocity-logger-${version}-mac.${ext}"
     },
     "win": {
       "icon": "src/assets/icon.png",
-      "artifactName": "${productName}-${version}-win.${ext}",
+      "artifactName": "arcgis-velocity-logger-${version}-win.${ext}",
       "target": [
         {
           "target": "nsis",
@@ -123,17 +125,17 @@
         "AppImage",
         "deb"
       ],
-      "artifactName": "${productName}-${version}-linux.${ext}",
+      "artifactName": "arcgis-velocity-logger-${version}-linux.${ext}",
       "category": "Utility",
       "maintainer": "Hanoch Kalmanovich <hkalmanovich@esri.com>"
     },
     "nsis": {
-      "artifactName": "${productName}-${version}-setup.${ext}",
+      "artifactName": "arcgis-velocity-logger-${version}-setup.${ext}",
       "installerIcon": "src/assets/installerIcon.ico",
       "uninstallerIcon": "src/assets/installerIcon.ico"
     },
     "portable": {
-      "artifactName": "${productName}-${version}-portable.${ext}"
+      "artifactName": "arcgis-velocity-logger-${version}-portable.${ext}"
     }
   },
   "dependencies": {
