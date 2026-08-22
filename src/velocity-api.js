@@ -355,7 +355,7 @@ function parseOutputItem(item) {
   const format = output.formatName || '';
 
   // Logger supports: grpc, http, websocket, tcp
-  const supportedOutputTypes = new Set(['grpc', 'http', 'websocket', 'tcp']);
+  const supportedOutputTypes = new Set(['grpc', 'http', 'websocket', 'tcp', 'xmpp']);
   const parsed = { label, id, outputType: outputDefName, format, schema, supported: supportedOutputTypes.has(outputDefName) };
 
   if (outputDefName === 'grpc') {
@@ -371,6 +371,42 @@ function parseOutputItem(item) {
   } else if (outputDefName === 'tcp') {
     parsed.host = propBag['tcp.host'] || '';
     parsed.port = propBag['tcp.port'] || '';
+  } else if (outputDefName === 'xmpp') {
+    const get = (...keys) => keys.map((key) => propBag[key]).find((value) => value !== undefined && value !== null && value !== '');
+    const positiveInteger = (value, fallback) => {
+      const number = Number(value);
+      return Number.isInteger(number) && number > 0 ? number : fallback;
+    };
+    parsed.domain = get('xmpp.domain', 'xmpp.serverDomain', 'domain') || '';
+    parsed.host = get('xmpp.host', 'xmpp.serverHost', 'host') || '';
+    parsed.port = get('xmpp.port', 'port') || 5222;
+    parsed.passwordRetained = Boolean(get('xmpp.password', 'xmpp.passwordSet', 'passwordSet'));
+    parsed.resource = get('xmpp.resource', 'resource') || '';
+    const room = get('xmpp.room', 'xmpp.roomJid', 'room') || '';
+    const conversationValue = String(
+      get('xmpp.conversation', 'xmpp.type', 'conversation') || (room ? 'muc' : 'direct'),
+    ).toLowerCase();
+    parsed.conversation = ['groupchat', 'room', 'muc'].includes(conversationValue) ? 'muc' : 'direct';
+    const destination = String(get('xmpp.destination', 'xmpp.to', 'destination') || '')
+      .split(',')[0]
+      .trim()
+      .split('/')[0];
+    parsed.localJid = destination;
+    const destinationAt = destination.indexOf('@');
+    if (parsed.conversation === 'direct' && destinationAt > 0) {
+      parsed.username = destination.slice(0, destinationAt);
+      parsed.domain = destination.slice(destinationAt + 1) || parsed.domain;
+    } else {
+      parsed.username = get('xmpp.username', 'username') || '';
+    }
+    parsed.room = room;
+    parsed.nickname = get('xmpp.nickname', 'xmpp.roomNickname', 'nickname') || '';
+    parsed.roomPasswordRetained = Boolean(get('xmpp.roomPassword', 'xmpp.roomPasswordSet', 'roomPasswordSet'));
+    parsed.connectTimeoutMs = positiveInteger(get('xmpp.connectTimeoutMs', 'xmpp.connectionTimeoutMs'), 30000);
+    parsed.replyTimeoutMs = positiveInteger(get('xmpp.replyTimeoutMs', 'xmpp.responseTimeoutMs'), 15000);
+    parsed.pingIntervalMs = positiveInteger(get('xmpp.pingIntervalMs', 'xmpp.keepAliveMs'), 60000);
+    parsed.reconnectDelayMs = positiveInteger(get('xmpp.reconnectDelayMs', 'xmpp.reconnectMs'), 60000);
+    parsed.tlsPolicy = 'required';
   }
 
   return parsed;
@@ -505,4 +541,3 @@ module.exports = {
   parseOutputItem,
   TokenManager
 };
-

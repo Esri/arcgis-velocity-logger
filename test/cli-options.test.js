@@ -103,8 +103,8 @@ test('help layout includes example usages before aliases', () => {
 
 test('help-wide layout wraps long example/value cells within columns', () => {
   const txt = getCommandHelpText({ layout: 'compact' });
-  assert.ok(txt.includes('config=./docs/launch-co'));
-  assert.ok(txt.includes('ig.server.sample.json'));
+  assert.ok(txt.includes('config=docs/examples/launch-config.s'));
+  assert.ok(txt.includes('erver.sample.json'));
   assert.ok(!txt.includes('\n                                                                n'));
 });
 
@@ -122,7 +122,7 @@ test('help-wide layout includes example usages before aliases', () => {
   assert.ok(exampleIndex > -1);
   assert.ok(aliasesIndex > exampleIndex);
   assert.ok(txt.includes('  Capture to file : electron . runMode=headless outputFile=./captured.log'));
-  assert.ok(txt.includes('  Config override : electron . runMode=headless config=./docs/launch-config.server.sample.json'));
+  assert.ok(txt.includes('  Config override : electron . runMode=headless config=docs/examples/launch-config.server.sample.json'));
 });
 
 test('help-detailed → standard layout', () => {
@@ -426,4 +426,3 @@ test('grpcSendMethod in UI mode is recognized as a UI preset', () => {
 });
 
 console.log(`\n${passed} passed`);
-

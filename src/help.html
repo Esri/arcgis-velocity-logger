@@ -18,7 +18,7 @@
         <div class="help-content">
             <div class="help-section">
                 <h3>Getting Started</h3>
-                <p>Capture and log network data from TCP, UDP, HTTP/HTTPS, WebSocket, and gRPC connections. Useful for debugging and monitoring ArcGIS Velocity feeds and other data sources.</p>
+                <p>Capture and log network data from TCP, UDP, HTTP/HTTPS, WebSocket, gRPC, and XMPP connections. Useful for debugging and monitoring ArcGIS Velocity outputs, ArcGIS GeoEvent Server integrations, and other data sources.</p>
             </div>
 
             <div class="help-section">
@@ -34,6 +34,21 @@
                     <li><strong>gRPC Client:</strong> Connect to a remote gRPC server using HTTP/2. Supports Protobuf, Kryo, and Text serialization with client-streaming or unary RPCs.</li>
                     <li><strong>WebSocket Client:</strong> Connect to a remote WebSocket server (ws:// or wss://) to receive streaming data. Supports JSON, Delimited (CSV), Esri JSON, GeoJSON, and XML formats. Can send a subscription message on connect and optionally ignore the first message.</li>
                     <li><strong>WebSocket Server:</strong> Start a local WebSocket server (ws:// or wss://) that accepts incoming client connections and receives data. Supports the same 5 formats as the WebSocket client.</li>
+                    <li><strong>XMPP Server:</strong> Start a focused in-process C2S service with one automatic Logger identity and one external account. Receives direct or Multi-User Chat message bodies.</li>
+                    <li><strong>XMPP Client:</strong> Connect to an XMPP service and receive direct or Multi-User Chat message bodies.</li>
+                </ul>
+            </div>
+
+            <div class="help-section">
+                <h3>XMPP Options</h3>
+                <ul>
+                    <li><strong>Domain / Host:</strong> Domain is the XMPP authentication domain. The primary Host field is the optional network address override.</li>
+                    <li><strong>TLS:</strong> Required (default), Preferred, or Disabled STARTTLS. Preferred is opportunistic and uses a warning badge because it may continue unsecure. Client mode uses OS trust or a custom CA. Server mode accepts a custom certificate/key or generates an ephemeral self-signed certificate.</li>
+                    <li><strong>Client account:</strong> Username, password, resource, and optional local bare JID. Passwords are never logged.</li>
+                    <li><strong>Server account:</strong> The Logger identity is automatic and its live Receiving JID appears after the server starts. Configure one external username/password. Copy Client Settings is available only while listening, includes the Receiving JID as <code>xmppDestination</code>, and excludes the password unless explicitly enabled.</li>
+                    <li><strong>Conversation:</strong> Direct (default) or MUC. MUC requires a bare room JID and nickname; room password is optional. Room history, bodyless stanzas, and self-echoes are ignored.</li>
+                    <li><strong>Timing:</strong> Positive values with 30-second connection timeout, 15-second reply timeout, 60-second ping interval, and 60-second reconnect delay by default.</li>
+                    <li><strong>Safety:</strong> Certificate verification bypass is explicit and loopback-only. Remote server binding is opt-in; wildcard binds are copied as a connectable loopback host.</li>
                 </ul>
             </div>
 
@@ -99,6 +114,7 @@
                         <tr><td style="color:#0097a7;font-size:1.2em">■</td><td><code>http</code> — HTTP</td><td><code>#0097a7</code> teal</td><td>✅</td></tr>
                         <tr><td style="color:#00897b;font-size:1.2em">◆</td><td><code>websocket</code> — WebSocket</td><td><code>#00897b</code> green</td><td>✅</td></tr>
                         <tr><td style="color:#546e7a;font-size:1.2em">◗</td><td><code>tcp</code> — TCP</td><td><code>#546e7a</code> slate</td><td>✅</td></tr>
+                        <tr><td style="color:#5e35b1;font-size:1.2em">●</td><td><code>xmpp</code> — XMPP</td><td><code>#5e35b1</code> violet</td><td>✅</td></tr>
                         <tr><td style="color:#e53935;font-size:1.2em">▲</td><td><code>kafka</code> — Kafka</td><td><code>#e53935</code> red</td><td>❌</td></tr>
                         <tr><td style="color:#f57c00;font-size:1.2em">◎</td><td><code>mqtt</code> — MQTT</td><td><code>#f57c00</code> orange</td><td>❌</td></tr>
                         <tr><td style="color:#8d6e63;font-size:1.2em">▣</td><td><code>file</code> — File</td><td><code>#8d6e63</code> brown</td><td>❌</td></tr>
@@ -423,7 +439,7 @@
                     <li><strong>Resizable table area:</strong> drag the parameter table taller or shorter inside the dialog as needed.</li>
                     <li><strong>Wider first-open layout:</strong> the dialog opens wider by default so the built-in example commands are easier to read immediately.</li>
                 </ul>
-                <p>For terminal help use <code>npm run help:cli</code>, <code>npm run help:cli:wide</code>, or <code>npm run help:cli:narrow</code>. See <code>docs/COMMAND-LINE.md</code> and <code>docs/HEADLESS.md</code> for full details.</p>
+                <p>For terminal help use <code>npm run help:cli</code>, <code>npm run help:cli:wide</code>, or <code>npm run help:cli:narrow</code>. See <code>docs/command-line.md</code> and <code>docs/headless.md</code> for full details.</p>
             </div>
 
             <div class="help-section">

@@ -1744,6 +1744,10 @@ app.whenReady().then(async () => {
 
     app.on('before-quit', () => {
       try {
+        if (xmppTransport) {
+          xmppTransport.disconnect().catch((error) => velocityLog('warn', `[XMPP] Cleanup failed: ${error.message}`));
+          xmppTransport = null;
+        }
         if (mainWindow) {
           saveWindowState();
         }
@@ -2314,6 +2318,122 @@ ipcMain.on('disconnect-ws', () => {
     }
 });
 
+// --- XMPP Connection Handling ---
+const { createXmppClientTransport, createXmppServerTransport } = require('./xmpp-transport.js');
+let xmppTransport = null;
+let xmppConnectionAttempt = 0;
+
+ipcMain.on('connect-xmpp', async (event, options) => {
+    const type = options.type || 'server';
+    const role = type === 'server' ? 'Server' : 'Client';
+    if (xmppTransport) {
+        const message = `XMPP ${role} warning: a connection is already active or connecting`;
+        velocityLog('warn', `[XMPP] ${message}`);
+        mainWindow.webContents.send('xmpp-warning', message);
+        return;
+    }
+    const attempt = ++xmppConnectionAttempt;
+    currentConnectionDetails = { protocol: 'xmpp', type, port: options.port, host: options.host };
+    updateTcpButtonStates('connecting');
+    const onData = (body, metadata) => {
+        if (metadata) {
+            const fields = Object.entries(metadata)
+                .filter(([, value]) => value !== '')
+                .map(([key, value]) => `${key}=${value}`)
+                .join(' ');
+            sendMetadataLine(`[metadata] ${fields}`);
+        }
+        mainWindow.webContents.send('log-data', body);
+    };
+    const onStatus = (status) => {
+        velocityLog('debug', `[XMPP] ${status}`);
+        mainWindow.webContents.send('xmpp-status', `XMPP ${status}`);
+    };
+    const onWarning = (error) => {
+        const message = `XMPP ${role} warning: ${error.message}`;
+        velocityLog('warn', `[XMPP] ${message}`);
+        mainWindow.webContents.send('xmpp-warning', message);
+    };
+    const onState = (state) => {
+        if (attempt !== xmppConnectionAttempt || !xmppTransport) return;
+        updateTcpButtonStates(state === 'reconnecting' ? 'connecting' : state);
+    };
+
+    let transport;
+    try {
+        const createTransport = type === 'server' ? createXmppServerTransport : createXmppClientTransport;
+        transport = createTransport({ ...options, ip: options.host, onData, onStatus, onWarning, onState });
+        xmppTransport = transport;
+        const result = await transport.connect();
+        if (attempt !== xmppConnectionAttempt || xmppTransport !== transport) {
+            await transport.disconnect().catch(() => {});
+            return;
+        }
+        const endpoint = type === 'server'
+            ? `${result.address.address}:${result.address.port}`
+            : result.address;
+        const identity = result.appJid || result.jid || '';
+        velocityLog('info', `[XMPP] ${type} ready at ${endpoint}${identity ? ` as ${identity}` : ''}; ${result.tlsInfo}`);
+        mainWindow.webContents.send(
+            'xmpp-status',
+            `XMPP ${type === 'server' ? 'Server listening on' : 'Client connected to'} ${endpoint}${identity ? ` as ${identity}` : ''}\n  ${result.tlsInfo}`,
+        );
+        if (type === 'server') {
+            mainWindow.webContents.send('xmpp-server-settings', {
+                receivingJid: result.appJid,
+                address: result.address,
+            });
+        }
+        updateTcpButtonStates('connected');
+    } catch (error) {
+        if (attempt !== xmppConnectionAttempt) return;
+        const message = `XMPP ${role} error: ${error.message}`;
+        velocityLog('error', `[XMPP] ${message}`);
+        mainWindow.webContents.send('xmpp-error', message);
+        if (xmppTransport === transport) {
+            await transport.disconnect().catch(() => {});
+            xmppTransport = null;
+        }
+        currentConnectionDetails = null;
+        updateTcpButtonStates('disconnected');
+    }
+});
+
+ipcMain.on('disconnect-xmpp', async () => {
+    updateTcpButtonStates('disconnecting');
+    const transport = xmppTransport;
+    xmppConnectionAttempt += 1;
+    xmppTransport = null;
+    if (transport) {
+        await transport.disconnect().catch((error) => velocityLog('warn', `[XMPP] Disconnect failed: ${error.message}`));
+        xmppTransport = null;
+        currentConnectionDetails = null;
+        mainWindow.webContents.send('xmpp-server-settings', null);
+        mainWindow.webContents.send('xmpp-status', 'XMPP connection closed');
+    } else {
+        mainWindow.webContents.send('xmpp-status', 'No XMPP connection to disconnect');
+    }
+    updateTcpButtonStates('disconnected');
+});
+
+ipcMain.handle('xmpp-copy-client-settings', (_event, { includePassword = false } = {}) => {
+    if (!xmppTransport ||
+        currentConnectionDetails?.type !== 'server' ||
+        typeof xmppTransport.getClientSettings !== 'function' ||
+        !xmppTransport.isConnected()) {
+        return { success: false, error: 'Connect the XMPP server before copying its client settings.' };
+    }
+    try {
+        const settings = xmppTransport.getClientSettings({ includePassword });
+        clipboard.writeText(JSON.stringify(settings, null, 2));
+        velocityLog('info', `[XMPP] Copied client settings (password ${includePassword ? 'included' : 'withheld'})`);
+        return { success: true, settings };
+    } catch (error) {
+        velocityLog('warn', `[XMPP] Could not copy client settings: ${error.message}`);
+        return { success: false, error: error.message };
+    }
+});
+
 // ─── Velocity Login / Output Picker IPC ──────────────────────────────────────
 
 const userDataPath = app.getPath('userData');
@@ -2478,4 +2598,3 @@ velocityTokenManager.on('refreshed', () => {
 velocityTokenManager.on('error', (err) => {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('velocity:token-error', err.message);
 });
-

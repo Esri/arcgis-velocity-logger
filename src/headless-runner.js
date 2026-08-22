@@ -272,6 +272,35 @@ function createReceiver(options, { logger, onLine, onError }) {
           socket.close(() => res());
         } catch (_) { res(); }
       }));
+    } else if (protocol === 'xmpp') {
+      const { createXmppClientTransport, createXmppServerTransport } = require('./xmpp-transport');
+      const createTransport = mode === 'server' ? createXmppServerTransport : createXmppClientTransport;
+      const transport = createTransport({
+        ...options,
+        ip,
+        port,
+        onData: (body, metadata) => {
+          if (options.showMetadata && metadata) {
+            const fields = Object.entries(metadata)
+              .filter(([, value]) => value !== '')
+              .map(([key, value]) => `${key}=${value}`)
+              .join(' ');
+            onLine(`[metadata] ${fields}`);
+          }
+          onLine(body);
+        },
+        onStatus: (status) => logger.info(`[XMPP] ${status}`),
+        onError,
+      });
+      closers.push(() => transport.disconnect());
+      transport.connect().then((result) => {
+        clearTimer();
+        const endpoint = mode === 'server'
+          ? `${result.address.address}:${result.address.port}`
+          : result.address;
+        logger.info(`[XMPP] ${mode} ready at ${endpoint}; ${result.tlsInfo}`);
+        resolve();
+      }).catch((err) => { clearTimer(); reject(err); });
     } else if (protocol === 'grpc') {
       const { createGrpcServerTransport, createGrpcClientTransport } = require('./grpc-transport.js');
       const grpcSerialization = options.grpcSerialization || 'protobuf';
@@ -495,4 +524,3 @@ module.exports = {
   runHeadlessSession,
   writeDoneFile,
 };
-

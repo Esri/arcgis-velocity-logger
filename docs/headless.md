@@ -1,14 +1,27 @@
-# Headless Mode Guide
+# Headless mode
 
-The **ArcGIS Velocity Logger** can run with no UI at all. This is useful for servers, CI pipelines, remote hosts, and any environment that has no GUI or window-manager support.
+[← Documentation index](README.md) · [Repository overview](../README.md#documentation)
 
-When launched in headless mode, the logger opens a TCP or UDP receiver (server or client), writes every received record to the destination sink in the requested format, honors termination triggers (`maxLogCount`, `durationMs`, `idleTimeoutMs`), and optionally writes a completion artifact (`doneFile`) for schedulers/CI.
+This guide explains how to run the ArcGIS Velocity Logger with no UI at all — the mode used for servers, CI pipelines, remote hosts, and any environment without GUI or window-manager support. It covers launch patterns, output sinks and formats, TCP client retry/reconnection behavior, done-file artifacts, exit codes, and launch-config file structure.
 
-The destination sink is the **console (stdout)** by default. Provide `outputFile=<path>` to write records to a file instead.
+This guide is intended for users and developers who automate captures or integrate the logger into scripts and pipelines. It assumes familiarity with the CLI parameters documented in the [command-line reference](command-line.md).
 
-The default behavior, when you run the app without any parameters, is **normal UI mode** with saved configuration restored.
+## Table of contents
 
-## Quick Start
+- [Quick start](#quick-start)
+- [Launch patterns](#launch-patterns)
+- [In-app command line interface dialog](#in-app-command-line-interface-dialog)
+- [Required parameters](#required-parameters)
+- [Output sink](#output-sink)
+- [Output formats](#output-formats)
+- [TCP client retry and reconnection (waiting for a server)](#tcp-client-retry-and-reconnection-waiting-for-a-server)
+- [Done file](#done-file)
+- [Exit codes](#exit-codes)
+- [Examples](#examples)
+- [Config file structure](#config-file-structure)
+- [Related documentation](#related-documentation)
+
+## Quick start
 
 ```bash
 # normal UI (default)
@@ -24,7 +37,13 @@ npm run start:headless -- outputFile=./captured.log
 npm run help:cli
 ```
 
-## Launch Patterns
+When launched in headless mode, the logger opens a TCP, UDP, gRPC, HTTP, WebSocket, or XMPP receiver (server or client), writes every received record to the destination sink in the requested format, honors termination triggers (`maxLogCount`, `durationMs`, `idleTimeoutMs`), and optionally writes a completion artifact (`doneFile`) for schedulers/CI.
+
+The destination sink is the **console (stdout)** by default. Provide `outputFile=<path>` to write records to a file instead.
+
+The default behavior, when you run the app without any parameters, is **normal UI mode** with saved configuration restored.
+
+## Launch patterns
 
 The logger can be launched in headless mode two equivalent ways:
 
@@ -38,19 +57,19 @@ npm start -- runMode=headless
 
 `runMode=silent` is an alias for `runMode=headless`.
 
-## In-App Command Line Interface Dialog
+## In-app command line interface dialog
 
 While the UI is open, press <kbd>F3</kbd> to open the dedicated **Command Line Interface** dialog. You can also open it from **Help → Command Line Interface**, the context menu, or the toolbar `>_` button.
 
-The dialog mirrors the same metadata used by terminal help and [`COMMAND-LINE.md`](./COMMAND-LINE.md), and adds:
+The dialog mirrors the same metadata used by terminal help and [command-line reference](command-line.md), and adds:
 
 - search filtering across parameters, defaults, supported values, examples, and purpose text
 - quick filter chips plus active filter pills for the current search/category/sort state
 - sortable columns and sticky headers
 - copy/export of visible rows as `TSV`, `CSV`, `Markdown`, or `JSON`
-- a resizable parameter table with a visible hint explaining that you can drag the table’s bottom edge to resize the visible rows area
+- a resizable parameter table with a visible hint explaining that you can drag the table's bottom edge to resize the visible rows area
 
-## Required Parameters
+## Required parameters
 
 Headless mode has **no required parameters**. The only parameter that may be required is:
 
@@ -58,9 +77,9 @@ Headless mode has **no required parameters**. The only parameter that may be req
 | --- | --- |
 | `runMode=headless` (or `silent`) | Only when launching through the normal `electron .` / `npm start` entry point instead of `npm run start:headless`. |
 
-All other parameters have defaults. See [`COMMAND-LINE.md`](./COMMAND-LINE.md) for the full list.
+All other parameters have defaults. See [command-line reference](command-line.md) for the full list, including protocol-specific parameters for gRPC, HTTP, WebSocket, and XMPP.
 
-## Output Sink
+## Output sink
 
 | `outputFile` value | Behavior |
 | --- | --- |
@@ -69,7 +88,7 @@ All other parameters have defaults. See [`COMMAND-LINE.md`](./COMMAND-LINE.md) f
 
 When `outputFile` is omitted the `stdout` flag and `appendOutput` flag are not applicable.
 
-## Output Formats
+## Output formats
 
 | `outputFormat` | Content per record |
 | --- | --- |
@@ -83,7 +102,7 @@ Formats apply to **both** the file sink and the stdout sink, so `outputFormat=js
 npm run start:headless -- outputFormat=jsonl | jq .
 ```
 
-## TCP Client Retry and Reconnection (Waiting for a Server)
+## TCP client retry and reconnection (waiting for a server)
 
 When `mode=client` and `protocol=tcp`, set `connectWaitForServer=true` to **retry the connection automatically** every `connectRetryIntervalMs` milliseconds. This covers two scenarios:
 
@@ -116,9 +135,8 @@ npm run start:headless -- protocol=tcp mode=client ip=192.168.1.10 port=5565 con
 npm run start:headless -- protocol=tcp mode=client ip=192.168.1.10 port=5565
 ```
 
-> **Note:** `connectWaitForServer` and `connectRetryIntervalMs` apply only to TCP client mode. Server mode and UDP client mode are unaffected.
-
-
+> [!NOTE]
+> `connectWaitForServer` and `connectRetryIntervalMs` apply only to TCP client mode. Server mode and UDP client mode are unaffected.
 
 The runner stops the capture when **any** of these conditions are met:
 
@@ -129,7 +147,7 @@ The runner stops the capture when **any** of these conditions are met:
 
 When `exitOnComplete=false`, the process stays alive after the trigger; terminate externally to exit.
 
-## Done File
+## Done file
 
 When `doneFile=./path/to/run.done.json` is set, the runner writes a JSON artifact on both success and failure:
 
@@ -157,7 +175,7 @@ When `outputFile` is omitted, `outputFile` is `null` and `outputSink` is `"stdou
 
 On failure, `success=false` and an `error` block with `message`/`stack` plus `failedAt` is included.
 
-## Exit Codes
+## Exit codes
 
 | Code | Meaning |
 | --- | --- |
@@ -203,26 +221,42 @@ npm run start:headless -- outputFile=./captured.log protocol=grpc mode=server ip
 npm run start:headless -- outputFile=./captured.log protocol=grpc mode=client ip=127.0.0.1 port=50051 grpcSerialization=protobuf grpcHeaderPathKey=grpc-path grpcHeaderPath=my.feed.dedicated.uid
 ```
 
+### XMPP server using a launch-config file
+
+XMPP requires a domain, an external server account, and a TLS policy, so the simplest headless start is the bundled sample template with the secret supplied on the command line (the template intentionally omits stored secrets):
+
+```bash
+npm run start:headless -- config=docs/examples/launch-config.xmpp.sample.json xmppExternalPassword=change-me
+```
+
+The runner creates the transport via `src/xmpp-transport.js`, logs `[XMPP] <mode> ready at <endpoint>; <tlsInfo>` on connect, and — like other protocols — supports `showMetadata=true` to prefix each received line with a `[metadata] key=value ...` line. See the [XMPP guide](xmpp.md) and the [XMPP parameters table](command-line.md#xmpp-parameters) for every `xmpp*` option.
+
 ### Using a launch-config file
 
 ```bash
-npm run start:headless -- config=./docs/launch-config.server.sample.json
+npm run start:headless -- config=docs/examples/launch-config.server.sample.json
 ```
 
 CLI values override config-file values, so you can partially override a template:
 
 ```bash
-npm run start:headless -- config=./docs/launch-config.server.sample.json runId=manual-override outputFile=./custom.log
+npm run start:headless -- config=docs/examples/launch-config.server.sample.json runId=manual-override outputFile=./custom.log
 ```
 
-## Config File Structure
+## Config file structure
 
 The launch-config JSON accepts either top-level keys or nested sections `headless` / `connection` / `capture` / `output`. All sections are flattened during load and validated by the CLI.
 
-See [`launch-config.sample.json`](./launch-config.sample.json), [`launch-config.server.sample.json`](./launch-config.server.sample.json), and [`launch-config.client.sample.json`](./launch-config.client.sample.json).
+Ready-made templates are listed in the
+[configuration guide](configuration.md#headless-run-config-files):
+[`launch-config.sample.json`](examples/launch-config.sample.json),
+[`launch-config.server.sample.json`](examples/launch-config.server.sample.json),
+[`launch-config.client.sample.json`](examples/launch-config.client.sample.json),
+and [`launch-config.xmpp.sample.json`](examples/launch-config.xmpp.sample.json).
+The XMPP server template ships without stored secrets.
 
-## Related
+## Related documentation
 
-- [`COMMAND-LINE.md`](./COMMAND-LINE.md) — full parameter reference
-- [`TESTING.md`](./TESTING.md) — how to test CLI + headless code
-
+- [Command-line reference](command-line.md) — full parameter reference
+- [Developer guide](developer-guide.md) — how to test and debug CLI and headless code
+- [Repository overview](../README.md)

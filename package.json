@@ -80,7 +80,6 @@
     "afterAllArtifactBuild": "scripts/external-sign.js",
     "files": [
       "src/**/*",
-      "!src/themes/README.md",
       "package.json"
     ],
     "asar": true,
@@ -142,6 +141,9 @@
   "dependencies": {
     "@grpc/grpc-js": "^1.14.3",
     "@grpc/proto-loader": "^0.8.0",
+    "@xmpp/client": "^0.14.0",
+    "@xmpp/jid": "^0.14.0",
+    "@xmpp/xml": "^0.14.0",
     "protobufjs": "^8.0.1",
     "selfsigned": "^2.4.1",
     "ws": "^8.20.0"

@@ -1,19 +1,37 @@
-# HTTP/HTTPS Transport
+# HTTP transport
 
-The ArcGIS Velocity Logger supports HTTP/HTTPS as a transport protocol for receiving data from ArcGIS Velocity HTTP Receiver feeds or any HTTP endpoint that accepts POST requests.
+[← Documentation index](README.md) · [Repository overview](../README.md#documentation)
 
-## Connection Modes
+The ArcGIS Velocity Logger supports HTTP/HTTPS as a transport protocol for receiving data from ArcGIS Velocity HTTP Receiver feeds or any HTTP endpoint that accepts POST requests. This guide documents the available connection modes, payload formats, TLS behavior, default ports, UI controls, and CLI/headless usage for the HTTP transport.
+
+It is intended for users and developers connecting the Logger to an HTTP(S) endpoint, and assumes basic familiarity with HTTP requests and TLS certificates. For general certificate concepts and OS trust store behavior shared across transports, see the [TLS guide](tls.md).
+
+## Table of contents
+
+- [Connection modes](#connection-modes)
+- [Format options](#format-options)
+- [TLS (HTTPS)](#tls-https)
+- [Default ports](#default-ports)
+- [HTTP path](#http-path)
+- [UI controls](#ui-controls)
+- [Tooltip reference](#tooltip-reference)
+- [CLI parameters](#cli-parameters)
+- [Metadata logging](#metadata-logging)
+- [Launch configuration](#launch-configuration)
+- [Related documentation](#related-documentation)
+
+## Connection modes
 
 | Mode | Description |
 |------|-------------|
 | HTTP Client | Receives POST data from an HTTP(S) endpoint |
 | HTTP Server | Connects to an HTTP(S) server to receive data |
 
-## Format Options
+## Format options
 
-The HTTP Format dropdown controls the `Content-Type` header used when sending data. These match the formats supported by the ArcGIS Velocity TCP and HTTP Receiver feeds. **Delimited (CSV) is the default**, matching the order used by Velocity:
+The HTTP Format dropdown controls the `Content-Type` header used when sending data. These match the formats supported by the ArcGIS Velocity TCP and HTTP Receiver feeds. **Delimited (CSV) is the default**, matching the order used by ArcGIS Velocity:
 
-| UI Label | Value | Content-Type | Description |
+| UI label | Value | Content-Type | Description |
 |----------|-------|--------------|-------------|
 | Delimited (CSV) | `delimited` | `text/plain` | Each line is a comma-separated row of field values. **Default format** - matches the default for ArcGIS Velocity TCP and HTTP feeds. Best for simple tabular data without nested structures. |
 | JSON | `json` | `application/json` | The standard format for most HTTP feeds. Each request body is a JSON object or array of features. |
@@ -36,16 +54,16 @@ When TLS is enabled, additional certificate path fields appear:
 | **TLS cert path** | Path to a client or server certificate file (PEM). Required for server-mode TLS. For client mode, only needed for mutual TLS (mTLS) authentication. |
 | **TLS key path** | Path to the private key file (PEM) corresponding to the TLS certificate. Required for server-mode TLS and client-side mTLS. |
 
-## Default Ports
+## Default ports
 
-| TLS State | Default Port |
+| TLS state | Default port |
 |-----------|-------------|
-| TLS On (HTTPS) | `8443` |
-| TLS Off (HTTP) | `8080` |
+| TLS on (HTTPS) | `8443` |
+| TLS off (HTTP) | `8080` |
 
 The port automatically switches between `8080` and `8443` when the TLS checkbox is toggled, as long as the user hasn't manually entered a custom port.
 
-## HTTP Path
+## HTTP path
 
 The HTTP Path field (default `/`) specifies the URL path appended after the host and port in the request URL.
 
@@ -54,7 +72,7 @@ The HTTP Path field (default `/`) specifies the URL path appended after the host
 
 When connecting to an ArcGIS Velocity HTTP Receiver endpoint, set this to the system-generated path provided by the feed configuration (typically something like `/receiver/<feed-id>`). For local testing between the Logger and Simulator, the default `/` is usually sufficient.
 
-## UI Controls
+## UI controls
 
 When HTTP is selected as the connection type in the UI, the following controls appear in the HTTP options row:
 
@@ -64,20 +82,20 @@ When HTTP is selected as the connection type in the UI, the following controls a
 - **CA cert path** - Path to a custom CA certificate file (PEM). Leave empty to use the OS certificate store. Only needed for enterprise or self-signed CAs.
 - **TLS cert path** - Path to a client or server certificate file (PEM). Required for server-mode TLS; only needed in client mode for mutual TLS (mTLS).
 - **TLS key path** - Path to the private key file (PEM). Required for server-mode TLS and client-side mTLS.
-- **HTTP Path** - The URL path appended after the host:port (default `/`). In server mode, only POST requests matching this path are accepted. In client mode, this path is used in outgoing POST URLs. Set this to the Velocity feed's system-generated path when connecting to a real endpoint.
+- **HTTP Path** - The URL path appended after the host:port (default `/`). In server mode, only POST requests matching this path are accepted. In client mode, this path is used in outgoing POST URLs. Set this to the ArcGIS Velocity feed's system-generated path when connecting to a real endpoint.
 
-## Tooltip Reference
+## Tooltip reference
 
 The following tooltips appear when hovering over HTTP-related controls in the UI. These are also set dynamically via `HTTP_FORMAT_TOOLTIPS` and `CONNECTION_MODE_TOOLTIPS` in `renderer.js`.
 
-### Connection Mode Tooltips
+### Connection mode tooltips
 
 | Mode | Tooltip |
 |------|---------|
 | HTTP Client | HTTP Client - sends data via HTTP/HTTPS POST requests to a remote endpoint. |
 | HTTP Server | HTTP Server - starts a local HTTP/HTTPS server that accepts POST requests from clients. |
 
-### Format Tooltips
+### Format tooltips
 
 | Format | Tooltip |
 |--------|---------|
@@ -87,7 +105,7 @@ The following tooltips appear when hovering over HTTP-related controls in the UI
 | GeoJSON | HTTP Format: GeoJSON (application/geo+json). Standard GeoJSON per RFC 7946 with FeatureCollection and Feature objects. Use when the receiver expects standard geospatial interchange format. |
 | XML | HTTP Format: XML (application/xml). Sends data as XML-formatted payloads. Use when the Velocity HTTP Receiver is configured for XML input. |
 
-### Control Tooltips
+### Control tooltips
 
 | Control | Tooltip |
 |---------|---------|
@@ -97,11 +115,11 @@ The following tooltips appear when hovering over HTTP-related controls in the UI
 | TLS key path | Path to the private key file (PEM) corresponding to the TLS certificate. Required for server-mode TLS and client-side mTLS. |
 | HTTP Path | HTTP endpoint URL path appended after the host:port (e.g. /receiver/feed-id). In server mode, only POST requests matching this path are accepted; all others return 404. In client mode, this path is used in the outgoing POST request URL. Default is /. |
 
-### TLS Trust Badge
+### TLS trust badge
 
 When connected, the status bar displays a lock icon reflecting the trust level at a glance. The icon **shape** and **colour** both encode the trust level so it is unambiguous for colour-blind users. No text label is shown beside the icon - hover or click the badge for full details.
 
-| Icon | Colour | Trust Level | Meaning |
+| Icon | Colour | Trust level | Meaning |
 |------|--------|-------------|---------|
 | 🔓 | Grey / dimmed | off | No TLS - plaintext, unsecure connection |
 | 🔒 | Amber | on | TLS on - OS certificate store, trust level not fully determined |
@@ -109,9 +127,9 @@ When connected, the status bar displays a lock icon reflecting the trust level a
 | 🔒✓ | Green | ca-verified | TLS on, CA-verified certificate chain |
 | 🔐 | Blue / cyan | mtls | Mutual TLS - both client and server present certificates |
 
-See [TLS.md](./TLS.md) for full TLS concepts, certificate file formats, OS trust store behaviour, and setup guides.
+See the [TLS guide](tls.md) for full TLS concepts, certificate file formats, OS trust store behaviour, and setup guides.
 
-## CLI Parameters
+## CLI parameters
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
@@ -124,15 +142,15 @@ See [TLS.md](./TLS.md) for full TLS concepts, certificate file formats, OS trust
 | `--httpTlsKeyPath <path>` | Private key file path | - |
 | `--httpPath <path>` | HTTP endpoint URL path | `/` |
 
-## Metadata Logging
+## Metadata logging
 
 When "Show Metadata" is enabled, HTTP connections log request metadata:
 
-```
+```text
 [metadata] protocol=HTTP mode=server method=POST path=/ content-type=application/json content-length=245 tls=on (HTTPS) remote=127.0.0.1:52341 format=json
 ```
 
-## Launch Configuration
+## Launch configuration
 
 HTTP parameters can be set in launch configuration JSON files:
 
@@ -150,3 +168,9 @@ HTTP parameters can be set in launch configuration JSON files:
 }
 ```
 
+## Related documentation
+
+- [TLS guide](tls.md)
+- [gRPC transport](grpc.md)
+- [WebSocket transport](websocket.md)
+- [Repository overview](../README.md)

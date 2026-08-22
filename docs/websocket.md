@@ -1,19 +1,40 @@
-# WebSocket Transport
+# WebSocket transport
 
-The ArcGIS Velocity Simulator supports WebSocket (ws:// and wss://) as a transport protocol for sending and receiving data alongside TCP, UDP, HTTP, and gRPC.
+[← Documentation index](README.md) · [Repository overview](../README.md#documentation)
 
-## Connection Modes
+The ArcGIS Velocity Logger supports WebSocket (`ws://` and `wss://`) as a transport protocol for sending and receiving data alongside TCP, UDP, HTTP, and gRPC. This guide documents the available connection modes, payload formats, TLS behavior, path and subscription handling, UI controls, and CLI/headless usage for the WebSocket transport.
+
+It is intended for users and developers connecting the Logger to a WebSocket endpoint, and assumes basic familiarity with WebSocket upgrade handshakes and TLS certificates. For general certificate concepts and OS trust store behavior shared across transports, see the [TLS guide](tls.md).
+
+## Table of contents
+
+- [Connection modes](#connection-modes)
+- [Format options](#format-options)
+- [TLS (WSS)](#tls-wss)
+- [Default ports](#default-ports)
+- [WebSocket path](#websocket-path)
+- [Subscription message](#subscription-message)
+- [Ignore first message](#ignore-first-message)
+- [Custom HTTP headers](#custom-http-headers)
+- [UI controls](#ui-controls)
+- [Tooltip reference](#tooltip-reference)
+- [CLI parameters](#cli-parameters)
+- [Metadata logging](#metadata-logging)
+- [Launch configuration](#launch-configuration)
+- [Related documentation](#related-documentation)
+
+## Connection modes
 
 | Mode | Description |
 |------|-------------|
-| WebSocket Client | Connects to a remote WebSocket server (ws:// or wss://) and sends data as text frames. |
-| WebSocket Server | Starts a local WebSocket server that accepts incoming ws:// or wss:// connections and broadcasts data to all connected clients. |
+| WebSocket Client | Connects to a remote WebSocket server (`ws://` or `wss://`) and sends data as text frames. |
+| WebSocket Server | Starts a local WebSocket server that accepts incoming `ws://` or `wss://` connections and broadcasts data to all connected clients. |
 
-## Format Options
+## Format options
 
-The WebSocket Format dropdown controls the Content-Type associated with each message. These match the formats supported by ArcGIS Velocity TCP, HTTP, and WebSocket feeds. **Delimited (CSV) is the default**, matching Velocity's ordering:
+The WebSocket Format dropdown controls the Content-Type associated with each message. These match the formats supported by ArcGIS Velocity TCP, HTTP, and WebSocket feeds. **Delimited (CSV) is the default**, matching ArcGIS Velocity's ordering:
 
-| UI Label | Value | Content-Type | Description |
+| UI label | Value | Content-Type | Description |
 |----------|-------|--------------|-------------|
 | Delimited (CSV) | `delimited` | `text/plain` | Each message is a comma-separated row of field values. **Default format.** |
 | JSON | `json` | `application/json` | Each message is a JSON object or array of features. |
@@ -34,41 +55,41 @@ TLS is enabled by default (`Use TLS` checkbox checked), making the connection us
 | **TLS cert path** | Path to a client or server certificate file (PEM). Required for server-mode TLS. |
 | **TLS key path** | Path to the private key file (PEM). Required for server-mode TLS. |
 
-## Default Ports
+## Default ports
 
-| TLS State | Default Port | Protocol |
+| TLS state | Default port | Protocol |
 |-----------|-------------|----------|
-| TLS On (WSS) | `8443` | `wss://` |
-| TLS Off (WS) | `8080` | `ws://` |
+| TLS on (WSS) | `8443` | `wss://` |
+| TLS off (WS) | `8080` | `ws://` |
 
 WebSocket uses the same default ports as HTTP because the WebSocket handshake begins as an HTTP Upgrade request.
 
-## WebSocket Path
+## WebSocket path
 
 The WS Path field (default `/`) specifies the URL path appended after the host and port.
 
 - **Server mode**: Only WebSocket upgrade requests matching this path exactly are accepted.
 - **Client mode**: This path is used in the outgoing connection URL. For example, `wss://velocity.example.com:8443/feed/stream-id`.
 
-## Subscription Message
+## Subscription message
 
 An optional message sent to the WebSocket server immediately after the connection is established. Many WebSocket APIs require a subscription, authentication, or channel-selection message before they begin streaming data. Leave empty if not needed.
 
-## Ignore First Message
+## Ignore first message
 
 When enabled, the first message received after connecting is silently discarded. Some WebSocket servers send a subscription acknowledgment or welcome message before actual data. Enabling this ensures only real data is processed.
 
-## Custom HTTP Headers
+## Custom HTTP headers
 
 Optional HTTP headers sent during the WebSocket upgrade handshake, specified as a JSON object. For example:
 
 ```json
-{"Authorization": "Bearer token123", "X-Custom-Header": "value"}
+{"Authorization": "******", "X-Custom-Header": "value"}
 ```
 
 Useful for authentication tokens or API keys required by the WebSocket endpoint.
 
-## UI Controls
+## UI controls
 
 When WebSocket is selected as the connection type, the following controls appear:
 
@@ -82,16 +103,16 @@ When WebSocket is selected as the connection type, the following controls appear
 - **Ignore 1st msg** - Checkbox to skip the first received message.
 - **Headers** - Custom HTTP headers as JSON for the upgrade handshake.
 
-## Tooltip Reference
+## Tooltip reference
 
-### Connection Mode Tooltips
+### Connection mode tooltips
 
 | Mode | Tooltip |
 |------|---------|
 | WebSocket Client | WebSocket Client - connects to a remote WebSocket server (ws:// or wss://) and sends data as text frames. |
 | WebSocket Server | WebSocket Server - starts a local WebSocket server that accepts incoming ws:// or wss:// connections. |
 
-### Format Tooltips
+### Format tooltips
 
 | Format | Tooltip |
 |--------|---------|
@@ -101,7 +122,7 @@ When WebSocket is selected as the connection type, the following controls appear
 | GeoJSON | WebSocket Format: GeoJSON (application/geo+json). Each message is a GeoJSON FeatureCollection or Feature per RFC 7946. |
 | XML | WebSocket Format: XML (application/xml). Each message is an XML-formatted payload. |
 
-### Control Tooltips
+### Control tooltips
 
 | Control | Tooltip |
 |---------|---------|
@@ -112,13 +133,13 @@ When WebSocket is selected as the connection type, the following controls appear
 | WS path | WebSocket endpoint URL path appended after the host:port (e.g. /feed/stream-id). Default is /. |
 | Subscribe | Optional subscription message sent to the WebSocket server immediately after connecting. Leave empty if not needed. |
 | Ignore 1st msg | Ignore the first message received. Enable to skip subscription acknowledgments or welcome messages. |
-| Headers | Custom HTTP headers for the WebSocket upgrade handshake as JSON (e.g. {"Authorization":"Bearer token"}). |
+| Headers | Custom HTTP headers for the WebSocket upgrade handshake as JSON (e.g. {"Authorization":"******"}). |
 
-### TLS Trust Badge
+### TLS trust badge
 
 When connected, the status bar displays a lock icon reflecting the trust level at a glance. The icon **shape** and **colour** both encode the trust level so it is unambiguous for colour-blind users. No text label is shown beside the icon - hover or click the badge for full details.
 
-| Icon | Colour | Trust Level | Meaning |
+| Icon | Colour | Trust level | Meaning |
 |------|--------|-------------|---------|
 | 🔓 | Grey / dimmed | off | No TLS - plaintext, unsecure connection |
 | 🔒 | Amber | on | TLS on - OS certificate store, trust level not fully determined |
@@ -126,9 +147,9 @@ When connected, the status bar displays a lock icon reflecting the trust level a
 | 🔒✓ | Green | ca-verified | TLS on, CA-verified certificate chain |
 | 🔐 | Blue / cyan | mtls | Mutual TLS - both client and server present certificates |
 
-See [TLS.md](./TLS.md) for full TLS concepts, certificate file formats, OS trust store behaviour, and setup guides.
+See the [TLS guide](tls.md) for full TLS concepts, certificate file formats, OS trust store behaviour, and setup guides.
 
-## CLI Parameters
+## CLI parameters
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
@@ -144,15 +165,15 @@ See [TLS.md](./TLS.md) for full TLS concepts, certificate file formats, OS trust
 | `--wsIgnoreFirstMsg` | Ignore first received message | `false` |
 | `--wsHeaders <json>` | Custom HTTP headers as JSON string | - |
 
-## Metadata Logging
+## Metadata logging
 
 When "Show Metadata" is enabled, WebSocket connections log message metadata:
 
-```
+```text
 [metadata] protocol=WebSocket mode=server path=/ content-type=text/plain tls=on (WSS) remote=127.0.0.1:52341 format=delimited
 ```
 
-## Launch Configuration
+## Launch configuration
 
 WebSocket parameters can be set in launch configuration JSON files:
 
@@ -168,8 +189,14 @@ WebSocket parameters can be set in launch configuration JSON files:
     "wsPath": "/feed/stream-id",
     "wsSubscriptionMsg": "{\"subscribe\": \"feed-1\"}",
     "wsIgnoreFirstMsg": true,
-    "wsHeaders": "{\"Authorization\": \"Bearer token123\"}"
+    "wsHeaders": "{\"Authorization\": \"******"}"
   }
 }
 ```
 
+## Related documentation
+
+- [TLS guide](tls.md)
+- [gRPC transport](grpc.md)
+- [HTTP transport](http.md)
+- [Repository overview](../README.md)

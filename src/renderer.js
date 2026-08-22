@@ -46,6 +46,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const httpTlsCertInput = document.getElementById('http-tls-cert-path');
     const httpTlsKeyInput = document.getElementById('http-tls-key-path');
     const httpPathInput = document.getElementById('http-path');
+    const xmppOptionsRow = document.querySelector('.xmpp-options-row');
+    const xmppTlsPolicySelect = document.getElementById('xmpp-tls-policy');
+    const xmppConversationSelect = document.getElementById('xmpp-conversation');
+    const xmppOptionsSummary = xmppOptionsRow?.querySelector('summary');
+    const xmppCopySettingsBtn = document.getElementById('xmpp-copy-settings');
+    const xmppCopyPasswordCheckbox = document.getElementById('xmpp-copy-password');
+    const xmppReceivingJid = document.getElementById('xmpp-receiving-jid');
+    const xmppValidationMessage = document.getElementById('xmpp-validation-message');
     const logs = document.getElementById('logs');
     const statusDisplay = document.getElementById('status');
     const activityStrip = document.getElementById('activity-strip');
@@ -111,6 +119,33 @@ document.addEventListener('DOMContentLoaded', () => {
         xml: 'WebSocket Format: XML (application/xml). Each message is an XML-formatted payload.',
     };
 
+    const XMPP_TLS_POLICY_TOOLTIPS = {
+        required: 'XMPP TLS policy: Require STARTTLS and fail if TLS is unavailable',
+        preferred: 'XMPP TLS policy: Prefer STARTTLS, but allow an unsecure connection when TLS is unavailable',
+        disabled: 'XMPP TLS policy: Disable STARTTLS and use an unsecure connection',
+    };
+
+    const XMPP_CONVERSATION_TOOLTIPS = {
+        direct: 'XMPP conversation: Receive direct messages addressed to this Logger',
+        muc: 'XMPP conversation: Join and receive messages from a Multi-User Chat room',
+    };
+
+    function updateSelectTooltip(select, tooltips, fallback) {
+        if (!select) return;
+        const tooltip = tooltips[select.value] || tooltips[fallback];
+        select.title = tooltip;
+        select.dataset.tooltip = tooltip;
+        select.setAttribute('aria-label', tooltip);
+    }
+
+    function updateXmppTlsPolicyTooltip() {
+        updateSelectTooltip(xmppTlsPolicySelect, XMPP_TLS_POLICY_TOOLTIPS, 'required');
+    }
+
+    function updateXmppConversationTooltip() {
+        updateSelectTooltip(xmppConversationSelect, XMPP_CONVERSATION_TOOLTIPS, 'direct');
+    }
+
     function updateWsFormatTooltip() {
         const wsFormatEl = document.getElementById('ws-format');
         if (!wsFormatEl) return;
@@ -130,6 +165,8 @@ document.addEventListener('DOMContentLoaded', () => {
         'ws-server': 'WebSocket Server - starts a local WebSocket server that accepts incoming ws:// or wss:// connections.',
         'grpc-server': 'gRPC Server - starts a local gRPC server that accepts incoming RPC calls.',
         'grpc-client': 'gRPC Client - connects to a remote gRPC server using HTTP/2.',
+        'xmpp-server': 'XMPP Server - hosts a focused in-process C2S service and receives direct or room message bodies.',
+        'xmpp-client': 'XMPP Client - connects to an XMPP service and receives direct or Multi-User Chat message bodies.',
     };
 
     function updateConnectionModeTooltip() {
@@ -176,18 +213,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Default ports per protocol
-    const DEFAULT_PORTS = { tcp: 5565, udp: 5565, grpc: 5565, http: 8443 };
+    const DEFAULT_PORTS = { tcp: 5565, udp: 5565, grpc: 5565, http: 8443, xmpp: 5222 };
     const HTTP_PORT_TLS_ON = 8443;
     const HTTP_PORT_TLS_OFF = 8080;
     let lastProtocolDefault = 5565;
     let currentAppStatusState = 'disconnected';
     let currentTlsTooltip = '';
 
+    let previousConnectionWasXmpp = connectionTypeSelect.value.startsWith('xmpp');
+
     function updateGrpcRowVisibility() {
         const isGrpc = connectionTypeSelect.value.startsWith('grpc');
         const isGrpcClient = connectionTypeSelect.value === 'grpc-client';
         const isHttp = connectionTypeSelect.value.startsWith('http');
         const isWs = connectionTypeSelect.value.startsWith('ws');
+        const isXmpp = connectionTypeSelect.value.startsWith('xmpp');
+        const isXmppServer = connectionTypeSelect.value === 'xmpp-server';
 
         if (isGrpc) {
             grpcOptionsRow.classList.add('visible');
@@ -234,7 +275,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (wsIgnoreLabel) wsIgnoreLabel.style.display = '';
                 if (wsHeadersEl) wsHeadersEl.style.display = '';
             }
+
         }
+
+        if (xmppOptionsRow) {
+            xmppOptionsRow.style.display = isXmpp ? '' : 'none';
+            if (isXmpp) {
+                if (!previousConnectionWasXmpp) xmppOptionsRow.open = true;
+                xmppOptionsRow.querySelectorAll('.xmpp-client-only').forEach((element) => {
+                    element.style.display = isXmppServer ? 'none' : '';
+                });
+                xmppOptionsRow.querySelectorAll('.xmpp-server-only').forEach((element) => {
+                    element.style.display = isXmppServer ? '' : 'none';
+                });
+                const isMuc = xmppConversationSelect && xmppConversationSelect.value === 'muc';
+                xmppOptionsRow.querySelectorAll('.xmpp-muc-only').forEach((element) => {
+                    element.style.display = isMuc ? '' : 'none';
+                });
+            }
+        }
+        previousConnectionWasXmpp = isXmpp;
 
         grpcHeaderPathKeyInput.style.display = isGrpcClient ? '' : 'none';
         grpcHeaderPathInput.style.display = isGrpcClient ? '' : 'none';
@@ -261,10 +321,43 @@ document.addEventListener('DOMContentLoaded', () => {
         updateGrpcSerializationTooltip();
         updateConnectionModeTooltip();
         updateWsFormatTooltip();
+        updateXmppTlsPolicyTooltip();
+        updateXmppConversationTooltip();
         refreshTlsBadge();
     }
 
     connectionTypeSelect.addEventListener('change', updateGrpcRowVisibility);
+    if (xmppConversationSelect) {
+        xmppConversationSelect.addEventListener('change', () => {
+            updateXmppConversationTooltip();
+            updateGrpcRowVisibility();
+        });
+    }
+    if (xmppTlsPolicySelect) {
+        xmppTlsPolicySelect.addEventListener('change', () => {
+            updateXmppTlsPolicyTooltip();
+            refreshTlsBadge();
+        });
+    }
+    if (xmppCopySettingsBtn) {
+        xmppCopySettingsBtn.addEventListener('click', () => {
+            const includePassword = Boolean(xmppCopyPasswordCheckbox?.checked);
+            window.electronAPI.invoke('xmpp-copy-client-settings', { includePassword })
+                .then((result) => {
+                    if (!result?.success) throw new Error(result?.error || 'Could not copy XMPP client settings');
+                    if (xmppCopyPasswordCheckbox) xmppCopyPasswordCheckbox.checked = false;
+                    setStatus(`XMPP client settings copied${includePassword ? ' with password' : ' without password'}`, { category: 'system' });
+                })
+                .catch((error) => setStatus(`XMPP Server copy error: ${error.message}`, { category: 'connection' }));
+        });
+    }
+    if (xmppOptionsRow && xmppOptionsSummary) {
+        const updateXmppSummaryLabel = () => {
+            xmppOptionsSummary.setAttribute('aria-label', `${xmppOptionsRow.open ? 'Collapse' : 'Expand'} XMPP options`);
+        };
+        xmppOptionsRow.addEventListener('toggle', updateXmppSummaryLabel);
+        updateXmppSummaryLabel();
+    }
 
     grpcSerializationSelect.addEventListener('change', updateGrpcSerializationTooltip);
     updateGrpcSerializationTooltip();
@@ -712,7 +805,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (value.startsWith('ws')) {
             return { checkbox: wsTlsCheckbox, protocol: 'WebSocket', mode, secureName: 'WSS', unsecureName: 'WS' };
         }
+        if (value.startsWith('xmpp')) {
+            return {
+                protocol: 'XMPP',
+                mode,
+                secureName: 'STARTTLS',
+                unsecureName: 'unsecure XMPP',
+                enabled: xmppTlsPolicySelect?.value !== 'disabled',
+                toggle() {
+                    xmppTlsPolicySelect.value = this.enabled ? 'disabled' : 'required';
+                    xmppTlsPolicySelect.dispatchEvent(new Event('change'));
+                },
+            };
+        }
         return null;
+    }
+
+    function isSelectedTlsEnabled(selected) {
+        return selected?.checkbox ? selected.checkbox.checked : Boolean(selected?.enabled);
     }
 
     function canToggleTlsFromFooter() {
@@ -721,15 +831,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function getConfiguredTlsTooltip() {
         const selected = getSelectedTlsControl();
-        if (!selected || !selected.checkbox) return '';
+        if (!selected) return '';
 
-        const enabled = selected.checkbox.checked;
+        const enabled = isSelectedTlsEnabled(selected);
         const canToggle = canToggleTlsFromFooter();
         const endpoint = `${hostInput.value || 'host'}:${portInput.value || 'port'}`;
         const action = canToggle
             ? `Click to turn TLS ${enabled ? 'off' : 'on'} for ${selected.protocol} ${selected.mode}.`
             : `Disconnect before changing TLS for this ${selected.protocol} ${selected.mode} connection.`;
 
+        if (selected.protocol === 'XMPP' && xmppTlsPolicySelect?.value === 'preferred') {
+            return `STARTTLS Opportunistic — XMPP ${selected.mode} will prefer encryption but may continue unsecure.\nScope: New XMPP connections only.\nEncryption: Not guaranteed.\nCertificate trust: Checked only when STARTTLS is established.\nEndpoint: ${endpoint}.\nAction: ${action}\nAuth: XMPP account credentials are configured separately.`;
+        }
         if (enabled) {
             return `TLS Configured — ${selected.protocol} ${selected.mode} will use ${selected.secureName} on the next connection.\nScope: New ${selected.protocol} connections only.\nEncryption: Enabled in the UI.\nCertificate trust: Checked after connection.\nEndpoint: ${endpoint}.\nAction: ${action}\nAuth: Token status is shown separately by the key badge.`;
         }
@@ -852,7 +965,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // 🔐            = mTLS - key icon signals mutual authentication
         // 🔒✓           = TLS on, CA-verified certificate chain
         let trust, iconChar;
-        if (/tls configured|enabled in the ui|checked after connection/i.test(tooltip)) {
+        if (/opportunistic|not guaranteed/i.test(tooltip)) {
+            trust = 'opportunistic'; iconChar = '⚠';
+        } else if (/tls configured|enabled in the ui|checked after connection/i.test(tooltip)) {
             trust = 'configured';  iconChar = '🔒…';
         } else if (/tls.*off|unsecure|plaintext/i.test(tooltip)) {
             trust = 'off';         iconChar = '🔓';
@@ -870,10 +985,10 @@ document.addEventListener('DOMContentLoaded', () => {
         badge.dataset.tlsToggleable = canToggleTlsFromFooter() && getSelectedTlsControl() ? 'true' : 'false';
         badge.dataset.tooltip = tooltip;
         badge.dataset.tooltipIcon = iconChar;
-        badge.dataset.tooltipKind = trust === 'off' || trust === 'self-signed' ? 'warning' : 'secure';
+        badge.dataset.tooltipKind = ['off', 'self-signed', 'opportunistic'].includes(trust) ? 'warning' : 'secure';
         badge.setAttribute('aria-label', tooltip.replace(/\n+/g, ' '));
         const selected = getSelectedTlsControl();
-        badge.setAttribute('aria-pressed', selected && selected.checkbox && selected.checkbox.checked ? 'true' : 'false');
+        badge.setAttribute('aria-pressed', isSelectedTlsEnabled(selected) ? 'true' : 'false');
         badge.style.display = 'flex';
         if (icon)    icon.textContent    = iconChar;
         if (content) content.textContent = tooltip;
@@ -961,7 +1076,90 @@ document.addEventListener('DOMContentLoaded', () => {
             hostInput.disabled = false;
             portInput.disabled = false;
         }
+        if (xmppOptionsRow) {
+            xmppOptionsRow.querySelectorAll('input:not(#xmpp-copy-password), select, button:not(#xmpp-copy-settings)').forEach((control) => {
+                control.disabled = state !== 'disconnected' && state !== 'error';
+            });
+        }
+        const canCopyXmppSettings = state === 'connected' && connectionTypeSelect.value === 'xmpp-server';
+        if (xmppCopySettingsBtn) xmppCopySettingsBtn.disabled = !canCopyXmppSettings;
+        if (xmppCopyPasswordCheckbox) xmppCopyPasswordCheckbox.disabled = !canCopyXmppSettings;
         updateConnectionStatusIndicator(state === 'connected');
+    }
+
+    function clearXmppValidation() {
+        if (!xmppOptionsRow) return;
+        xmppOptionsRow.querySelectorAll('[aria-invalid="true"]').forEach((element) => {
+            element.setAttribute('aria-invalid', 'false');
+        });
+        hostInput.setAttribute('aria-invalid', 'false');
+        portInput.setAttribute('aria-invalid', 'false');
+        if (xmppValidationMessage) {
+            xmppValidationMessage.hidden = true;
+            xmppValidationMessage.textContent = '';
+        }
+    }
+
+    function validateXmppConnection(type, host, port) {
+        clearXmppValidation();
+        const required = [
+            ['xmpp-domain', 'Domain'],
+            ...(type === 'server'
+                ? [['xmpp-external-username', 'External user'], ['xmpp-external-password', 'External password']]
+                : [['xmpp-username', 'Username'], ['xmpp-password', 'Password']]),
+            ...(xmppConversationSelect?.value === 'muc'
+                ? [['xmpp-room', 'Room'], ['xmpp-nickname', 'Nickname']]
+                : []),
+        ];
+        let invalidElement = null;
+        let message = '';
+        for (const [id, label] of required) {
+            const element = document.getElementById(id);
+            if (!element?.value) {
+                element?.setAttribute('aria-invalid', 'true');
+                invalidElement ||= element;
+                message ||= `${label} is required for XMPP ${type === 'server' ? 'Server' : 'Client'} mode.`;
+            }
+        }
+        if (!host) {
+            hostInput.setAttribute('aria-invalid', 'true');
+            invalidElement ||= hostInput;
+            message ||= 'Host is required for XMPP.';
+        }
+        if (!Number.isInteger(port) || port < 1 || port > 65535) {
+            portInput.setAttribute('aria-invalid', 'true');
+            invalidElement ||= portInput;
+            message ||= 'Port must be an integer from 1 through 65535 for XMPP.';
+        }
+        const cert = document.getElementById('xmpp-tls-cert-path')?.value;
+        const key = document.getElementById('xmpp-tls-key-path')?.value;
+        if (type === 'server' && Boolean(cert) !== Boolean(key)) {
+            const missing = cert ? document.getElementById('xmpp-tls-key-path') : document.getElementById('xmpp-tls-cert-path');
+            missing?.setAttribute('aria-invalid', 'true');
+            invalidElement ||= missing;
+            message ||= 'Certificate and Key must be provided together for XMPP Server TLS.';
+        }
+        const allowRemote = document.getElementById('xmpp-allow-remote');
+        const normalizedHost = String(host || '').trim().replace(/^\[|\]$/g, '').toLowerCase();
+        const isLoopback = normalizedHost === 'localhost' ||
+            normalizedHost === '::1' ||
+            normalizedHost.startsWith('127.');
+        if (type === 'server' && host && !isLoopback && !allowRemote?.checked) {
+            allowRemote?.setAttribute('aria-invalid', 'true');
+            invalidElement ||= allowRemote;
+            message ||= 'Enable Allow remote to bind the XMPP Server Host outside loopback.';
+        }
+        if (invalidElement) {
+            xmppOptionsRow.open = true;
+            if (xmppValidationMessage) {
+                xmppValidationMessage.textContent = message;
+                xmppValidationMessage.hidden = false;
+            }
+            setStatus(`XMPP validation error: ${message}`, { category: 'connection' });
+            invalidElement.focus();
+            return false;
+        }
+        return true;
     }
 
     function updateConnectionStatusIndicator(isConnected) {
@@ -1091,17 +1289,40 @@ document.addEventListener('DOMContentLoaded', () => {
             wsIgnoreEl.checked = presets.wsIgnoreFirstMsg === true || presets.wsIgnoreFirstMsg === 'true';
         }
         if (presets.wsHeaders !== undefined && wsHeadersEl) wsHeadersEl.value = presets.wsHeaders;
+        const xmppPresetIds = {
+            xmppDomain: 'xmpp-domain', xmppUsername: 'xmpp-username', xmppPassword: 'xmpp-password',
+            xmppResource: 'xmpp-resource', xmppLocalJid: 'xmpp-local-jid',
+            xmppExternalUsername: 'xmpp-external-username', xmppExternalPassword: 'xmpp-external-password',
+            xmppTlsPolicy: 'xmpp-tls-policy', xmppTlsCaPath: 'xmpp-tls-ca-path',
+            xmppTlsCertPath: 'xmpp-tls-cert-path', xmppTlsKeyPath: 'xmpp-tls-key-path',
+            xmppConversation: 'xmpp-conversation', xmppRoom: 'xmpp-room', xmppNickname: 'xmpp-nickname',
+            xmppRoomPassword: 'xmpp-room-password', xmppConnectTimeoutMs: 'xmpp-connect-timeout',
+            xmppReplyTimeoutMs: 'xmpp-reply-timeout',
+            xmppPingIntervalMs: 'xmpp-ping-interval', xmppReconnectDelayMs: 'xmpp-reconnect-delay',
+        };
+        Object.entries(xmppPresetIds).forEach(([key, id]) => {
+            if (presets[key] !== undefined && document.getElementById(id)) document.getElementById(id).value = presets[key];
+        });
+        if (presets.xmppAllowUnverifiedTls !== undefined) {
+            document.getElementById('xmpp-allow-unverified').checked = presets.xmppAllowUnverifiedTls === true || presets.xmppAllowUnverifiedTls === 'true';
+        }
+        if (presets.xmppAllowRemote !== undefined) {
+            document.getElementById('xmpp-allow-remote').checked = presets.xmppAllowRemote === true || presets.xmppAllowRemote === 'true';
+        }
+        updateGrpcRowVisibility();
     });
 
     connectBtn.addEventListener('click', () => {
         if (connectBtn.disabled) return;
-        // Immediately update UI to reflect the connecting state
-        setAppStatus(Status.CONNECTING);
-        setConnectionControls('connecting');
-
         const connectionType = connectionTypeSelect.value;
         const host = hostInput.value;
         const port = parseInt(portInput.value, 10);
+        if (connectionType.startsWith('xmpp')) {
+            const type = connectionType.split('-')[1];
+            if (!validateXmppConnection(type, host, port)) return;
+        }
+        setAppStatus(Status.CONNECTING);
+        setConnectionControls('connecting');
 
         if (connectionType.startsWith('tcp')) {
             const type = connectionType.split('-')[1];
@@ -1153,6 +1374,36 @@ document.addEventListener('DOMContentLoaded', () => {
             const scheme = wsTls ? 'wss' : 'ws';
             setStatus(`Connecting via WebSocket ${type} to ${scheme}://${host}:${port}${wsPath} [${wsFormat}]...`, { category: 'connection' });
             window.electronAPI.send('connect-ws', { type, port, host, wsFormat, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsPath, wsSubscriptionMsg, wsIgnoreFirstMsg, wsHeaders });
+        } else if (connectionType.startsWith('xmpp')) {
+            const type = connectionType.split('-')[1];
+            const value = (id) => document.getElementById(id)?.value || '';
+            const checked = (id) => Boolean(document.getElementById(id)?.checked);
+            const xmppOptions = {
+                type, host, port,
+                xmppDomain: value('xmpp-domain'),
+                xmppUsername: value('xmpp-username'),
+                xmppPassword: value('xmpp-password'),
+                xmppResource: value('xmpp-resource'),
+                xmppLocalJid: value('xmpp-local-jid'),
+                xmppExternalUsername: value('xmpp-external-username'),
+                xmppExternalPassword: value('xmpp-external-password'),
+                xmppTlsPolicy: value('xmpp-tls-policy'),
+                xmppTlsCaPath: value('xmpp-tls-ca-path'),
+                xmppTlsCertPath: value('xmpp-tls-cert-path'),
+                xmppTlsKeyPath: value('xmpp-tls-key-path'),
+                xmppAllowUnverifiedTls: checked('xmpp-allow-unverified'),
+                xmppAllowRemote: checked('xmpp-allow-remote'),
+                xmppConversation: value('xmpp-conversation'),
+                xmppRoom: value('xmpp-room'),
+                xmppNickname: value('xmpp-nickname'),
+                xmppRoomPassword: value('xmpp-room-password'),
+                xmppConnectTimeoutMs: Number(value('xmpp-connect-timeout') || 30000),
+                xmppReplyTimeoutMs: Number(value('xmpp-reply-timeout') || 15000),
+                xmppPingIntervalMs: Number(value('xmpp-ping-interval') || 60000),
+                xmppReconnectDelayMs: Number(value('xmpp-reconnect-delay') || 60000),
+            };
+            setStatus(`Connecting via XMPP ${type} at ${host}:${port} domain=${xmppOptions.xmppDomain} ${xmppOptions.xmppTlsPolicy}...`, { category: 'connection' });
+            window.electronAPI.send('connect-xmpp', xmppOptions);
         }
     });
 
@@ -1171,6 +1422,8 @@ document.addEventListener('DOMContentLoaded', () => {
             window.electronAPI.send('disconnect-http');
         } else if (connectionType.startsWith('ws')) {
             window.electronAPI.send('disconnect-ws');
+        } else if (connectionType.startsWith('xmpp')) {
+            window.electronAPI.send('disconnect-xmpp');
         }
     });
 
@@ -1298,6 +1551,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const type = item.outputType || '';
+        let appliedXmppCredentialsRequired = false;
         const connectionType = document.getElementById('connection-type');
         const hostInput = document.getElementById('host');
         const portInput = document.getElementById('port');
@@ -1344,9 +1598,55 @@ document.addEventListener('DOMContentLoaded', () => {
             connectionType.dispatchEvent(new Event('change'));
             if (item.host) hostInput.value = item.host;
             if (item.port) portInput.value = item.port;
+        } else if (type === 'xmpp') {
+            appliedXmppCredentialsRequired = true;
+            connectionType.value = 'xmpp-client';
+            connectionType.dispatchEvent(new Event('change'));
+            hostInput.value = item.host || item.domain || 'localhost';
+            portInput.value = item.port || 5222;
+            const setValue = (id, value) => {
+                const element = document.getElementById(id);
+                if (element && value !== undefined && value !== null && value !== '') element.value = value;
+            };
+            setValue('xmpp-domain', item.domain);
+            setValue('xmpp-username', item.username);
+            setValue('xmpp-resource', item.resource);
+            setValue('xmpp-local-jid', item.localJid);
+            setValue('xmpp-conversation', item.conversation === 'muc' ? 'muc' : 'direct');
+            setValue('xmpp-room', item.room);
+            setValue('xmpp-nickname', item.nickname);
+            setValue('xmpp-connect-timeout', item.connectTimeoutMs || 30000);
+            setValue('xmpp-reply-timeout', item.replyTimeoutMs || 15000);
+            setValue('xmpp-ping-interval', item.pingIntervalMs || 60000);
+            setValue('xmpp-reconnect-delay', item.reconnectDelayMs || 60000);
+            setValue('xmpp-tls-policy', item.tlsPolicy || 'required');
+            const accountPassword = document.getElementById('xmpp-password');
+            const roomPassword = document.getElementById('xmpp-room-password');
+            if (accountPassword) accountPassword.value = '';
+            if (roomPassword) roomPassword.value = '';
+            updateGrpcRowVisibility();
+            if (xmppOptionsRow) xmppOptionsRow.open = true;
+            const firstMissing = [
+                document.getElementById('xmpp-username'),
+                accountPassword,
+                ...(item.conversation === 'muc'
+                    ? [document.getElementById('xmpp-room'), document.getElementById('xmpp-nickname')]
+                    : []),
+            ].find((element) => !element?.value);
+            if (firstMissing) {
+                firstMissing.setAttribute('aria-invalid', 'true');
+                firstMissing.focus();
+            }
+            if (xmppValidationMessage) {
+                xmppValidationMessage.textContent = 'Enter the XMPP account credentials required by this output before connecting. Stored secrets cannot be recovered.';
+                xmppValidationMessage.hidden = false;
+            }
+            setStatus('XMPP output applied; enter the required XMPP account credentials before connecting. Stored secrets cannot be recovered.', { category: 'auth' });
         }
 
-        addLog(`✓ Output applied - ready to connect (${item.label || item.id})`);
+        addLog(appliedXmppCredentialsRequired
+            ? `✓ XMPP output applied - credentials required before connecting (${item.label || item.id})`
+            : `✓ Output applied - ready to connect (${item.label || item.id})`);
     });
 
     window.electronAPI.on('velocity:token-refreshed', (state) => {
@@ -1586,6 +1886,16 @@ document.addEventListener('DOMContentLoaded', () => {
     window.electronAPI.on('grpc-status', (message) => { extractAndCacheTlsTooltip(message); setStatus(message, { category: 'connection' }); });
     window.electronAPI.on('http-status', (message) => { extractAndCacheTlsTooltip(message); setStatus(message, { category: 'connection' }); });
     window.electronAPI.on('ws-status',   (message) => { extractAndCacheTlsTooltip(message); setStatus(message, { category: 'connection' }); });
+    window.electronAPI.on('xmpp-status', (message) => { extractAndCacheTlsTooltip(message); setStatus(message, { category: 'connection' }); });
+    window.electronAPI.on('xmpp-warning', (message) => {
+        setStatus(message, { category: 'connection' });
+    });
+    window.electronAPI.on('xmpp-server-settings', (settings) => {
+        if (!xmppReceivingJid) return;
+        xmppReceivingJid.textContent = settings?.receivingJid
+            ? `Receiving JID: ${settings.receivingJid}`
+            : 'Receiving JID: available after the server starts';
+    });
 
     window.electronAPI.on('udp-error', (message) => {
         currentTlsTooltip = '';
@@ -1620,6 +1930,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.electronAPI.on('ws-error', (message) => {
+        currentTlsTooltip = '';
+        showErrorDialog(message);
+        setStatus(`Error: ${message}`, { category: 'connection' });
+        setAppStatus(Status.ERROR);
+        setConnectionControls('disconnected');
+    });
+    window.electronAPI.on('xmpp-error', (message) => {
         currentTlsTooltip = '';
         showErrorDialog(message);
         setStatus(`Error: ${message}`, { category: 'connection' });
@@ -1819,14 +2136,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const handleTlsBadgeActivation = (e) => {
             e.stopPropagation();
             const selected = getSelectedTlsControl();
-            if (!selected || !selected.checkbox) return;
+            if (!selected) return;
             if (!canToggleTlsFromFooter()) {
                 tlsBadgeEl.classList.toggle('pinned');
                 return;
             }
-            selected.checkbox.checked = !selected.checkbox.checked;
-            selected.checkbox.dispatchEvent(new Event('change'));
-            addLog(selected.checkbox.checked
+            if (selected.checkbox) {
+                selected.checkbox.checked = !selected.checkbox.checked;
+                selected.checkbox.dispatchEvent(new Event('change'));
+            } else {
+                selected.toggle();
+                selected.enabled = !selected.enabled;
+            }
+            addLog(isSelectedTlsEnabled(selected)
                 ? `🔒 TLS enabled for ${selected.protocol} ${selected.mode}`
                 : `🔓 TLS disabled for ${selected.protocol} ${selected.mode}`);
             refreshTlsBadge();
@@ -1846,4 +2168,3 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 });
-

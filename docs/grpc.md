@@ -1,20 +1,36 @@
-# gRPC Transport
+# gRPC transport
 
-The ArcGIS Velocity Logger supports gRPC as a transport protocol alongside TCP and UDP. It supports three **gRPC Feature Serialization Formats** for compatibility with different ArcGIS Velocity ingestion paths.
+[← Documentation index](README.md) · [Repository overview](../README.md#documentation)
 
-## Feature Serialization Formats
+The ArcGIS Velocity Logger supports gRPC as a transport protocol alongside TCP and UDP. It supports three gRPC Feature Serialization Formats for compatibility with different ArcGIS Velocity ingestion paths, and can run either as a gRPC server accepting inbound calls or as a gRPC client subscribing to a remote server.
+
+This guide is intended for users and developers configuring gRPC connections between the Logger and ArcGIS Velocity or the ArcGIS Velocity Simulator, and assumes basic familiarity with gRPC/protobuf concepts. For general TLS/certificate concepts shared across transports, see the [TLS guide](tls.md).
+
+## Table of contents
+
+- [Feature serialization formats](#feature-serialization-formats)
+- [Modes](#modes)
+- [Feature examples](#feature-examples)
+- [CLI / headless usage](#cli--headless-usage)
+- [UI usage](#ui-usage)
+- [Compatibility](#compatibility)
+- [TLS and certificate stores](#tls-and-certificate-stores)
+- [Examples](#examples)
+- [Related documentation](#related-documentation)
+
+## Feature serialization formats
 
 The `grpcSerialization` parameter controls how feature data is decoded from the wire. The default is `protobuf`.
 
-| Format | Service | Proto File | Description |
+| Format | Service | Proto file | Description |
 |--------|---------|-----------|-------------|
-| **Protobuf** (default) | `GrpcFeed` | `velocity-grpc.proto` | Velocity external protocol. Features decoded from typed `google.protobuf.Any`-wrapped attributes. |
-| **Kryo** | `GrpcFeatureService` | `feature-service.proto` | Velocity internal protocol. Raw bytes received and displayed as UTF-8 text. |
-| **Text** | `GrpcFeatureService` | `feature-service.proto` | Velocity internal protocol. Plain UTF-8 text received in the bytes field. |
+| **Protobuf** (default) | `GrpcFeed` | `velocity-grpc.proto` | ArcGIS Velocity external protocol. Features decoded from typed `google.protobuf.Any`-wrapped attributes. |
+| **Kryo** | `GrpcFeatureService` | `feature-service.proto` | ArcGIS Velocity internal protocol. Raw bytes received and displayed as UTF-8 text. |
+| **Text** | `GrpcFeatureService` | `feature-service.proto` | ArcGIS Velocity internal protocol. Plain UTF-8 text received in the bytes field. |
 
-### Protobuf Format (Default)
+### Protobuf format (default)
 
-Uses the Velocity external gRPC Feed service:
+Uses the ArcGIS Velocity external gRPC Feed service:
 
 ```protobuf
 syntax = "proto3";
@@ -45,11 +61,11 @@ message WatchRequest {
 }
 ```
 
-### Attribute Decoding (Protobuf Format)
+### Attribute decoding (protobuf format)
 
 Each attribute in a received `Feature` is a `google.protobuf.Any` message wrapping a standard protobuf wrapper type. The logger unpacks these and displays them as human-readable CSV:
 
-| Protobuf Wrapper | Displayed As |
+| Protobuf wrapper | Displayed as |
 |---|---|
 | `google.protobuf.StringValue` | String value |
 | `google.protobuf.Int32Value` | Integer |
@@ -60,9 +76,9 @@ Each attribute in a received `Feature` is a `google.protobuf.Any` message wrappi
 
 **Null values** (empty `type_url`) are displayed as empty fields in the CSV output.
 
-### Kryo Format
+### Kryo format
 
-Uses the Velocity internal `GrpcFeatureService`:
+Uses the ArcGIS Velocity internal `GrpcFeatureService`:
 
 ```protobuf
 service GrpcFeatureService {
@@ -81,24 +97,24 @@ message GrpcFeatureRequest {
 }
 ```
 
-The logger receives the `bytes` field and displays it as UTF-8 text. In production Velocity deployments this would contain Kryo-serialized `Feature` objects, but for testing purposes the raw bytes are displayed.
+The logger receives the `bytes` field and displays it as UTF-8 text. In production ArcGIS Velocity deployments this would contain Kryo-serialized `Feature` objects, but for testing purposes the raw bytes are displayed.
 
-### Text Format
+### Text format
 
 Same service as Kryo. The `bytes` field contains plain UTF-8 text (e.g., a CSV line) which is displayed directly in the log view.
 
-### Why Multiple Formats?
+### Why multiple formats?
 
 ArcGIS Velocity has two gRPC ingestion paths:
 
-- **Path 1 (internal)**: Uses `GrpcFeatureService` with Kryo-serialized bytes. This is the internal fast-path for Velocity's own output connectors.
+- **Path 1 (internal)**: Uses `GrpcFeatureService` with Kryo-serialized bytes. This is the internal fast-path for ArcGIS Velocity's own output connectors.
 - **Path 2 (external)**: Uses the `GrpcFeed` service with typed protobuf `Feature` messages. This is the standard protocol for external clients.
 
 The logger supports all three formats to test and debug both paths.
 
 ## Modes
 
-### gRPC Server (Default for Logger)
+### gRPC server (default for logger)
 
 The logger hosts a gRPC server. Depending on the serialization format:
 
@@ -109,10 +125,11 @@ Each received feature is decoded and displayed as a line in the log view.
 
 When **Show Metadata** is enabled, metadata lines are prepended before each received message. The content depends on mode:
 
-#### gRPC Server metadata
+#### gRPC server metadata
+
 One `[metadata]` line is emitted per incoming call. It starts with connection-level context, followed by the deadline and the call-level gRPC headers sent by the client:
 
-```
+```text
 [metadata] protocol=gRPC mode=server serialization=protobuf rpc=Send remote=ipv4:127.0.0.1:54321 local=127.0.0.1:50051 deadline=none content-type=application/grpc grpc-path=my.feed.uid
 ```
 
@@ -126,11 +143,12 @@ Fields in order:
 - `deadline=` - the call deadline set by the client (`none` if no deadline was set, otherwise an ISO-8601 timestamp)
 - _call headers_ - all gRPC call metadata key-value pairs sent by the client (HTTP/2 request headers, e.g. `content-type`, `grpc-path`, custom headers)
 
-#### gRPC Client metadata
+#### gRPC client metadata
+
 Three metadata lines are emitted per connection lifecycle, plus one per received data message:
 
 1. **Connection-established line** - emitted immediately after the `Watch`/`watch` stream opens:
-   ```
+   ```text
    [metadata] protocol=gRPC mode=client serialization=protobuf method=stream rpc=Watch remote=127.0.0.1:50051
    ```
    Fields:
@@ -143,28 +161,27 @@ Three metadata lines are emitted per connection lifecycle, plus one per received
 
 2. **Per-message line** - emitted for each data message received, immediately before the data line:
    - Protobuf (`rpc=Watch`): includes `feature=N/TOTAL` indicating which feature within the batch:
-     ```
+     ```text
      [metadata] protocol=gRPC mode=client serialization=protobuf method=stream rpc=Watch remote=127.0.0.1:50051 feature=1/3
      ```
    - Text/kryo (`rpc=watch`): includes `size=N` (byte length of the payload):
-     ```
+     ```text
      [metadata] protocol=gRPC mode=client serialization=text method=stream rpc=watch remote=127.0.0.1:50051 size=42
      ```
 
 3. **Response-headers line** - initial metadata sent back from the server (emitted on the stream `metadata` event):
-   ```
+   ```text
    [metadata] response-headers: content-type=application/grpc x-server-id=simulator
    ```
 
 4. **Status line** - emitted when the stream ends, including the gRPC status code, details, and any trailing metadata:
-   ```
+   ```text
    [metadata] status: code=0 details="OK"
    ```
 
-
 All metadata lines are always captured in memory; toggling **Show Metadata** on/off retroactively shows or hides them for all buffered entries without requiring a reconnect.
 
-### gRPC Client (Logger subscribing to a simulator or Velocity server)
+### gRPC client (logger subscribing to a simulator or ArcGIS Velocity server)
 
 The logger connects to a remote gRPC server and **subscribes to receive data** pushed by the server via a server-streaming RPC. This is the mode to use when pairing with the **ArcGIS Velocity Simulator** in gRPC Server mode.
 
@@ -175,14 +192,14 @@ How it works depending on serialization:
 
 The optional `grpcHeaderPathKey` / `grpcHeaderPath` parameters inject a metadata header on the `Watch`/`watch` call. This is required when connecting to a real ArcGIS Velocity endpoint so the platform can route the subscription to the correct feed item. When connecting to the Simulator, these parameters are accepted but ignored by the server.
 
-## Feature Examples
+## Feature examples
 
 Below are examples of features received and displayed by the logger using the **Protobuf** serialization format.
 
-### Example 1: Vehicle Tracking (Fleet GPS)
+### Example 1: Vehicle tracking (fleet GPS)
 
 **Received Feature attributes:**
-```
+```text
 attributes[0] = Any { type_url: "type.googleapis.com/google.protobuf.StringValue", value: <encoded "vehicle-001"> }
 attributes[1] = Any { type_url: "type.googleapis.com/google.protobuf.DoubleValue", value: <encoded -117.1956> }
 attributes[2] = Any { type_url: "type.googleapis.com/google.protobuf.DoubleValue", value: <encoded 34.0572> }
@@ -192,41 +209,42 @@ attributes[5] = Any { type_url: "type.googleapis.com/google.protobuf.Int64Value"
 ```
 
 **Logger displays:**
-```
+```text
 vehicle-001,-117.1956,34.0572,65.3,true,1609459200000
 ```
 
-### Example 2: Weather Station Observations
+### Example 2: Weather station observations
 
 **Logger displays:**
-```
+```text
 WX-SFO-042,37.6213,-122.379,18.5,72,1013.25,false,1714500000000
 ```
 
-### Example 3: IoT Sensor Alert
+### Example 3: IoT sensor alert
 
 **Logger displays:**
-```
+```text
 sensor-9A3F,CRITICAL,Tank overflow detected,98.7,250,true,1714503600000
 ```
 
-### Example 4: AIS Maritime Vessel Position
+### Example 4: AIS maritime vessel position
 
 **Logger displays:**
-```
+```text
 367596000,EVER GIVEN,-122.4194,37.7749,12.4,245,15,false,1714507200000
 ```
 
-### Example 5: Geofence Entry Event
+### Example 5: Geofence entry event
 
 **Logger displays:**
-```
+```text
 truck-42,"POLYGON((-118.3 34.0,-118.3 34.1,-118.2 34.1,-118.2 34.0,-118.3 34.0))",ENTER,warehouse-7,1714510800000
 ```
 
-Note: String values containing commas are automatically quoted in the CSV output.
+> [!NOTE]
+> String values containing commas are automatically quoted in the CSV output.
 
-## CLI / Headless Usage
+## CLI / headless usage
 
 ```bash
 # gRPC server mode with Protobuf serialization (default)
@@ -268,18 +286,18 @@ electron . runMode=headless protocol=grpc mode=server ip=0.0.0.0 port=50051 useT
 | `mode=server` | Host a gRPC server and log incoming features |
 | `port` | Bind port (server mode) or target port (client mode) |
 | `protocol=grpc` | Select gRPC transport |
-| `grpcSerialization=protobuf` | Use Velocity external GrpcFeed protocol with typed Any-wrapped attributes (default) |
-| `grpcSerialization=kryo` | Use Velocity internal GrpcFeatureService protocol with raw bytes |
-| `grpcSerialization=text` | Use Velocity internal GrpcFeatureService protocol with plain UTF-8 text |
+| `grpcSerialization=protobuf` | Use ArcGIS Velocity external GrpcFeed protocol with typed Any-wrapped attributes (default) |
+| `grpcSerialization=kryo` | Use ArcGIS Velocity internal GrpcFeatureService protocol with raw bytes |
+| `grpcSerialization=text` | Use ArcGIS Velocity internal GrpcFeatureService protocol with plain UTF-8 text |
 | `grpcSendMethod=stream` | Client Streaming RPC - multiplexes all messages over a single persistent HTTP/2 stream (default). Higher throughput, lower per-message overhead. Client mode only. |
 | `grpcSendMethod=unary` | Unary RPC - sends each message as a discrete request/response round-trip. Simpler to trace and debug. Client mode only. |
 | `showMetadata=true` | Write connection/call metadata lines to the output before each received message (default: `false`). For server mode: call headers per incoming RPC. For client mode: connection-established, response-headers, and status lines. |
 | `useTls` | Use TLS (SSL) for the gRPC connection (default: `false`). When `true`, uses SSL credentials instead of plaintext. |
-| `tlsCaPath` | Path to a custom CA certificate file (PEM). When omitted with `useTls=true`, OS root certificates are loaded automatically (see [TLS & Certificate Stores](#tls--certificate-stores)). |
+| `tlsCaPath` | Path to a custom CA certificate file (PEM). When omitted with `useTls=true`, OS root certificates are loaded automatically (see [TLS and certificate stores](#tls-and-certificate-stores)). |
 | `tlsCertPath` | Path to a client/server certificate file (PEM) for mutual TLS. Required for TLS server mode. |
 | `tlsKeyPath` | Path to a private key file (PEM) for mutual TLS. Required for TLS server mode. |
 
-## UI Usage
+## UI usage
 
 When gRPC is selected as the connection type in the UI, the following controls appear:
 
@@ -294,11 +312,11 @@ When gRPC is selected as the connection type in the UI, the following controls a
 
 The serialization and TLS controls are shown for both client and server modes. The header controls are shown only when **gRPC Client** is selected, since they have no effect in server mode (the server only receives incoming connections and never initiates outgoing calls).
 
-### Tooltip Reference
+### Tooltip reference
 
 The following tooltips appear when hovering over gRPC-related controls in the UI. These are set dynamically via `GRPC_SERIALIZATION_TOOLTIPS` and `GRPC_SEND_METHOD_TOOLTIPS` in `renderer.js`.
 
-#### Serialization Tooltips
+#### Serialization tooltips
 
 | Value | Tooltip |
 |-------|---------|
@@ -306,14 +324,14 @@ The following tooltips appear when hovering over gRPC-related controls in the UI
 | Kryo | gRPC Feature Serialization Format: Kryo. Uses the internal GrpcFeatureService protocol (feature-service.proto) where the bytes field carries raw binary feature payloads. Intended for internal-path compatibility and advanced testing. |
 | Text | gRPC Feature Serialization Format: Text. Uses the internal GrpcFeatureService protocol (feature-service.proto) where the bytes field carries plain UTF-8 text, typically a CSV line. Best for simple human-readable testing. |
 
-#### RPC Type Tooltips
+#### RPC type tooltips
 
 | Value | Tooltip |
 |-------|---------|
 | Client Streaming | gRPC RPC Type: Client Streaming. Opens a persistent client-streaming RPC and multiplexes all messages over a single long-lived HTTP/2 stream. Ideal for high-throughput ingestion with minimal per-message overhead. |
 | Unary | gRPC RPC Type: Unary. Each message is sent as a discrete request/response round-trip. Easier to trace and debug, but incurs per-call overhead. |
 
-### CLI Prepopulation of UI Fields
+### CLI prepopulation of UI fields
 
 Connection parameters can be passed on the command line even in UI mode to prepopulate the UI controls. For example:
 
@@ -333,7 +351,7 @@ Supported UI-prepopulable parameters: `protocol`, `mode`, `ip`, `port`, `grpcSer
 - Uses `@grpc/grpc-js` + `protobufjs` (pure JavaScript, no native compilation required)
 - Supports both plaintext (unsecure) and TLS (SSL) connections
 
-## TLS & Certificate Stores
+## TLS and certificate stores
 
 When `useTls=true` is set without a custom `tlsCaPath`, the app merges the Node.js bundled root CAs with certificates from the OS certificate store. This ensures enterprise/internal CAs (e.g. Esri Root CA) are trusted without requiring a manual PEM file.
 
@@ -346,25 +364,25 @@ When `useTls=true` is set without a custom `tlsCaPath`, the app merges the Node.
 The merged set is deduplicated and passed to `grpc.credentials.createSsl()`. The connection log shows the cert breakdown on connect. Examples:
 
 **Client mode - OS root CAs (no custom cert):**
-```
+```text
 gRPC Client connected to mcstest492.esri.com:7145 [protobuf] grpc-path=dedicated.abc123
   tls=on, 429 trusted CAs loaded, node-bundled=144, os=Windows certificate store (285)
 ```
 
 **Client mode - custom CA cert:**
-```
+```text
 gRPC Client connected to myserver.example.com:7145 [protobuf] grpc-path=dedicated.abc123
   tls=on, custom certs: ca=./certs/ca.pem
 ```
 
 **Server mode - TLS with cert and key:**
-```
+```text
 gRPC Server listening on 0.0.0.0:50051 [protobuf]
   tls=on, server certs: cert=./certs/server.pem, key=./certs/server-key.pem
 ```
 
 **Any mode - TLS off:**
-```
+```text
   tls=off (unsecure)
 ```
 
@@ -376,7 +394,7 @@ When `useTls=true` is set on a server transport **without** providing `tlsCertPa
 
 The self-signed cert is valid for `localhost` and `127.0.0.1` (SANs). It is regenerated each time the app starts. The connection log will show:
 
-```
+```text
 tls=on, cert=self-signed (auto-generated), key=self-signed (auto-generated)
 ```
 
@@ -394,11 +412,11 @@ Because the certificate is not signed by a trusted CA, connecting clients will r
 
   Then set `tlsCertPath=./server.pem` and `tlsKeyPath=./server-key.pem`.
 
-### TLS Trust Badge
+### TLS trust badge
 
 When connected, the status bar displays a lock icon reflecting the trust level at a glance. No text label is shown beside the icon - hover or click the badge for full details. The icon **shape** and **colour** both encode the trust level so it is unambiguous for colour-blind users.
 
-| Icon | Colour | Trust Level | Meaning |
+| Icon | Colour | Trust level | Meaning |
 |------|--------|-------------|---------|
 | 🔓 | Grey / dimmed | off | No TLS - plaintext, unsecure connection |
 | 🔒 | Amber | on | TLS on - OS certificate store, trust level not fully determined |
@@ -406,11 +424,11 @@ When connected, the status bar displays a lock icon reflecting the trust level a
 | 🔒✓ | Green | ca-verified | TLS on, CA-verified certificate chain |
 | 🔐 | Blue / cyan | mtls | Mutual TLS - both client and server present certificates |
 
-See [TLS.md](./TLS.md) for full TLS concepts, certificate file formats, OS trust store behaviour, and setup guides.
+See the [TLS guide](tls.md) for full TLS concepts, certificate file formats, OS trust store behaviour, and setup guides.
 
 ## Examples
 
-### Example A: Simulator (Client) → Logger (Server)
+### Example A: Simulator (client) → Logger (server)
 
 The classic push scenario: simulator sends features, Logger receives them.
 
@@ -418,7 +436,7 @@ The classic push scenario: simulator sends features, Logger receives them.
 2. Start the Simulator in **gRPC Client** mode pointing to `127.0.0.1:50051` with **Protobuf** serialization
 3. Load a CSV file in the Simulator and press Play - decoded features appear in the Logger
 
-### Example B: Simulator (Server) → Logger (Client)
+### Example B: Simulator (server) → Logger (client)
 
 The reverse scenario: Logger subscribes and receives features pushed by the Simulator.
 
@@ -428,3 +446,10 @@ The reverse scenario: Logger subscribes and receives features pushed by the Simu
 4. Press Play in the Simulator - decoded features are pushed to the Logger in real time
 
 Both scenarios work with all three serialization formats (protobuf, text, kryo).
+
+## Related documentation
+
+- [TLS guide](tls.md)
+- [HTTP transport](http.md)
+- [WebSocket transport](websocket.md)
+- [Repository overview](../README.md)

@@ -53,7 +53,7 @@ function cliDivider(width) {
 const BOOLEAN_TRUE = new Set(['true', '1', 'yes', 'y', 'on']);
 const BOOLEAN_FALSE = new Set(['false', '0', 'no', 'n', 'off']);
 const VALID_RUN_MODES = new Set(['ui', 'silent', 'headless']);
-const VALID_PROTOCOLS = new Set(['tcp', 'udp', 'grpc', 'http', 'ws']);
+const VALID_PROTOCOLS = new Set(['tcp', 'udp', 'grpc', 'http', 'ws', 'xmpp']);
 const VALID_MODES = new Set(['server', 'client']);
 const VALID_SERIALIZATIONS = new Set(['protobuf', 'kryo', 'text']);
 const VALID_GRPC_SEND_METHODS = new Set(['stream', 'unary']);
@@ -62,6 +62,8 @@ const DEFAULT_LOG_LEVEL = 'debug';
 const VALID_ON_ERROR = new Set(['exit', 'continue', 'pause']);
 const VALID_OUTPUT_FORMATS = new Set(['text', 'jsonl', 'csv']);
 const VALID_DATA_FORMATS = new Set(['json', 'delimited', 'esriJson', 'geojson', 'xml']);
+const VALID_XMPP_TLS_POLICIES = new Set(['required', 'preferred', 'disabled']);
+const VALID_XMPP_CHAT_MODES = new Set(['direct', 'muc']);
 
 const CLI_OPTION_KEYS = new Set([
   'runMode',
@@ -112,6 +114,27 @@ const CLI_OPTION_KEYS = new Set([
   'wsSubscriptionMsg',
   'wsIgnoreFirstMsg',
   'wsHeaders',
+  'xmppDomain',
+  'xmppUsername',
+  'xmppPassword',
+  'xmppResource',
+  'xmppLocalJid',
+  'xmppExternalUsername',
+  'xmppExternalPassword',
+  'xmppTlsPolicy',
+  'xmppTlsCaPath',
+  'xmppTlsCertPath',
+  'xmppTlsKeyPath',
+  'xmppAllowUnverifiedTls',
+  'xmppAllowRemote',
+  'xmppConversation',
+  'xmppRoom',
+  'xmppNickname',
+  'xmppRoomPassword',
+  'xmppConnectTimeoutMs',
+  'xmppReplyTimeoutMs',
+  'xmppPingIntervalMs',
+  'xmppReconnectDelayMs',
   'showMetadata',
   'config',
   'help',
@@ -161,6 +184,27 @@ const APP_DEFAULTS = {
   wsSubscriptionMsg: null,
   wsIgnoreFirstMsg: false,
   wsHeaders: null,
+  xmppDomain: 'localhost',
+  xmppUsername: '',
+  xmppPassword: '',
+  xmppResource: 'velocity-logger',
+  xmppLocalJid: '',
+  xmppExternalUsername: 'velocity-client',
+  xmppExternalPassword: '',
+  xmppTlsPolicy: 'required',
+  xmppTlsCaPath: null,
+  xmppTlsCertPath: null,
+  xmppTlsKeyPath: null,
+  xmppAllowUnverifiedTls: false,
+  xmppAllowRemote: false,
+  xmppConversation: 'direct',
+  xmppRoom: '',
+  xmppNickname: 'logger',
+  xmppRoomPassword: '',
+  xmppConnectTimeoutMs: 30000,
+  xmppReplyTimeoutMs: 15000,
+  xmppPingIntervalMs: 60000,
+  xmppReconnectDelayMs: 60000,
 };
 
 const DEFAULT_HEADLESS_OPTIONS = {
@@ -229,7 +273,7 @@ const CLI_PARAMETER_DEFINITIONS = [
     key: 'config',
     defaultValue: DEFAULT_HEADLESS_OPTIONS.config,
     options: ['path', 'omitted'],
-    example: 'config=./docs/launch-config.server.sample.json',
+    example: 'config=docs/examples/launch-config.server.sample.json',
     requiredInHeadless: 'No',
     purpose: 'Optional JSON launch-config file. CLI values override config-file values.',
   },
@@ -428,10 +472,10 @@ const CLI_PARAMETER_DEFINITIONS = [
   {
     key: 'protocol',
     defaultValue: DEFAULT_HEADLESS_OPTIONS.protocol,
-    options: ['tcp', 'udp', 'grpc', 'http', 'ws'],
+    options: ['tcp', 'udp', 'grpc', 'http', 'ws', 'xmpp'],
     example: 'protocol=tcp',
     requiredInHeadless: 'No',
-    purpose: 'Choose the network transport to listen on or connect to.',
+    purpose: 'Choose the network transport to listen on or connect to. XMPP defaults to server mode when selected.',
   },
   {
     key: 'runId',
@@ -649,6 +693,36 @@ const CLI_PARAMETER_DEFINITIONS = [
     requiredInHeadless: 'No',
     purpose: 'Echo captured records to the console in addition to outputFile. When outputFile is omitted, console output is always produced regardless of this flag.',
   },
+  ...[
+    ['xmppDomain', 'XMPP domain', 'xmppDomain=example.com', 'XMPP service domain, separate from the top-level ip network host override.'],
+    ['xmppUsername', 'string', 'xmppUsername=logger', 'XMPP client account username.'],
+    ['xmppPassword', 'secret', 'xmppPassword=secret', 'XMPP client password; never written to logs or metadata.'],
+    ['xmppResource', 'string', 'xmppResource=velocity-logger', 'Resource appended to the authenticated XMPP JID.'],
+    ['xmppLocalJid', 'bare JID | omitted', 'xmppLocalJid=logger@example.com', 'Optional local bare JID used to filter direct messages.'],
+    ['xmppExternalUsername', 'string', 'xmppExternalUsername=velocity', 'External account accepted by XMPP server mode.'],
+    ['xmppExternalPassword', 'secret', 'xmppExternalPassword=secret', 'External account password; never logged.'],
+    ['xmppTlsPolicy', 'required | preferred | disabled', 'xmppTlsPolicy=required', 'STARTTLS policy. Required is the secure default.'],
+    ['xmppTlsCaPath', 'PEM path | omitted', 'xmppTlsCaPath=./ca.pem', 'Custom CA certificate path; OS trust is used when omitted.'],
+    ['xmppTlsCertPath', 'PEM path | omitted', 'xmppTlsCertPath=./server.pem', 'Server certificate path; an ephemeral self-signed certificate is automatic when omitted.'],
+    ['xmppTlsKeyPath', 'PEM path | omitted', 'xmppTlsKeyPath=./server-key.pem', 'Private key corresponding to xmppTlsCertPath.'],
+    ['xmppAllowUnverifiedTls', 'true | false', 'xmppAllowUnverifiedTls=true', 'Explicitly skip verification for loopback client connections only.'],
+    ['xmppAllowRemote', 'true | false', 'xmppAllowRemote=true', 'Allow XMPP server binding outside loopback.'],
+    ['xmppConversation', 'direct | muc', 'xmppConversation=muc', 'Receive direct chat or Multi-User Chat messages.'],
+    ['xmppRoom', 'bare room JID | omitted', 'xmppRoom=events@conference.example.com', 'Room JID used in MUC mode.'],
+    ['xmppNickname', 'string', 'xmppNickname=logger', 'MUC nickname; matching self-echoes are ignored.'],
+    ['xmppRoomPassword', 'secret | omitted', 'xmppRoomPassword=secret', 'Optional MUC room password; never logged.'],
+    ['xmppConnectTimeoutMs', 'integer >= 1', 'xmppConnectTimeoutMs=30000', 'XMPP stream connection and authentication timeout.'],
+    ['xmppReplyTimeoutMs', 'integer >= 1', 'xmppReplyTimeoutMs=15000', 'Timeout for stanza, IQ, room join, and ping replies.'],
+    ['xmppPingIntervalMs', 'integer >= 1', 'xmppPingIntervalMs=60000', 'XMPP keepalive ping interval.'],
+    ['xmppReconnectDelayMs', 'integer >= 1', 'xmppReconnectDelayMs=60000', 'Delay before reconnecting an interrupted XMPP client session.'],
+  ].map(([key, options, example, purpose]) => ({
+    key,
+    defaultValue: DEFAULT_HEADLESS_OPTIONS[key],
+    options: options.split(' | '),
+    example,
+    requiredInHeadless: 'No',
+    purpose,
+  })),
 ];
 
 function formatDefaultValue(value) {
@@ -739,7 +813,7 @@ function getCompactExampleUsageLines() {
     ['Capture to file', 'electron . runMode=headless outputFile=./captured.log protocol=tcp mode=server ip=0.0.0.0 port=5565'],
     ['UDP JSONL', 'electron . runMode=headless outputFile=./captured.jsonl outputFormat=jsonl protocol=udp mode=client ip=192.168.1.25 port=6000 durationMs=60000'],
     ['TCP retry', 'electron . runMode=headless protocol=tcp mode=client ip=192.168.1.10 port=5565 connectWaitForServer=true connectRetryIntervalMs=2000 connectTimeoutMs=60000'],
-    ['Config override', 'electron . runMode=headless config=./docs/launch-config.server.sample.json outputFile=./custom.log runId=manual-override'],
+    ['Config override', 'electron . runMode=headless config=docs/examples/launch-config.server.sample.json outputFile=./custom.log runId=manual-override'],
   ];
 
   const labelWidth = Math.max(...entries.map(([label]) => label.length));
@@ -790,7 +864,7 @@ function getHelpRows() {
     ['example', 'headless to stdout', '-', '-', 'electron . runMode=headless protocol=tcp mode=server ip=0.0.0.0 port=5565', 'Headless TCP server writing captured records to the console (no outputFile).'],
     ['example', 'headless TCP server', '-', '-', 'electron . runMode=headless outputFile=./captured.log protocol=tcp mode=server ip=0.0.0.0 port=5565 maxLogCount=10000 doneFile=./run.done.json', 'Headless TCP server listening beyond localhost, capturing up to 10000 lines.'],
     ['example', 'headless UDP client', '-', '-', 'electron . runMode=headless outputFile=./captured.jsonl outputFormat=jsonl protocol=udp mode=client ip=192.168.1.25 port=6000 durationMs=60000', 'Headless UDP client capturing for one minute.'],
-    ['example', 'config override', '-', '-', 'electron . runMode=headless config=./docs/launch-config.server.sample.json outputFile=./custom.log runId=manual-override', 'Headless run using a config file plus CLI overrides.'],
+    ['example', 'config override', '-', '-', 'electron . runMode=headless config=docs/examples/launch-config.server.sample.json outputFile=./custom.log runId=manual-override', 'Headless run using a config file plus CLI overrides.'],
     ['example', 'help only', '-', '-', 'electron . help=true', 'Print compact help and exit without running the app.'],
     ['example', 'wide table help', '-', '-', 'electron . help-table-wide=true', 'Print help in a wider table layout for large terminals.'],
     ['example', 'narrow table help', '-', '-', 'electron . help-table-narrow=true', 'Print help in a narrower table layout for smaller terminals.'],
@@ -867,7 +941,7 @@ function getCommandLineReferenceData() {
       'electron . runMode=headless protocol=tcp mode=server ip=0.0.0.0 port=5565',
       'electron . runMode=headless outputFile=./captured.log protocol=tcp mode=server ip=0.0.0.0 port=5565 maxLogCount=10000 doneFile=./run.done.json',
       'electron . runMode=headless outputFile=./captured.jsonl outputFormat=jsonl protocol=udp mode=client ip=192.168.1.25 port=6000 durationMs=60000',
-      'electron . runMode=headless protocol=tcp mode=client ip=192.168.1.10 port=5565 connectWaitForServer=true connectRetryIntervalMs=2000 connectTimeoutMs=60000',      'electron . runMode=headless config=./docs/launch-config.server.sample.json outputFile=./custom.log runId=manual-override',
+      'electron . runMode=headless protocol=tcp mode=client ip=192.168.1.10 port=5565 connectWaitForServer=true connectRetryIntervalMs=2000 connectTimeoutMs=60000',      'electron . runMode=headless config=docs/examples/launch-config.server.sample.json outputFile=./custom.log runId=manual-override',
       'electron . help=true',
       'electron . help-detailed=true',
       'electron . help-table-wide=true',
@@ -924,7 +998,7 @@ function getStandardHelpText() {
     '  electron . runMode=headless outputFile=./captured.log protocol=tcp mode=server ip=0.0.0.0 port=5565 maxLogCount=10000 doneFile=./run.done.json',
     '  electron . runMode=headless outputFile=./captured.jsonl outputFormat=jsonl protocol=udp mode=client ip=192.168.1.25 port=6000 durationMs=60000',
     '  electron . runMode=headless protocol=tcp mode=client ip=192.168.1.10 port=5565 connectWaitForServer=true connectRetryIntervalMs=2000 connectTimeoutMs=60000',
-    '  electron . runMode=headless config=./docs/launch-config.server.sample.json outputFile=./custom.log runId=manual-override',
+    '  electron . runMode=headless config=docs/examples/launch-config.server.sample.json outputFile=./custom.log runId=manual-override',
     '  electron . help=true',
     '  electron . help-detailed=true',
     '  electron . help-table-wide=true',
@@ -1118,7 +1192,10 @@ function parseRawArgs(rawArgs) {
     }
 
     const key = normalizedArg.slice(0, separatorIndex).trim();
-    const value = normalizedArg.slice(separatorIndex + 1).trim();
+    const rawValue = normalizedArg.slice(separatorIndex + 1);
+    const value = new Set(['xmppPassword', 'xmppExternalPassword', 'xmppRoomPassword']).has(key)
+      ? rawValue
+      : rawValue.trim();
 
     if (!key) { positional.push(arg); return; }
 
@@ -1159,7 +1236,7 @@ function validateHeadlessOptions(values, errors, warnings) {
   if (normalized.protocol !== undefined) {
     const protocol = String(normalized.protocol).trim().toLowerCase();
     if (!VALID_PROTOCOLS.has(protocol)) {
-      errors.push(`Invalid protocol '${normalized.protocol}'. Use tcp, udp, grpc, http, or ws.`);
+      errors.push(`Invalid protocol '${normalized.protocol}'. Use tcp, udp, grpc, http, ws, or xmpp.`);
     } else { options.protocol = protocol; }
   }
 
@@ -1173,6 +1250,8 @@ function validateHeadlessOptions(values, errors, warnings) {
   if (normalized.ip !== undefined) options.ip = String(normalized.ip).trim();
   if (normalized.port !== undefined) {
     options.port = parseInteger(normalized.port, 'port', errors, { min: 1, max: 65535 });
+  } else if (options.protocol === 'xmpp') {
+    options.port = 5222;
   }
   if (normalized.autoConnect !== undefined) {
     options.autoConnect = parseBoolean(normalized.autoConnect, 'autoConnect', errors);
@@ -1336,6 +1415,60 @@ function validateHeadlessOptions(values, errors, warnings) {
   }
   if (normalized.wsHeaders !== undefined && normalized.wsHeaders !== '') {
     options.wsHeaders = String(normalized.wsHeaders);
+  }
+
+  const xmppStringKeys = [
+    'xmppDomain', 'xmppUsername', 'xmppResource',
+    'xmppLocalJid', 'xmppExternalUsername', 'xmppRoom', 'xmppNickname',
+  ];
+  xmppStringKeys.forEach((key) => {
+    if (normalized[key] !== undefined) options[key] = String(normalized[key]).trim();
+  });
+  ['xmppPassword', 'xmppExternalPassword', 'xmppRoomPassword'].forEach((key) => {
+    if (normalized[key] !== undefined) options[key] = String(normalized[key]);
+  });
+  ['xmppTlsCaPath', 'xmppTlsCertPath', 'xmppTlsKeyPath'].forEach((key) => {
+    if (normalized[key] !== undefined && normalized[key] !== '') {
+      options[key] = resolvePathValue(normalized[key]);
+    }
+  });
+  if (normalized.xmppTlsPolicy !== undefined) {
+    const value = String(normalized.xmppTlsPolicy).trim().toLowerCase();
+    if (!VALID_XMPP_TLS_POLICIES.has(value)) {
+      errors.push(`Invalid xmppTlsPolicy '${normalized.xmppTlsPolicy}'. Use required, preferred, or disabled.`);
+    } else options.xmppTlsPolicy = value;
+  }
+  if (normalized.xmppConversation !== undefined) {
+    const value = String(normalized.xmppConversation).trim().toLowerCase();
+    if (!VALID_XMPP_CHAT_MODES.has(value)) {
+      errors.push(`Invalid xmppConversation '${normalized.xmppConversation}'. Use direct or muc.`);
+    } else options.xmppConversation = value;
+  }
+  ['xmppAllowUnverifiedTls', 'xmppAllowRemote'].forEach((key) => {
+    if (normalized[key] !== undefined) options[key] = parseBoolean(normalized[key], key, errors);
+  });
+  [
+    ['xmppConnectTimeoutMs', 1],
+    ['xmppReplyTimeoutMs', 1],
+    ['xmppPingIntervalMs', 1],
+    ['xmppReconnectDelayMs', 1],
+  ].forEach(([key, min]) => {
+    if (normalized[key] !== undefined) options[key] = parseInteger(normalized[key], key, errors, { min });
+  });
+  if (options.protocol === 'xmpp') {
+    if (!options.xmppDomain) errors.push("XMPP requires 'xmppDomain'.");
+    if (options.mode === 'client' && (!options.xmppUsername || !options.xmppPassword)) {
+      errors.push('XMPP client mode requires xmppUsername and xmppPassword.');
+    }
+    if (options.mode === 'server' && (!options.xmppExternalUsername || !options.xmppExternalPassword)) {
+      errors.push('XMPP server mode requires xmppExternalUsername and xmppExternalPassword.');
+    }
+    if (options.xmppConversation === 'muc' && (!options.xmppRoom || !options.xmppNickname)) {
+      errors.push('XMPP MUC mode requires xmppRoom and xmppNickname.');
+    }
+    if (Boolean(options.xmppTlsCertPath) !== Boolean(options.xmppTlsKeyPath)) {
+      errors.push('XMPP custom TLS requires both xmppTlsCertPath and xmppTlsKeyPath.');
+    }
   }
 
   if (!options.outputFile) {
@@ -1609,6 +1742,12 @@ function parseCommandLineArgs(rawArgv, { isPackaged = false } = {}) {
       'httpFormat', 'httpTls', 'httpPath', 'httpTlsCaPath', 'httpTlsCertPath', 'httpTlsKeyPath',
       'wsFormat', 'wsTls', 'wsPath', 'wsTlsCaPath', 'wsTlsCertPath', 'wsTlsKeyPath',
       'wsSubscriptionMsg', 'wsIgnoreFirstMsg', 'wsHeaders',
+      'xmppDomain', 'xmppUsername', 'xmppPassword', 'xmppResource',
+      'xmppLocalJid', 'xmppExternalUsername', 'xmppExternalPassword', 'xmppTlsPolicy',
+      'xmppTlsCaPath', 'xmppTlsCertPath', 'xmppTlsKeyPath',
+      'xmppAllowUnverifiedTls', 'xmppAllowRemote', 'xmppConversation', 'xmppRoom',
+      'xmppNickname', 'xmppRoomPassword', 'xmppConnectTimeoutMs', 'xmppReplyTimeoutMs',
+      'xmppPingIntervalMs', 'xmppReconnectDelayMs',
     ]);
     const uiRecognizedKeys = new Set(['runMode', 'help', 'help-detailed', 'help-wide', 'config', 'help-table-wide', 'help-table-narrow', 'explain', 'logLevel', 'logFile', ...uiPresetKeys]);
     const ignoredKeys = Object.keys(mergedValues).filter(

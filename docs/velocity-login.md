@@ -1,32 +1,46 @@
-# Velocity Login & Output Picker
+# ArcGIS Velocity login and output picker
 
-> **Audience:** Users, integrators  
-> **Feature:** ArcGIS Velocity sign-in dialog, output browser, and token-based authentication
+[← Documentation index](README.md) · [Repository overview](../README.md#documentation)
+
+This guide explains the ArcGIS Velocity sign-in dialog, output browser, and token-based authentication built into the Logger's toolbar. It is written for users and integrators who want to authenticate against an ArcGIS portal, browse available ArcGIS Velocity outputs, and auto-configure the app's connection settings instead of entering them by hand.
+
+## Table of contents
+
+- [Overview](#overview)
+- [Workflow](#workflow)
+- [Authentication](#authentication)
+- [OAuth 2.0](#oauth-20)
+- [Unsupported output types](#unsupported-output-types)
+- [Output type reference](#output-type-reference)
+- [Scope toggle](#scope-toggle)
+- [Dialog size persistence](#dialog-size-persistence)
+- [UI controls](#ui-controls)
+- [Credential storage](#credential-storage)
 
 ## Overview
 
-The **🔑 Sign In to ArcGIS Velocity** button in the toolbar opens a modal dialog that lets you authenticate against your ArcGIS portal, browse available Velocity outputs by type, preview output details, and auto-populate the Logger's connection settings with a single click.
+The **🔑 Sign In to ArcGIS Velocity** button in the toolbar opens a modal dialog that lets you authenticate against your ArcGIS portal, browse available ArcGIS Velocity outputs by type, preview output details, and auto-populate the Logger's connection settings with a single click.
 
 ## Workflow
 
 1. Click **🔑** in the toolbar.
 2. Enter your Portal URL (default: `https://velocitydemo.maps.arcgis.com`), username, and password.
-3. Click **Sign In** — the dialog fetches your organization's Velocity outputs.
-4. Use the **Type** dropdown to filter outputs (gRPC, HTTP, WebSocket, TCP, etc.).
+3. Click **Sign In** — the dialog fetches your organization's ArcGIS Velocity outputs.
+4. Use the **Type** dropdown to filter outputs (gRPC, HTTP, WebSocket, TCP, XMPP, etc.).
 5. Select an output to view its details (URL, auth type, format, schema fields).
 6. Click **Apply** — the main window auto-configures: connection mode, host, port, path, TLS, and format.
-7. Check the footer **🔑 Token On / Token Off** badge. Click it to control whether the Velocity token is sent with new client connections.
+7. Check the footer **🔑 Token On / Token Off** badge. Click it to control whether the ArcGIS Velocity token is sent with new client connections.
 8. Click **Connect** as usual to start receiving data.
 
 ## Authentication
 
 | Output Auth Type | How the Logger Authenticates |
 |---|---|
-| `arcgis` (token) | `Authorization: Bearer <token>` header/metadata — used for gRPC, HTTP, WebSocket |
+| `arcgis` (token) | `Authorization: ******` header/metadata — used for gRPC, HTTP, WebSocket |
 | `basic` | `Authorization: Basic <base64(user:pass)>` header — used for HTTP outputs configured with basic auth |
 | `none` | No authentication header is sent (TCP, UDP) |
 
-### Token Refresh and Status
+### Token refresh and status
 
 - Tokens refresh at **80% of lifetime** and retry with exponential backoff on failure.
 - The footer auth badge shows whether a token is available and sent with new gRPC, HTTP, and WebSocket client connections.
@@ -34,11 +48,11 @@ The **🔑 Sign In to ArcGIS Velocity** button in the toolbar opens a modal dial
 - The Activity Strip is in the main layout, pinned by default, and filters to connection activity by default. Use its filter toggle for all activity, arrows for history, pin for auto-hide, and status text hover/click for details; click keeps details open while logs update.
 - Raw bearer tokens are never shown; tooltips show safe metadata only.
 
-### Token Sending Toggle
+### Token sending toggle
 
 The login dialog supports two usage modes:
 
-1. **Use Token Only** — sign in and use the Velocity token with your own manually configured connection settings. The footer badge defaults to **🔑 Token On**.
+1. **Use Token Only** — sign in and use the ArcGIS Velocity token with your own manually configured connection settings. The footer badge defaults to **🔑 Token On**.
 2. **Apply an Output** — sign in, select an output, and apply its connection settings. Outputs with `arcgis`, `token`, `bearer`, OAuth, or unspecified auth on token-capable transports default to **🔑 Token On**. Outputs with `basic`, `none`, TCP, or unsupported auth default to **◇ Token Off**.
 
 Click the footer badge to toggle token sending for **new** client connections. Active gRPC and HTTP client transports hot-swap the refreshed token when possible; WebSocket upgrade headers are fixed at connect time, so reconnect after changing the toggle.
@@ -49,11 +63,11 @@ The **🔒 TLS badge** is intentionally separate: it describes encryption and ce
 
 The **OAuth 2.0** tab supports client-credentials flow (Client ID + Client Secret). This is currently only supported by ArcGIS Velocity for HTTP Poller outputs. The Apply button is disabled with a tooltip when the selected output type does not support OAuth.
 
-## Unsupported Output Types
+## Unsupported output types
 
 Output types not yet supported by the Logger are displayed with a **⚠** prefix and muted styling in the dropdowns. The **Apply** button is disabled for these types. Use the **Supported / All** radio toggle in the picker header to control their visibility. The default is **Supported** (unsupported types are hidden on first open).
 
-## Output Type Reference
+## Output type reference
 
 Each output type is visually identified in the picker dropdowns and info panel by a unique Unicode icon and a colour that matches the protocol's brand or role. The icon appears as a prefix character in the dropdown option text, and in the info panel's **Type** row as a coloured badge.
 
@@ -63,6 +77,7 @@ Each output type is visually identified in the picker dropdowns and info panel b
 | ■ (`\u25A0`) | `http` — HTTP | `#0097a7` (teal) | ✅ Yes |
 | ◆ (`\u25C6`) | `websocket` — WebSocket | `#00897b` (green) | ✅ Yes |
 | ◗ (`\u25D7`) | `tcp` — TCP | `#546e7a` (slate) | ✅ Yes |
+| ● (`\u25CF`) | `xmpp` — XMPP | `#5e35b1` (purple) | ✅ Yes |
 | ▲ (`\u25B2`) | `kafka` — Kafka | `#e53935` (red) | ❌ Not yet |
 | ◎ (`\u25CE`) | `mqtt` — MQTT | `#f57c00` (orange) | ❌ Not yet |
 | ▣ (`\u25A3`) | `file` — File | `#8d6e63` (brown) | ❌ Not yet |
@@ -70,9 +85,10 @@ Each output type is visually identified in the picker dropdowns and info panel b
 | ❖ (`\u2756`) | `azure-service-bus` — Azure Service Bus | `#0062ad` (dark blue) | ❌ Not yet |
 | ○ (`\u25EF`) | *(unknown type)* | `#888` (grey) | ❌ Not yet |
 
+> [!NOTE]
 > The icon characters are plain Unicode geometric shapes — no emoji — ensuring consistent rendering across platforms and OS native select dropdowns.
 
-## Scope Toggle
+## Scope toggle
 
 The **My Outputs / ORG Outputs** segmented control in the sign-in row lets you switch between:
 
@@ -81,11 +97,11 @@ The **My Outputs / ORG Outputs** segmented control in the sign-in row lets you s
 
 Switching scope re-fetches from the API. The **⟳ Refresh** button re-requests the current scope without changing scope.
 
-## Dialog Size Persistence
+## Dialog size persistence
 
 The Velocity Login dialog opens at **590 x 840** pixels by default. After resizing or moving the window, its size and position are automatically saved to `dialogSizes.velocityLogin` in `config.json` and restored on the next open. To reset to the default size, remove the `velocityLogin` key from `dialogSizes` in `config.json`.
 
-## UI Controls
+## UI controls
 
 Tooltips use the app's custom renderer with theme-aware icons/colors. Tooltip text is plain text only.
 
@@ -112,7 +128,16 @@ Tooltips use the app's custom renderer with theme-aware icons/colors. Tooltip te
 | Footer TLS badge | Mirrors the selected protocol's TLS checkbox while disconnected; connected tooltips describe encryption and certificate trust. |
 | Activity Strip | Shows operational status, time, history, connection-only/all-activity filter, pin, and full-detail click tooltip. |
 
-## Credential Storage
+## Credential storage
 
 When **Remember me** is checked, the portal URL and username are stored in the app's user data directory (`velocity-credentials.json`). The password is never persisted to disk.
 
+## Related documentation
+
+- [Repository overview](../README.md)
+- [Configuration](configuration.md)
+- [gRPC transport](grpc.md)
+- [HTTP transport](http.md)
+- [WebSocket transport](websocket.md)
+- [XMPP transport](xmpp.md)
+- [TLS and SSL security](tls.md)

@@ -67,6 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
     'grpc':       { icon: '\u2B21', label: 'gRPC',      color: '#7c4dff' },
     'http':       { icon: '\u25A0', label: 'HTTP',       color: '#0097a7' },
     'websocket':  { icon: '\u25C6', label: 'WebSocket',  color: '#00897b' },
+    'xmpp':       { icon: '\u25CF', label: 'XMPP',       color: '#5e35b1' },
     'tcp':        { icon: '\u25D7', label: 'TCP',        color: '#546e7a' },
     'kafka':      { icon: '\u25B2', label: 'Kafka',      color: '#e53935' },
     'mqtt':       { icon: '\u25CE', label: 'MQTT',       color: '#f57c00' },
@@ -408,4 +409,3 @@ document.addEventListener('DOMContentLoaded', () => {
     statusBanner.classList.add('hidden');
   });
 });
-

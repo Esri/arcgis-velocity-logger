@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'connect-udp', 'disconnect-udp', 'connect-grpc', 'disconnect-grpc',
       'connect-http', 'disconnect-http',
       'connect-ws', 'disconnect-ws',
+      'connect-xmpp', 'disconnect-xmpp',
       'copy-to-clipboard',
       'open-external-link', 'close-about-dialog', 'close-dialog',
       'help-dialog-ready', 'about-dialog-ready', 'cli-dialog-ready', 'show-cli-dialog', 'connection-line-state-changed',
@@ -41,7 +42,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   invoke: (channel, ...args) => {
     const validChannels = [
       'get-current-theme', 'get-system-theme', 
-      'save-logs', 'get-app-version', 'get-cli-help-reference'
+      'save-logs', 'get-app-version', 'get-cli-help-reference',
+      'xmpp-copy-client-settings'
     ];
     if (validChannels.includes(channel)) {
       return ipcRenderer.invoke(channel, ...args);
@@ -57,6 +59,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       'grpc-status', 'grpc-error',
       'http-status', 'http-error',
       'ws-status', 'ws-error',
+      'xmpp-status', 'xmpp-error', 'xmpp-warning', 'xmpp-server-settings',
       'udp-set-connect-enabled', 'udp-set-disconnect-enabled',
       'udp-set-inputs-enabled', 'udp-connection-state',
       'tcp-set-connect-enabled', 'tcp-set-disconnect-enabled',

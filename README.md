@@ -12,29 +12,15 @@ A cross-platform desktop application for capturing and logging network data from
 
 ## Documentation
 
-> 📖 **[docs/README.md](./docs/README.md)** — full index of all documentation in this folder
+See the [documentation index](docs/README.md) for the complete catalog by
+purpose and audience.
 
-| Guide | Summary |
-|-------|---------|
-| [Architecture](./docs/ARCHITECTURE.md) | Process topology, components, IPC, headless execution path, and security model |
-| [Build & Package](./docs/BUILD.md) | All build scripts, compression options, sequential/parallel builds, and output artifacts |
-| [Command-Line Reference](./docs/COMMAND-LINE.md) | All CLI parameters, headless mode, help layouts, and usage examples |
-| [Configuration](./docs/CONFIG.md) | Config file format, all settings, themes, fonts, and storage locations |
-| [Debugging](./docs/DEBUGGING.md) | Debug commands, DevTools and VSCode setup, headless debugging, common issues |
-| [Development Summary](./docs/DEVELOPMENT-SUMMARY.md) | Technical implementation details and development decisions |
-| [Documentation Index](./docs/DOCUMENTATION.md) | Full doc index with audience classification and maintenance notes |
-| [gRPC Transport](./docs/GRPC.md) | gRPC modes, serialization formats (Protobuf/Kryo/Text), and TLS |
-| [HTTP Transport](./docs/HTTP.md) | HTTP/HTTPS modes, data formats (JSON/CSV/Esri JSON/GeoJSON/XML), and TLS |
-| [WebSocket Transport](./docs/WEBSOCKET.md) | WebSocket (ws/wss) modes, formats, TLS, subscription messages, custom headers |
-| [Headless Mode](./docs/HEADLESS.md) | No-UI capture: parameters, config file workflow, output formats, done file |
-| [Keyboard Shortcuts](./docs/KEYBOARD-SHORTCUTS.md) | All keyboard shortcuts and context menu reference |
-| [Release Notes](./docs/RELEASE-NOTES.md) | User-facing features and changes by release |
-| [Release Process](./docs/RELEASE.md) | `scripts/release.sh` release script, version tagging, and code signing for all platforms |
-| [Testing](./docs/TESTING.md) | Test commands, suite descriptions, and manual smoke tests |
-| [Theme Refactor Summary](./docs/THEME-REFACTOR-SUMMARY.md) | Theme system refactoring: per-file CSS and dynamic loader |
-| [TLS / SSL Security](./docs/TLS.md) | TLS concepts, certificate formats, OS trust stores, mTLS, auto self-signed certs, and TLS Trust Badge |
-| [Velocity Login](./docs/VELOCITY-LOGIN.md) | ArcGIS Velocity sign-in, output picker, token-based authentication, and auto-configuration |
-| [Why Electron](./docs/WHY-ELECTRON.md) | Framework rationale and packaging overview |
+- [Get started with configuration](docs/configuration.md).
+- [Run without the UI](docs/headless.md).
+- [Use the command line](docs/command-line.md).
+- [Configure XMPP receiving](docs/xmpp.md).
+- [Develop, test, and debug](docs/developer-guide.md).
+- [Build and release](docs/build-and-release.md).
 
 ### In-App Help
 
@@ -46,13 +32,15 @@ A cross-platform desktop application for capturing and logging network data from
 
 ### Config Templates
 
-- [`launch-config.sample.json`](./docs/launch-config.sample.json) — generic headless template
-- [`launch-config.server.sample.json`](./docs/launch-config.server.sample.json) — server-mode template
-- [`launch-config.client.sample.json`](./docs/launch-config.client.sample.json) — client-mode template
+- [Generic launch configuration](docs/examples/launch-config.sample.json)
+- [Server-mode launch configuration](docs/examples/launch-config.server.sample.json)
+- [Client-mode launch configuration](docs/examples/launch-config.client.sample.json)
+- [XMPP launch configuration](docs/examples/launch-config.xmpp.sample.json)
 
 ## Features
 
 - **Network Protocols**: TCP and UDP server/client modes with real-time data capture
+- **XMPP**: Focused in-process C2S server and XMPP client receiving direct or MUC message bodies
 - **Cross-platform**: Native support for macOS, Windows, and Linux
 - **Data Management**: Save logs to files, clear display, and track message counts
 - **Customizable UI**: 15 themes via dynamic loader, adjustable fonts, and window opacity control
@@ -80,7 +68,7 @@ npm install
 | Command | Purpose |
 |---------|---------|
 | `npm start` | Run the application |
-| `npm run debug-both` | Run with debugger attached (see [DEBUGGING.md](docs/DEBUGGING.md)) |
+| `npm run debug-both` | Run with debugger attached (see the [developer guide](docs/developer-guide.md)) |
 
 ## Command Line / Headless Mode
 
@@ -104,7 +92,8 @@ npm run help:cli:narrow
 
 Press <kbd>F3</kbd> in the app (or use **Help → Command Line Interface**, the context menu, or the toolbar `>_` button) to open an interactive reference for every CLI parameter. The dialog supports search, quick filter chips, active filter pills, sortable columns, copy/export of visible rows as `TSV`/`CSV`/`Markdown`/`JSON`, collapsible reference panels, a resizable parameter table, and a wider default first-open layout for easier reading of the shipped example commands. A visible hint below the table explains that you can drag the table’s bottom edge to resize the visible rows area.
 
-See [**COMMAND-LINE.md**](docs/COMMAND-LINE.md) for the full parameter table and [**HEADLESS.md**](docs/HEADLESS.md) for headless-mode guidance.
+See the [command-line reference](docs/command-line.md) for the full parameter
+table and the [headless guide](docs/headless.md) for no-UI guidance.
 
 ### Using Pre-built Packages
 Download the appropriate package from the `dist/` directory:
@@ -139,9 +128,12 @@ Download the appropriate package from the `dist/` directory:
 | `npm run package:seq:clean` | Sequential | Cleans `dist/` first |
 | `npm run clean` | — | Deletes `dist/` |
 
-For full details on all build options, compression, and artifact names, see [BUILD.md](./docs/BUILD.md). To publish a release using `scripts/release.sh` or manually, see [RELEASE.md](./docs/RELEASE.md).
+For build options, compression, artifact names, signing, and publishing with
+`scripts/release.sh`, see the
+[build and release guide](docs/build-and-release.md).
 
-> **Note:** Cross-platform builds may require additional setup. Build on the target OS for best results.
+> [!NOTE]
+> Cross-platform builds may require additional setup. Build on the target OS for best results.
 
 ## Usage
 
@@ -150,6 +142,8 @@ For full details on all build options, compression, and artifact names, see [BUI
 - **TCP Client**: Connect to a remote TCP server
 - **UDP Server**: Listen for UDP packets on specified port
 - **UDP Client**: Send UDP packets to a remote server
+- **XMPP Server**: Host a focused C2S service and receive direct or room messages
+- **XMPP Client**: Connect to an XMPP service and receive direct or room messages
 
 ### Interface
 - **Connection Panel**: Configure host, port, and connection type
@@ -171,7 +165,7 @@ For full details on all build options, compression, and artifact names, see [BUI
 - **Ctrl+Shift+O** (Cmd+Shift+O): Toggle Order (Ascending/Descending)
 - **Right-click**: Context menu with themes, fonts, and settings
 
-> See [KEYBOARD-SHORTCUTS.md](docs/KEYBOARD-SHORTCUTS.md) for complete shortcut reference.
+> See [keyboard shortcuts](docs/keyboard-shortcuts.md) for the complete reference.
 
 ## Configuration
 
@@ -186,7 +180,8 @@ Configuration files are stored in platform-appropriate locations:
 - **Windows**: `%APPDATA%\arcgis-velocity-logger\`
 - **Linux**: `~/.config/arcgis-velocity-logger/`
 
-> See [CONFIG.md](docs/CONFIG.md) for detailed configuration options and troubleshooting.
+> See the [configuration guide](docs/configuration.md) for options and
+> troubleshooting.
 
 ## Status Indicators
 
@@ -210,67 +205,23 @@ The application includes comprehensive error handling:
 
 ## Development
 
-### Project Structure
-```
-src/
-├── main.js              # Main Electron process; CLI parsing + UI/headless branching
-├── renderer.js          # UI logic and event handling
-├── preload.js           # Security bridge for renderer process
-├── config.js            # Configuration management
-├── cli-options.js       # Command-line parsing, validation, and help text generation
-├── headless-runner.js   # No-UI capture runner (TCP/UDP → file or stdout) with exit codes
-├── run-logger.js        # Diagnostic logger used by the headless runner
-├── index.html           # Main application interface
-├── help.html            # Help dialog content
-├── cli.html / cli.css   # Command Line Interface (F3) dialog content + styles
-├── about.html           # About dialog content
-├── config.html          # Configuration dialog content
-├── error.html           # Error dialog content
-├── splash.html          # Splash screen
-├── themes.css           # Minimal dark fallback (used only if theme loader fails)
-├── style.css            # Main application styles
-├── app-status.css       # Status indicator styles
-├── help.css             # Help and CLI dialog shared styles
-├── about.css            # About dialog styles
-├── splash.css           # Splash screen styles
-├── themes/              # Dynamic theme system
-│   ├── theme-loader.js       # Dynamically loads theme-*.css
-│   ├── theme-*.css           # 15 individual theme files
-│   └── README.md             # Theme system docs
-└── assets/              # Icons and resources
-
-test/
-├── run-all-tests.js          # Test aggregator (node test/run-all-tests.js)
-├── cli-options.test.js       # CLI parser unit tests
-├── headless-runner.test.js   # End-to-end TCP capture tests
-└── help.test.js              # Help + Command Line Interface dialog interaction tests
-
-docs/
-├── COMMAND-LINE.md           # Full CLI parameter reference
-├── HEADLESS.md               # Headless mode guide
-├── TESTING.md                # Running tests and manual smoke checks
-├── launch-config.sample.json    # Generic headless config template
-├── launch-config.server.sample.json
-├── launch-config.client.sample.json
-└── ...                        # Other guides
+```text
+src/        # Main process, renderer, preload, transports, dialogs, themes, assets
+scripts/    # Build, prerequisite, signing, and release tooling
+test/       # Node.js test suites and browser fixtures
+docs/       # All maintained documentation
 ```
 
-### Key Components
-- **ConfigManager**: Handles configuration persistence and validation
-- **CLI Options Parser (`cli-options.js`)**: Parses `name=value` CLI arguments, validates headless options, merges optional `config=*.json` launch-config file, and produces help text in three layouts (standard, wide table, narrow table)
-- **Headless Runner (`headless-runner.js`)**: True no-UI TCP/UDP capture to text/jsonl/csv with `maxLogCount`/`durationMs`/`idleTimeoutMs` triggers and a JSON `doneFile` artifact
-- **RunLogger (`run-logger.js`)**: Minimal diagnostic logger used by the headless runner; writes to stdout/stderr and/or a dedicated log file, separate from captured data
-- **Error Handling**: Centralized error management with user dialogs
-- **IPC Communication**: Secure communication between main and renderer processes
-- **Theme System**: Dynamic theme switching (per‑theme CSS files loaded on demand, minimal fallback in `themes.css`)
-- **Network Management**: TCP/UDP connection handling with proper cleanup
+| Task | Command |
+|---------|---------|
+| Run the app | `npm start` |
+| Run every test suite | `npm test` |
+| Check documentation links | `npm run docs:link-check` |
+| Debug main and renderer | `npm run debug-both` |
 
-### Security Features
-- **Content Security Policy**: Restricted script execution
-- **Preload Script**: Secure API exposure to renderer process
-- **Input Validation**: Parameter validation for network connections
-- **Error Isolation**: Graceful error handling without exposing system details
-
+See the [developer guide](docs/developer-guide.md) for the full repository
+layout, testing workflow, debugging setup, and the patterns for adding
+controls, tooltips, transports, and themes.
 
 ## Troubleshooting
 
@@ -282,8 +233,9 @@ docs/
 
 ### Getting Help
 - Press **F1** for built-in help
-- Check the [DEBUGGING.md](docs/DEBUGGING.md) for development issues
-- Review [CONFIG.md](docs/CONFIG.md) for configuration problems
+- Check the [developer guide](docs/developer-guide.md) for development issues.
+- Review the [configuration guide](docs/configuration.md) for configuration
+  problems.
 
 ## Issues
 

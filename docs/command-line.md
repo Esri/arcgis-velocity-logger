@@ -1,8 +1,25 @@
-# Command-Line Reference
+# Command-line reference
 
-The **ArcGIS Velocity Logger** supports both normal UI startup and true headless execution from a console that has no GUI or window-manager support.
+[← Documentation index](README.md) · [Repository overview](../README.md#documentation)
 
-## Default Behavior
+This guide is the complete parameter reference for launching the **ArcGIS Velocity Logger** from a terminal, whether starting the normal UI, running fully headless, or overriding a saved launch-config file. It documents every supported `name=value` parameter, its default, and when it is required, and it mirrors the same metadata used to generate the in-app Command Line Interface dialog and the terminal help output.
+
+This guide is intended for users and developers who automate runs, script CI pipelines, or need to look up an exact flag, default, or example. It assumes Node.js and the project dependencies are already installed; see the repository overview for setup instructions.
+
+## Table of contents
+
+- [Default behavior](#default-behavior)
+- [In-app command line interface dialog](#in-app-command-line-interface-dialog)
+- [Required vs optional parameters](#required-vs-optional-parameters)
+- [Parameter reference](#parameter-reference)
+- [IP address behavior](#ip-address-behavior)
+- [Aliases and shortcuts](#aliases-and-shortcuts)
+- [Help layout parameters](#help-layout-parameters)
+- [Typo suggestions](#typo-suggestions)
+- [Usage examples](#usage-examples)
+- [Related documentation](#related-documentation)
+
+## Default behavior
 
 When you launch the app with **no parameters**, it starts in the normal **UI mode** and restores all saved UI behavior from the configuration file (theme, fonts, window state, opacity, connection controls visibility).
 
@@ -27,7 +44,7 @@ npm start -- runMode=headless
 npm start -- runMode=headless outputFile=./captured.log
 ```
 
-## In-App Command Line Interface Dialog
+## In-app command line interface dialog
 
 Press <kbd>F3</kbd> while the app is open to view the dedicated **Command Line Interface** dialog. You can also open it from **Help → Command Line Interface**, via the main window context menu, or the toolbar button (`>_`). The dialog is generated from the same metadata used by terminal help output and this markdown guide, so the in-app table, the terminal help, and the CLI docs stay aligned.
 
@@ -46,7 +63,7 @@ The dialog supports:
 - **Wider default dialog layout** so the shipped example commands are easier to read on first open
 - **Keyboard shortcuts**: <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>F</kbd> or <kbd>/</kbd> to focus the filter, <kbd>Escape</kbd> to close
 
-## Required vs Optional Parameters
+## Required vs optional parameters
 
 ### Required in headless mode
 
@@ -65,15 +82,15 @@ Headless mode has **no required parameters**. All headless options have sensible
 
 All headless parameters are optional because documented defaults are applied automatically.
 
-## Parameter Reference
+## Parameter reference
 
-The table below mirrors the in-app Command Line Interface dialog columns.
+The tables below mirror the in-app Command Line Interface dialog columns. The first table lists parameters that apply regardless of transport; the sections that follow list parameters specific to gRPC, HTTP, WebSocket, and XMPP.
 
-| Name | Supported Values | Default | Required in Headless Mode | Example | Purpose |
+| Name | Supported values | Default | Required in headless mode | Example | Purpose |
 | --- | --- | --- | --- | --- | --- |
 | `appendOutput` | `true`, `false` | `false` | No | `appendOutput=true` | Append to `outputFile` instead of overwriting (no effect when `outputFile` is omitted). |
 | `autoConnect` | `true`, `false` | `true` | No | `autoConnect=false` | Connect/bind automatically on headless start. |
-| `config` | path | `(none)` | No | `config=./docs/launch-config.server.sample.json` | JSON launch-config file. CLI overrides config values. |
+| `config` | path | `(none)` | No | `config=docs/examples/launch-config.server.sample.json` | JSON launch-config file. CLI overrides config values. |
 | `connectRetryIntervalMs` | `integer >= 1` | `1000` | No | `connectRetryIntervalMs=2000` | Milliseconds between retry attempts when `connectWaitForServer=true`. Has no effect when `connectWaitForServer=false`. Only applies to TCP client mode. |
 | `connectTimeoutMs` | `integer >= 0` | `0` | No | `connectTimeoutMs=5000` | Timeout for initial connect/bind. `0` waits indefinitely. |
 | `connectWaitForServer` | `true`, `false` | `false` | No | `connectWaitForServer=true` | In client mode, retry on connection failure until the server is available. When `false` (default), a failed attempt aborts the run. Only applies to TCP client mode; ignored in server mode and UDP client mode. Use `connectTimeoutMs` for a deadline and `connectRetryIntervalMs` for retry spacing. |
@@ -97,25 +114,93 @@ The table below mirrors the in-app Command Line Interface dialog columns.
 | `onError` | `exit`, `continue`, `pause` | `exit` | No | `onError=continue` | How transport errors are handled. |
 | `outputFile` | path | `(none)` | No | `outputFile=./captured.log` | Destination file for captured records. When omitted/empty, records are written to the console (stdout) in the selected `outputFormat`. |
 | `outputFormat` | `text`, `jsonl`, `csv` | `text` | No | `outputFormat=jsonl` | Raw text lines, JSON-lines with timestamp/seq, or CSV. Applies to both file output and stdout-only mode. |
-| `port` | `1-65535` | `5565` | No | `port=6000` | Target or bind port. |
-| `protocol` | `tcp`, `udp`, `grpc` | `tcp` | No | `protocol=udp` | Network transport to listen on or connect to. See [GRPC.md](GRPC.md) for gRPC details. |
-| `grpcHeaderPath` | `string` | `replace.with.dedicated.uid` | No | `grpcHeaderPath=my.feed.uid` | Value sent as the gRPC endpoint header path. Injected as gRPC metadata on every outgoing call. Only applies when `protocol=grpc` and `mode=client`. See [GRPC.md](GRPC.md). |
-| `grpcHeaderPathKey` | `string` | `grpc-path` | No | `grpcHeaderPathKey=grpc-path` | Key name for the gRPC endpoint header path metadata entry. Only applies when `protocol=grpc` and `mode=client`. See [GRPC.md](GRPC.md). |
+| `port` | `1-65535` | `5565` | No | `port=6000` | Target or bind port. XMPP defaults to `5222` instead of `5565` when `port` is omitted and `protocol=xmpp`. |
+| `protocol` | `tcp`, `udp`, `grpc`, `http`, `ws`, `xmpp` | `tcp` | No | `protocol=udp` | Network transport to listen on or connect to. XMPP defaults to server mode when selected. See the [gRPC parameters](#grpc-parameters), [HTTP parameters](#http-parameters), [WebSocket parameters](#websocket-parameters), and [XMPP parameters](#xmpp-parameters) sections below, and the dedicated [gRPC guide](grpc.md), [HTTP guide](http.md), [WebSocket guide](websocket.md), and [XMPP guide](xmpp.md). |
 | `runId` | string | `(none)` | No | `runId=nightly-01` | Identifier stamped into logs and done file. |
 | `runMode` | `ui`, `headless`, `silent` | `ui` | Only when using the normal launcher to enter headless mode | `runMode=headless` | Select startup mode. No parameters means normal UI mode with saved behavior restored. |
-| `grpcSerialization` | `protobuf`, `kryo`, `text` | `protobuf` | No | `grpcSerialization=text` | gRPC feature serialization format. `protobuf` uses the Velocity external GrpcFeed protocol with typed Any-wrapped attributes. `kryo` uses the internal GrpcFeatureService protocol with raw bytes. `text` uses the internal protocol with plain UTF-8 text. Only applies when `protocol=grpc`. See [GRPC.md](GRPC.md). |
-| `grpcSendMethod` | `stream`, `unary` | `stream` | No | `grpcSendMethod=unary` | gRPC RPC type for client-mode sending. `stream` (default) uses a Client Streaming RPC — multiplexes all messages over a single persistent HTTP/2 stream for higher throughput. `unary` uses a Unary RPC — sends each message as a discrete request/response round-trip, easier to trace and debug. Only applies when `protocol=grpc` and `mode=client`. See [GRPC.md](GRPC.md). |
-| `showMetadata` | `true`, `false` | `false` | No | `showMetadata=true` | When `true`, connection/call metadata lines are written to the output (file or stdout) before each received message. Metadata includes protocol, mode, remote address, and (for gRPC) call headers, response headers, and status. Only applies when `protocol=grpc`. See [GRPC.md](GRPC.md). |
 | `stdout` | `true`, `false` | `true` | No | `stdout=false` | Echo captured records to stdout when `outputFile` is set. Ignored when `outputFile` is omitted (records always go to stdout in that case). |
 
-## IP Address Behavior
+### gRPC parameters
+
+These parameters only apply when `protocol=grpc`. See the [gRPC guide](grpc.md) for the full transport walkthrough.
+
+| Name | Supported values | Default | Required in headless mode | Example | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| `grpcHeaderPath` | `string` | `replace.with.dedicated.uid` | No | `grpcHeaderPath=my.feed.uid` | Value sent as the gRPC endpoint header path. Injected as gRPC metadata on every outgoing call. Only applies when `protocol=grpc` and `mode=client`. |
+| `grpcHeaderPathKey` | `string` | `grpc-path` | No | `grpcHeaderPathKey=grpc-path` | Key name for the gRPC endpoint header path metadata entry. Only applies when `protocol=grpc` and `mode=client`. |
+| `grpcSerialization` | `protobuf`, `kryo`, `text` | `protobuf` | No | `grpcSerialization=text` | gRPC feature serialization format. `protobuf` uses the Velocity external GrpcFeed protocol with typed Any-wrapped attributes. `kryo` uses the internal GrpcFeatureService protocol with raw bytes. `text` uses the internal protocol with plain UTF-8 text. |
+| `grpcSendMethod` | `stream`, `unary` | `stream` | No | `grpcSendMethod=unary` | gRPC RPC type for client-mode sending. `stream` (default) uses a Client Streaming RPC — multiplexes all messages over a single persistent HTTP/2 stream for higher throughput. `unary` uses a Unary RPC — sends each message as a discrete request/response round-trip, easier to trace and debug. Only applies when `mode=client`. |
+| `showMetadata` | `true`, `false` | `false` | No | `showMetadata=true` | When `true`, connection/call metadata lines are written to the output (file or stdout) before each received message. Metadata includes protocol, mode, remote address, and (for gRPC) call headers, response headers, and status. |
+| `useTls` | `true`, `false` | `true` | No | `useTls=true` | Use TLS (SSL) for gRPC connections. When `true`, the connection uses SSL credentials instead of plaintext. |
+| `tlsCaPath` | path, omitted | `(none)` | No | `tlsCaPath=./certs/ca.pem` | Custom CA certificate file (PEM) for gRPC TLS. When omitted, the system default CA bundle is used. Only applies when `useTls=true`. |
+| `tlsCertPath` | path, omitted | `(none)` | No | `tlsCertPath=./certs/client.pem` | Client/server certificate file (PEM) for gRPC mutual TLS (mTLS). Required for TLS server mode. Only applies when `useTls=true`. |
+| `tlsKeyPath` | path, omitted | `(none)` | No | `tlsKeyPath=./certs/client-key.pem` | Private key file (PEM) for gRPC mutual TLS (mTLS). Required for TLS server mode. Only applies when `useTls=true`. |
+
+### HTTP parameters
+
+These parameters only apply when `protocol=http`. See the [HTTP guide](http.md) for the full transport walkthrough.
+
+| Name | Supported values | Default | Required in headless mode | Example | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| `httpFormat` | `json`, `delimited`, `esriJson`, `geojson`, `xml` | `delimited` | No | `httpFormat=json` | HTTP data format controlling the `Content-Type` header: `json` (`application/json`), `delimited` (`text/plain`, CSV), `esriJson` (`application/json`), `geojson` (`application/geo+json`), or `xml` (`application/xml`). |
+| `httpPath` | string | `/` | No | `httpPath=/receiver/feed-id` | URL path appended after host:port. In server mode, only POST requests matching this path are accepted; in client mode, this path is used in outgoing POST URLs. |
+| `httpTls` | `true`, `false` | `true` | No | `httpTls=true` | Enable HTTPS (port 8443 by default). Uses the OS certificate store automatically in client mode; server mode requires a certificate and key. |
+| `httpTlsCaPath` | path, omitted | `(none)` | No | `httpTlsCaPath=./certs/ca.pem` | Custom CA certificate file (PEM) for HTTP TLS. Leave empty to use the OS certificate store. Only applies when `httpTls=true`. |
+| `httpTlsCertPath` | path, omitted | `(none)` | No | `httpTlsCertPath=./certs/server.pem` | Client or server certificate file (PEM) for HTTP TLS. Required for server-mode TLS; only needed in client mode for mutual TLS (mTLS). Only applies when `httpTls=true`. |
+| `httpTlsKeyPath` | path, omitted | `(none)` | No | `httpTlsKeyPath=./certs/server-key.pem` | Private key file (PEM) for HTTP TLS. Required for server-mode TLS and client-side mTLS. Only applies when `httpTls=true`. |
+
+### WebSocket parameters
+
+These parameters only apply when `protocol=ws`. See the [WebSocket guide](websocket.md) for the full transport walkthrough.
+
+| Name | Supported values | Default | Required in headless mode | Example | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| `wsFormat` | `json`, `delimited`, `esriJson`, `geojson`, `xml` | `delimited` | No | `wsFormat=json` | WebSocket data format: `json` (`application/json`), `delimited` (`text/plain`, CSV), `esriJson` (`application/json`), `geojson` (`application/geo+json`), or `xml` (`application/xml`). |
+| `wsHeaders` | JSON string, omitted | `(none)` | No | `wsHeaders={"Authorization":"******"}` | Optional JSON object of custom HTTP headers for the WebSocket upgrade request. Only applies when `mode=client`. |
+| `wsIgnoreFirstMsg` | `true`, `false` | `false` | No | `wsIgnoreFirstMsg=true` | When `true`, the first message received after connecting is silently discarded. Useful when the server sends an initial handshake or acknowledgement. |
+| `wsPath` | string | `/` | No | `wsPath=/feed` | URL path appended after host:port for the WebSocket connection. In server mode, only upgrade requests matching this path are accepted. |
+| `wsSubscriptionMsg` | string, omitted | `(none)` | No | `wsSubscriptionMsg=subscribe:feed1` | Optional text message sent to the server immediately after the WebSocket connection is established. Useful for subscribing to a specific data feed. Only applies when `mode=client`. |
+| `wsTls` | `true`, `false` | `true` | No | `wsTls=true` | Enable WSS (WebSocket Secure, port 8443 by default). Uses the OS certificate store automatically in client mode; server mode requires a certificate and key. |
+| `wsTlsCaPath` | path, omitted | `(none)` | No | `wsTlsCaPath=./certs/ca.pem` | Custom CA certificate file (PEM) for WebSocket TLS. Leave empty to use the OS certificate store. Only applies when `wsTls=true`. |
+| `wsTlsCertPath` | path, omitted | `(none)` | No | `wsTlsCertPath=./certs/server.pem` | Client or server certificate file (PEM) for WebSocket TLS. Required for server-mode TLS; only needed in client mode for mutual TLS (mTLS). Only applies when `wsTls=true`. |
+| `wsTlsKeyPath` | path, omitted | `(none)` | No | `wsTlsKeyPath=./certs/server-key.pem` | Private key file (PEM) for WebSocket TLS. Required for server-mode TLS and client-side mTLS. Only applies when `wsTls=true`. |
+
+### XMPP parameters
+
+These parameters only apply when `protocol=xmpp`. See the [XMPP guide](xmpp.md) for JID, STARTTLS, Direct/MUC, and ArcGIS mapping concepts. When `port` is omitted, XMPP defaults to port `5222` instead of the generic `5565` default.
+
+| Name | Supported values | Default | Required in headless mode | Example | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| `xmppDomain` | XMPP domain | `localhost` | No | `xmppDomain=example.com` | XMPP service domain, separate from the top-level `ip` network host override. |
+| `xmppUsername` | string | (empty string) | No | `xmppUsername=logger` | XMPP client account username. |
+| `xmppPassword` | secret | (empty string) | No | `xmppPassword=secret` | XMPP client password; never written to logs or metadata. |
+| `xmppResource` | string | `velocity-logger` | No | `xmppResource=velocity-logger` | Resource appended to the authenticated XMPP JID. |
+| `xmppLocalJid` | bare JID, omitted | (empty string) | No | `xmppLocalJid=logger@example.com` | Optional local bare JID used to filter direct messages. |
+| `xmppExternalUsername` | string | `velocity-client` | No | `xmppExternalUsername=velocity` | External account accepted by XMPP server mode. |
+| `xmppExternalPassword` | secret | (empty string) | No | `xmppExternalPassword=secret` | External account password; never logged. |
+| `xmppTlsPolicy` | `required`, `preferred`, `disabled` | `required` | No | `xmppTlsPolicy=required` | STARTTLS policy. `required` is the secure default. |
+| `xmppTlsCaPath` | PEM path, omitted | `(none)` | No | `xmppTlsCaPath=./ca.pem` | Custom CA certificate path; OS trust is used when omitted. |
+| `xmppTlsCertPath` | PEM path, omitted | `(none)` | No | `xmppTlsCertPath=./server.pem` | Server certificate path; an ephemeral self-signed certificate is automatic when omitted. |
+| `xmppTlsKeyPath` | PEM path, omitted | `(none)` | No | `xmppTlsKeyPath=./server-key.pem` | Private key corresponding to `xmppTlsCertPath`. |
+| `xmppAllowUnverifiedTls` | `true`, `false` | `false` | No | `xmppAllowUnverifiedTls=true` | Explicitly skip verification for loopback client connections only. |
+| `xmppAllowRemote` | `true`, `false` | `false` | No | `xmppAllowRemote=true` | Allow XMPP server binding outside loopback. |
+| `xmppConversation` | `direct`, `muc` | `direct` | No | `xmppConversation=muc` | Receive direct chat or Multi-User Chat (MUC) messages. |
+| `xmppRoom` | bare room JID, omitted | (empty string) | No | `xmppRoom=events@conference.example.com` | Room JID used in MUC mode. |
+| `xmppNickname` | string | `logger` | No | `xmppNickname=logger` | MUC nickname; matching self-echoes are ignored. |
+| `xmppRoomPassword` | secret, omitted | (empty string) | No | `xmppRoomPassword=secret` | Optional MUC room password; never logged. |
+| `xmppConnectTimeoutMs` | `integer >= 1` | `30000` | No | `xmppConnectTimeoutMs=30000` | XMPP stream connection and authentication timeout. |
+| `xmppReplyTimeoutMs` | `integer >= 1` | `15000` | No | `xmppReplyTimeoutMs=15000` | Timeout for stanza, IQ, room join, and ping replies. |
+| `xmppPingIntervalMs` | `integer >= 1` | `60000` | No | `xmppPingIntervalMs=60000` | XMPP keepalive ping interval. |
+| `xmppReconnectDelayMs` | `integer >= 1` | `60000` | No | `xmppReconnectDelayMs=60000` | Delay before reconnecting an interrupted XMPP client session. |
+
+## IP address behavior
 
 The default `ip` value is **`127.0.0.1`**.
 
 - **`127.0.0.1`** = loopback / localhost only. Safest default for local tests.
 - **`0.0.0.0`** = all local network interfaces. Typical for server-mode receiving from remote senders.
 
-## Aliases and Shortcuts
+## Aliases and shortcuts
 
 - `runMode=silent` is treated the same as `runMode=headless`
 - `host=<value>` is accepted as an alias for `ip=<value>`
@@ -128,9 +213,9 @@ The default `ip` value is **`127.0.0.1`**.
 - `--help-wide` and `help-wide=true` print the compact 5-column summary and exit
 - If multiple help layouts are requested together, `help-table-narrow` wins over `help-table-wide`, wins over `help-detailed`, wins over `help-wide`, wins over `help`
 
-## Help Layout Parameters
+## Help layout parameters
 
-| Layout | Supported Forms | Typical Use |
+| Layout | Supported forms | Typical use |
 | --- | --- | --- |
 | Compact (default) | `h`, `--help`, `-h`, `help=true` | Fastest overview — 4 columns: name, values, default, purpose. |
 | Detailed | `--help-detailed`, `help-detailed=true` | Full parameter-by-parameter listing with complete purpose text. |
@@ -138,7 +223,7 @@ The default `ip` value is **`127.0.0.1`**.
 | Narrow table | `npm run help:cli:narrow`, `--help-table-narrow`, `help-table-narrow=true` | Best for narrower terminals. |
 | Compact (with example) | `--help-wide`, `help-wide=true` | Compact 5-column summary when you also want the example column. |
 
-## Typo Suggestions
+## Typo suggestions
 
 Unknown CLI parameter names and unknown help flags use **Levenshtein edit distance** to choose `Did you mean ...?` suggestions when the misspelling is close enough to a supported option.
 
@@ -162,7 +247,7 @@ Unknown CLI parameter: outputFil. Did you mean 'outputFile'? These parameters ar
 Unknown CLI parameter: --help-detaled. Did you mean '--help-detailed'? These parameters are not supported.
 ```
 
-## Usage Examples
+## Usage examples
 
 ### Normal UI startup (default)
 
@@ -210,7 +295,7 @@ Retry forever until the server appears (set `connectTimeoutMs=0`, the default):
 npm run start:headless -- protocol=tcp mode=client ip=192.168.1.10 port=5565 connectWaitForServer=true
 ```
 
-### Headless gRPC server (Protobuf serialization — default)
+### Headless gRPC server (`protobuf` serialization — default)
 
 Starts a gRPC server on port 50051 using the Velocity external GrpcFeed protocol. The ArcGIS Velocity platform or the ArcGIS Velocity Simulator (in gRPC client mode) can connect and push features:
 
@@ -218,13 +303,23 @@ Starts a gRPC server on port 50051 using the Velocity external GrpcFeed protocol
 npm run start:headless -- protocol=grpc mode=server ip=0.0.0.0 port=50051 grpcSerialization=protobuf
 ```
 
-### Headless gRPC server (Text serialization)
+### Headless gRPC server (`text` serialization)
 
 Uses the internal GrpcFeatureService protocol with plain UTF-8 text payloads — useful for simple human-readable testing:
 
 ```bash
 npm run start:headless -- protocol=grpc mode=server ip=0.0.0.0 port=50051 grpcSerialization=text
 ```
+
+### Headless XMPP server using a launch-config file
+
+XMPP has several required parameters (domain, external account, TLS policy), so the simplest way to start it headless is a launch-config template plus a CLI override for the secret:
+
+```bash
+npm run start:headless -- config=docs/examples/launch-config.xmpp.sample.json xmppExternalPassword=change-me
+```
+
+See the [XMPP guide](xmpp.md) for Direct-chat vs Multi-User Chat (MUC) mode, STARTTLS policy, and JID concepts.
 
 ### Headless capture with filter + exclude
 
@@ -241,13 +336,13 @@ npm run start:headless -- outputFormat=jsonl | jq .
 ### Headless batch using a config file
 
 ```bash
-npm run start:headless -- config=./docs/launch-config.server.sample.json
+npm run start:headless -- config=docs/examples/launch-config.server.sample.json
 ```
 
 ### Headless batch using a config file plus overrides
 
 ```bash
-npm run start:headless -- config=./docs/launch-config.client.sample.json ip=192.168.1.25 port=6000 runId=manual-override
+npm run start:headless -- config=docs/examples/launch-config.client.sample.json ip=192.168.1.25 port=6000 runId=manual-override
 ```
 
 ### Print CLI help (compact 4-column summary)
@@ -282,11 +377,10 @@ npm run help:cli:narrow
 npm start -- help-table-narrow=true
 ```
 
-## Related Files
+## Related documentation
 
-- [`HEADLESS.md`](./HEADLESS.md) — Headless mode guide and config-template launch examples
-- [`launch-config.sample.json`](./launch-config.sample.json) — Generic headless config template
-- [`launch-config.server.sample.json`](./launch-config.server.sample.json) — Server-mode sample template
-- [`launch-config.client.sample.json`](./launch-config.client.sample.json) — Client-mode sample template
-- [`TESTING.md`](./TESTING.md) — Test runner and manual testing notes
-
+- [Headless mode](headless.md) — headless launch examples using these parameters
+- [Developer guide](developer-guide.md) — testing, debugging, and local development
+- [XMPP guide](xmpp.md) — Direct-chat and MUC concepts, STARTTLS, and JID mapping
+- [Configuration](configuration.md) — persisted settings and launch configuration files
+- [Repository overview](../README.md)

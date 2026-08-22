@@ -1,0 +1,26 @@
+{
+  "headless": {
+    "runMode": "headless",
+    "protocol": "xmpp",
+    "mode": "server",
+    "ip": "127.0.0.1",
+    "port": 5222
+  },
+  "connection": {
+    "xmppDomain": "localhost",
+    "xmppExternalUsername": "velocity-client",
+    "xmppExternalPassword": "",
+    "xmppTlsPolicy": "required",
+    "xmppAllowRemote": false,
+    "xmppConversation": "direct",
+    "xmppConnectTimeoutMs": 30000,
+    "xmppReplyTimeoutMs": 15000,
+    "xmppPingIntervalMs": 60000,
+    "xmppReconnectDelayMs": 60000
+  },
+  "output": {
+    "outputFile": "./captured-xmpp.log",
+    "outputFormat": "text",
+    "showMetadata": true
+  }
+}
