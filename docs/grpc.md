@@ -296,6 +296,7 @@ electron . runMode=headless protocol=grpc mode=server ip=0.0.0.0 port=50051 useT
 | `tlsCaPath` | Path to a custom CA certificate file (PEM). When omitted with `useTls=true`, OS root certificates are loaded automatically (see [TLS and certificate stores](#tls-and-certificate-stores)). |
 | `tlsCertPath` | Path to a client/server certificate file (PEM) for mutual TLS. Required for TLS server mode. |
 | `tlsKeyPath` | Path to a private key file (PEM) for mutual TLS. Required for TLS server mode. |
+| `allowUnverifiedTls` | Client mode only. Explicitly accept an unverified server certificate (default: `false`). The bypass applies to any host, not only localhost. |
 
 ## UI usage
 
@@ -304,9 +305,11 @@ When gRPC is selected as the connection type in the UI, the following controls a
 - **Serialization** - `Protobuf` (default), `Kryo`, or `Text`
 - **RPC type** - `Client Streaming` (default) or `Unary`. Selects the gRPC call pattern for sending data. Client Streaming opens a persistent stream for high-throughput ingestion. Unary sends each message as an independent request/response round-trip. Only applies in gRPC Client mode. **Locked while connected** (the streaming vs. unary choice is baked into the transport at connect time).
 - **TLS** - Checkbox to enable TLS (SSL) connections. When checked, additional certificate path fields appear.
+- **Advanced** - Disclosure that holds the certificate paths and the verification option. Serialization, RPC type, header path, and TLS stay visible in the row.
 - **CA cert path** - Path to a custom CA certificate file (PEM). Leave empty to use OS root certificates automatically.
 - **TLS cert path** - Path to a client/server certificate file (PEM) for mutual TLS.
 - **TLS key path** - Path to a private key file (PEM) for mutual TLS.
+- **Allow unverified** - Client-only warning checkbox inside **Advanced**, shown when TLS is enabled. Accepts an unverified server certificate for any host. Off by default; see [TLS and SSL security](tls.md#explicit-certificate-verification-bypass).
 - **Header path key** - gRPC endpoint header path key (default: `grpc-path`). Sent as gRPC metadata on every outgoing call. **Visible only in gRPC Client mode.**
 - **Header path** - gRPC endpoint header path value (default: `replace.with.dedicated.uid`). Sent as gRPC metadata on every outgoing call. **Visible only in gRPC Client mode.**
 
@@ -323,6 +326,13 @@ The following tooltips appear when hovering over gRPC-related controls in the UI
 | Protobuf | gRPC Feature Serialization Format: Protobuf. Uses the ArcGIS Velocity external GrpcFeed protocol (velocity-grpc.proto) with typed Feature messages and google.protobuf.Any-wrapped attributes. Recommended for standard external Velocity gRPC interoperability. |
 | Kryo | gRPC Feature Serialization Format: Kryo. Uses the internal GrpcFeatureService protocol (feature-service.proto) where the bytes field carries raw binary feature payloads. Intended for internal-path compatibility and advanced testing. |
 | Text | gRPC Feature Serialization Format: Text. Uses the internal GrpcFeatureService protocol (feature-service.proto) where the bytes field carries plain UTF-8 text, typically a CSV line. Best for simple human-readable testing. |
+
+#### Control tooltips
+
+| Control | Tooltip |
+|---------|---------|
+| Advanced | Show or hide the advanced gRPC certificate and verification options. The essential gRPC settings stay visible above. |
+| Allow unverified | Warning: accept any gRPC server certificate<br>---<br>Certificate verification is disabled for every host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Use only for local self-signed testing. |
 
 #### RPC type tooltips
 
@@ -402,7 +412,7 @@ tls=on, cert=self-signed (auto-generated), key=self-signed (auto-generated)
 
 Because the certificate is not signed by a trusted CA, connecting clients will reject it by default. Options:
 
-- **Logger / Simulator pairing (same machine):** Both apps use `rejectUnauthorized: false` automatically when the server advertises a self-signed cert - no configuration needed for local testing.
+- **Logger / Simulator pairing (same machine):** Turn on **Allow unverified** in the gRPC **Advanced** disclosure, or pass `allowUnverifiedTls=true`. The bypass is explicit and off by default.
 - **Custom CA cert:** If you provide your own `tlsCertPath`/`tlsKeyPath`, the cert is used as-is. Clients that have the CA cert in their trust store will connect without warnings.
 - **Providing your own cert:** Generate a self-signed pair with OpenSSL and supply both paths:
 

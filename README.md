@@ -15,6 +15,7 @@ A cross-platform desktop application for capturing and logging network data from
 See the [documentation index](docs/README.md) for the complete catalog by
 purpose and audience.
 
+- [Pre-fill a paired local test with connection presets](docs/connection-presets.md).
 - [Get started with configuration](docs/configuration.md).
 - [Run without the UI](docs/headless.md).
 - [Use the command line](docs/command-line.md).

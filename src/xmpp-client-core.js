@@ -21,6 +21,7 @@ const { client, xml } = require('@xmpp/client');
 const { DEFAULT_CLIENT_TIMEOUT_MS, DEFAULT_REPLY_TIMEOUT_MS, XMPP_NS } = require('./xmpp-constants');
 const { canonicalizeDomain, isLoopbackHost } = require('./xmpp-utils');
 const { getSystemRootCertificates } = require('./tls-utils');
+const { useScramSha1ClientMechanism } = require('./xmpp-scram');
 
 const tlsOptionsContext = new AsyncLocalStorage();
 let tlsSocketOverridePromise;
@@ -91,12 +92,10 @@ function createCancellableWaiter({ subscribe, timeout, timeoutMessage }) {
 class XmppClientCore extends EventEmitter {
   constructor(options) {
     super();
-    if (!options?.service || !options.domain || !options.username || !options.password) {
+    // A password may be present but empty for relaxed local testing, so only a
+    // missing or non-string password is rejected here.
+    if (!options?.service || !options.domain || !options.username || typeof options.password !== 'string') {
       throw new Error('service, domain, username, and password are required');
-    }
-    const serviceUrl = new URL(options.service);
-    if (options.rejectUnauthorized === false && !isLoopbackHost(serviceUrl.hostname)) {
-      throw new Error('TLS verification bypass is restricted to loopback services');
     }
     this.options = {
       resource: 'velocity',
@@ -114,8 +113,15 @@ class XmppClientCore extends EventEmitter {
       if (options.startTlsPolicy === 'required' && !entity.isSecure()) {
         throw new Error('XMPP STARTTLS is required but the server did not offer or establish TLS');
       }
+      // On a secure stream the server's preferred mechanism is used. On an
+      // unsecure stream a non-PLAIN mechanism is preferred, and PLAIN is used
+      // only when the user deliberately selected the Disabled TLS policy and
+      // the peer offers nothing else.
+      const insecureFallback = options.startTlsPolicy === 'disabled'
+        ? mechanisms.find((candidate) => candidate !== 'PLAIN') || mechanisms.find((candidate) => candidate === 'PLAIN')
+        : mechanisms.find((candidate) => candidate !== 'PLAIN');
       const mechanism = options.mechanism ||
-        (entity.isSecure() ? mechanisms[0] : mechanisms.find((candidate) => candidate !== 'PLAIN'));
+        (entity.isSecure() ? mechanisms[0] : insecureFallback);
       if (!mechanism || !mechanisms.includes(mechanism)) {
         throw new Error(options.mechanism
           ? `Requested SASL mechanism is unavailable: ${options.mechanism}`
@@ -132,6 +138,10 @@ class XmppClientCore extends EventEmitter {
       credentials,
       timeout: this.options.timeout,
     });
+    // The bundled SCRAM-SHA-1 mechanism derives its keys with WebCrypto, which
+    // rejects the zero-length HMAC key produced by an empty password. The
+    // shared Node-crypto mechanism accepts it.
+    useScramSha1ClientMechanism(this.entity.saslFactory);
     const reconnect = this.entity.reconnect.reconnect.bind(this.entity.reconnect);
     this.entity.reconnect.reconnect = () => tlsOptionsContext.run(this.tlsOptions, reconnect);
     if (options.startTlsPolicy === 'disabled') {

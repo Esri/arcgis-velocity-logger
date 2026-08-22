@@ -164,7 +164,7 @@ function pickFreePort() {
     }
   });
 
-  await test('client enforces credentials and loopback-only verification bypass', async () => {
+  await test('client requires a username and accepts an explicit remote verification bypass', async () => {
     await assert.rejects(
       () => createXmppClientTransport({
         ip: '127.0.0.1', port: 5222, xmppDomain: 'localhost',
@@ -173,15 +173,128 @@ function pickFreePort() {
     );
     await assert.rejects(
       () => createXmppClientTransport({
-        ip: 'xmpp.example.com',
-        port: 5222,
-        xmppDomain: 'example.com',
-        xmppUsername: 'logger',
-        xmppPassword: 'secret',
-        xmppAllowUnverifiedTls: true,
+        ip: '127.0.0.1', port: 5222, xmppDomain: 'localhost', xmppPassword: '',
       }).connect(),
-      /loopback/,
+      /Username and Password/,
     );
+    // The bypass is opt-in but no longer restricted to loopback services.
+    const remote = new XmppClientCore({
+      service: 'xmpp://xmpp.example.com:5222',
+      domain: 'example.com',
+      username: 'logger',
+      password: 'secret',
+      rejectUnauthorized: false,
+    });
+    assert.strictEqual(remote.tlsOptions.rejectUnauthorized, false);
+    // A present-but-empty password is accepted; a missing one is not.
+    const emptyPassword = new XmppClientCore({
+      service: 'xmpp://127.0.0.1:5222',
+      domain: 'localhost',
+      username: 'logger',
+      password: '',
+    });
+    assert.strictEqual(emptyPassword.options.password, '');
+    assert.throws(() => new XmppClientCore({
+      service: 'xmpp://127.0.0.1:5222',
+      domain: 'localhost',
+      username: 'logger',
+    }), /password/);
+  });
+
+  await test('an empty password authenticates over SCRAM-SHA-1 on a secure stream', async () => {
+    const received = [];
+    const server = createXmppServerTransport({
+      ip: '127.0.0.1',
+      port: 0,
+      xmppDomain: 'localhost',
+      xmppTlsPolicy: 'required',
+      xmppExternalUsername: 'simulator',
+      xmppExternalPassword: '',
+      onData: (body) => received.push(body),
+    });
+    const started = await server.connect();
+    const client = new XmppClientCore({
+      service: `xmpp://127.0.0.1:${started.address.port}`,
+      domain: 'localhost',
+      username: 'simulator',
+      password: '',
+      resource: 'sender',
+      rejectUnauthorized: false,
+    });
+    try {
+      await client.connect();
+      assert.strictEqual(client.isSecure(), true);
+      await client.sendChat('velocity-logger@localhost', 'empty-password-scram');
+      await waitFor(() => received.length === 1);
+      assert.deepStrictEqual(received, ['empty-password-scram']);
+    } finally {
+      await client.close();
+      await server.disconnect();
+    }
+  });
+
+  await test('an empty password authenticates over PLAIN when TLS is deliberately disabled', async () => {
+    const received = [];
+    const mechanisms = [];
+    const server = createXmppServerTransport({
+      ip: '127.0.0.1',
+      port: 0,
+      xmppDomain: 'localhost',
+      xmppTlsPolicy: 'disabled',
+      xmppExternalUsername: 'simulator',
+      xmppExternalPassword: '',
+      onData: (body) => received.push(body),
+      onStatus: (status) => mechanisms.push(status),
+    });
+    const started = await server.connect();
+    const client = new XmppClientCore({
+      service: `xmpp://127.0.0.1:${started.address.port}`,
+      domain: 'localhost',
+      username: 'simulator',
+      password: '',
+      resource: 'sender',
+      mechanism: 'PLAIN',
+      startTlsPolicy: 'disabled',
+    });
+    try {
+      await client.connect();
+      assert.strictEqual(client.isSecure(), false);
+      await client.sendChat('velocity-logger@localhost', 'empty-password-plain');
+      await waitFor(() => received.length === 1);
+      assert.deepStrictEqual(received, ['empty-password-plain']);
+      assert.ok(mechanisms.some((status) => status.includes('PLAIN')));
+    } finally {
+      await client.close();
+      await server.disconnect();
+    }
+  });
+
+  await test('PLAIN stays refused on an unsecure stream unless TLS is disabled', async () => {
+    const server = createXmppServerTransport({
+      ip: '127.0.0.1',
+      port: 0,
+      xmppDomain: 'localhost',
+      xmppTlsPolicy: 'preferred',
+      xmppExternalUsername: 'simulator',
+      xmppExternalPassword: '',
+      onData: () => {},
+    });
+    const started = await server.connect();
+    const client = new XmppClientCore({
+      service: `xmpp://127.0.0.1:${started.address.port}`,
+      domain: 'localhost',
+      username: 'simulator',
+      password: '',
+      mechanism: 'PLAIN',
+      startTlsPolicy: 'disabled',
+    });
+    client.on('error', () => {});
+    try {
+      await assert.rejects(() => client.connect(), /PLAIN/);
+    } finally {
+      await client.close();
+      await server.disconnect();
+    }
   });
 
   await test('required client refuses credentials when a server disables STARTTLS', async () => {

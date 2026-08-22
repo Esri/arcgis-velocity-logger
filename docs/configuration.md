@@ -198,7 +198,18 @@ Four templates ship with the repository:
 
 Copy a template outside the repository before adding credentials or
 environment-specific paths. The XMPP template ships without stored secrets and
-requires `xmppExternalPassword` at launch time.
+expects `xmppExternalPassword` at launch time; the value may be empty
+(`xmppExternalPassword=`) for a local test with no shared secret.
+
+`allowUnverifiedTls`, `httpAllowUnverifiedTls`, and `wsAllowUnverifiedTls`
+default to `false` and apply to client mode only. Setting one to `true` accepts
+an unverified server certificate for any host, not only localhost. See
+[TLS and SSL security](tls.md#explicit-certificate-verification-bypass).
+
+Saving a launch configuration from the UI captures the current connection
+controls, including the three verification options. Connection presets change
+those controls before you save, but a preset never writes configuration by
+itself. See [Connection presets](connection-presets.md).
 
 ### Supported headless keys
 
@@ -211,6 +222,9 @@ requires `xmppExternalPassword` at launch time.
 - `logLevel`, `logFile`
 - `doneFile`, `runId`
 - `grpcSerialization`, `grpcHeaderPath`, `grpcHeaderPathKey`
+- `useTls`, `tlsCaPath`, `tlsCertPath`, `tlsKeyPath`, `allowUnverifiedTls`
+- `httpFormat`, `httpTls`, `httpPath`, `httpTlsCaPath`, `httpTlsCertPath`, `httpTlsKeyPath`, `httpAllowUnverifiedTls`
+- `wsFormat`, `wsTls`, `wsPath`, `wsTlsCaPath`, `wsTlsCertPath`, `wsTlsKeyPath`, `wsSubscriptionMsg`, `wsIgnoreFirstMsg`, `wsHeaders`, `wsAllowUnverifiedTls`
 - `xmppDomain`, `xmppUsername`, `xmppPassword`, `xmppResource`, `xmppLocalJid`, `xmppExternalUsername`, `xmppExternalPassword`, `xmppTlsPolicy`, `xmppTlsCaPath`, `xmppTlsCertPath`, `xmppTlsKeyPath`, `xmppAllowUnverifiedTls`, `xmppAllowRemote`, `xmppConversation`, `xmppRoom`, `xmppNickname`, `xmppRoomPassword`, `xmppConnectTimeoutMs`, `xmppReplyTimeoutMs`, `xmppPingIntervalMs`, `xmppReconnectDelayMs`
 
 See [Command-line reference](command-line.md) for the full parameter reference and [Headless mode](headless.md) for headless examples.
@@ -236,6 +250,7 @@ See [Command-line reference](command-line.md) for the full parameter reference a
 
 ## Related documentation
 
+- [Connection presets](connection-presets.md) — paired Logger and Simulator field presets
 - [Headless mode](headless.md) — headless launch-config examples and supported keys
 - [Command-line reference](command-line.md) — full CLI parameter reference
 - [Repository overview](../README.md)

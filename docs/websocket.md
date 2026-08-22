@@ -95,9 +95,11 @@ When WebSocket is selected as the connection type, the following controls appear
 
 - **Format** - `Delimited (CSV)` (default), `JSON`, `Esri JSON`, `GeoJSON`, or `XML`.
 - **Use TLS** - Checkbox: checked = `wss://` (port 8443), unchecked = `ws://` (port 8080).
+- **Advanced** - Disclosure that holds the certificate paths, the verification option, the subscription message, **Skip 1st**, and the headers field. Format, TLS, and WS Path stay visible in the row.
 - **CA cert path** - Custom CA certificate (PEM).
 - **TLS cert path** - Client/server certificate (PEM).
 - **TLS key path** - Private key (PEM).
+- **Allow unverified** - Client-only warning checkbox inside **Advanced**, shown when TLS is enabled. Accepts an unverified server certificate for any host. Off by default; see [TLS and SSL security](tls.md#explicit-certificate-verification-bypass).
 - **WS Path** - URL path (default `/`).
 - **Subscribe** - Optional subscription message sent after connecting.
 - **Ignore 1st msg** - Checkbox to skip the first received message.
@@ -130,6 +132,8 @@ When WebSocket is selected as the connection type, the following controls appear
 | CA cert path | Path to a custom CA certificate file (PEM). Leave empty to use the OS certificate store automatically. |
 | TLS cert path | Path to a client or server certificate file (PEM). Required for server-mode TLS. |
 | TLS key path | Path to the private key file (PEM). Required for server-mode TLS and client-side mTLS. |
+| Advanced | Show or hide the advanced WebSocket certificate, verification, subscription, and header options. Format, path, and TLS stay visible above. |
+| Allow unverified | Warning: accept any WSS server certificate<br>---<br>Certificate verification is disabled for every host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Use only for local self-signed testing. |
 | WS path | WebSocket endpoint URL path appended after the host:port (e.g. /feed/stream-id). Default is /. |
 | Subscribe | Optional subscription message sent to the WebSocket server immediately after connecting. Leave empty if not needed. |
 | Ignore 1st msg | Ignore the first message received. Enable to skip subscription acknowledgments or welcome messages. |

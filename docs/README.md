@@ -19,6 +19,7 @@ by purpose and audience.
 |---|---|---|---|
 | 📦 | [Build and release](build-and-release.md) | Covers build prerequisites, local builds, platform packaging, signing, and the release workflow. | Developers |
 | ⌨️ | [Command-line reference](command-line.md) | Lists every CLI parameter, its default, and its help layouts. | Users and developers |
+| 🎚 | [Connection presets](connection-presets.md) | Documents the paired Logger and Simulator presets, what they pre-fill, and the progressive-disclosure layout. | Users and developers |
 | ⚙️ | [Configuration](configuration.md) | Covers persisted settings, appearance, and launch configuration files. | Users and developers |
 | 🛠️ | [Developer guide](developer-guide.md) | Covers repository structure, local development, testing, debugging, and extension patterns. | Developers |
 | 🔌 | [gRPC transport](grpc.md) | Documents gRPC modes, serialization, TLS, RPC behavior, and metadata. | Users and developers |
@@ -52,6 +53,7 @@ maintained guides. Keep each topic in the guide that owns it:
 | Guide | Owns |
 |---|---|
 | Protocol guides (gRPC, HTTP, WebSocket, XMPP) | Transport behavior, UI controls, exact tooltip strings, and transport troubleshooting. |
+| [Connection presets](connection-presets.md) | The shared Logger/Simulator preset contract, preset field values, and connection-row progressive disclosure. |
 | [TLS and SSL security](tls.md) | Shared certificate, trust-store, and mTLS concepts referenced by every transport. |
 | [Command-line reference](command-line.md) | The complete option reference, defaults, and help layouts. |
 | [Headless mode](headless.md) | No-UI capture workflows, stop conditions, and automation. |

@@ -19,6 +19,7 @@
             <div class="help-section">
                 <h3>Getting Started</h3>
                 <p>Capture and log network data from TCP, UDP, HTTP/HTTPS, WebSocket, gRPC, and XMPP connections. Useful for debugging and monitoring ArcGIS Velocity outputs, ArcGIS GeoEvent Server integrations, and other data sources.</p>
+                <p>The connection row starts with a <strong>Preset</strong> dropdown. Pick a paired Logger and Simulator preset to pre-fill every field for a local test, then review the values and select <strong>Connect</strong>. Each protocol shows its essentials directly and keeps certificates, verification, timing, and metadata options one click away under <strong>Advanced</strong>.</p>
             </div>
 
             <div class="help-section">
@@ -37,6 +38,25 @@
                     <li><strong>XMPP Server:</strong> Start a focused in-process C2S service with one automatic Logger identity and one external account. Receives direct or Multi-User Chat message bodies.</li>
                     <li><strong>XMPP Client:</strong> Connect to an XMPP service and receive direct or Multi-User Chat message bodies.</li>
                 </ul>
+                <h4>Connection Presets</h4>
+                <p>A preset only pre-fills editable connection fields. It never connects, never starts capture, never saves a password, and never changes the startup defaults. Every field stays editable, and each preset resets the fields it does not use so results are repeatable.</p>
+                <p><strong>Custom</strong> is the default and keeps your current values. Editing any populated field after applying a preset shows <strong>Custom (modified)</strong> with a small <strong>Modified</strong> badge; your edit is kept and re-selecting the preset restores its values.</p>
+                <p>The same twelve identifiers and labels exist in the ArcGIS Velocity Simulator with the roles inverted, so both applications are configured by picking the entry with the same name. Labels naming <em>Logger Server</em> select a Logger server connection type; labels naming <em>Simulator Server</em> select a Logger client connection type.</p>
+                <ul>
+                    <li><strong>Local TCP / Local UDP:</strong> 127.0.0.1:5565.</li>
+                    <li><strong>Local gRPC:</strong> 127.0.0.1:5565, Text serialization, Client Streaming, TLS off.</li>
+                    <li><strong>Local HTTP:</strong> 127.0.0.1:8080, Delimited (CSV), path <code>/</code>, TLS off.</li>
+                    <li><strong>Local WebSocket:</strong> 127.0.0.1:8080, Delimited (CSV), path <code>/</code>, TLS off, no subscription message, first message kept.</li>
+                    <li><strong>Local XMPP:</strong> 127.0.0.1:5222, domain <code>localhost</code>, Direct, Required STARTTLS. The server variant uses external user <code>simulator</code> with an intentionally empty password and Allow remote off; the client variant uses <code>velocity-logger</code> with an intentionally empty password, local JID <code>velocity-logger@localhost</code>, and Allow unverified on.</li>
+                </ul>
+                <h4>Minimal local UX test with Simulator</h4>
+                <p>Select the preset <strong>Local XMPP — Logger Server / Simulator Client</strong> in the Logger and the entry with the same name in the Simulator, then select <strong>Connect</strong> in the Logger and <strong>Connect</strong> and <strong>Play</strong> in the Simulator.</p>
+                <p>The equivalent command line keeps the XMPP defaults for port 5222, domain <code>localhost</code>, Direct conversation, and Required STARTTLS, and leaves both passwords empty. Start the Logger first.</p>
+                <p><strong>Terminal 1 — Logger:</strong></p>
+                <pre><code>npm start -- protocol=xmpp mode=server ip=127.0.0.1 xmppExternalUsername=simulator xmppExternalPassword=</code></pre>
+                <p><strong>Terminal 2 — Simulator:</strong></p>
+                <pre><code>npm start -- filename=/Users/hano4470/Backup/data/faa.csv protocol=xmpp mode=client ip=127.0.0.1 xmppUsername=simulator xmppPassword= xmppDestination=velocity-logger@localhost xmppAllowUnverifiedTls=true</code></pre>
+                <p>Select <strong>Connect</strong> in the Logger, then <strong>Connect</strong> and <strong>Play</strong> in the Simulator. <code>xmppAllowUnverifiedTls=true</code> is an explicit opt-in that accepts the Logger's automatic self-signed certificate while STARTTLS still encrypts the stream. It applies to any host, so leave it off outside local testing.</p>
             </div>
 
             <div class="help-section">
@@ -44,11 +64,13 @@
                 <ul>
                     <li><strong>Domain / Host:</strong> Domain is the XMPP authentication domain. The primary Host field is the optional network address override.</li>
                     <li><strong>TLS:</strong> Required (default), Preferred, or Disabled STARTTLS. Preferred is opportunistic and uses a warning badge because it may continue unsecure. Client mode uses OS trust or a custom CA. Server mode accepts a custom certificate/key or generates an ephemeral self-signed certificate.</li>
-                    <li><strong>Client account:</strong> Username, password, resource, and optional local bare JID. Passwords are never logged.</li>
+                    <li><strong>Client account:</strong> Username, password, resource, and optional local bare JID. Passwords are never logged, and a password may be present but empty for a local test with no shared secret. Usernames and JIDs remain required.</li>
                     <li><strong>Server account:</strong> The Logger identity is automatic and its live Receiving JID appears after the server starts. Configure one external username/password. Copy Client Settings is available only while listening, includes the Receiving JID as <code>xmppDestination</code>, and excludes the password unless explicitly enabled.</li>
                     <li><strong>Conversation:</strong> Direct (default) or MUC. MUC requires a bare room JID and nickname; room password is optional. Room history, bodyless stanzas, and self-echoes are ignored.</li>
                     <li><strong>Timing:</strong> Positive values with 30-second connection timeout, 15-second reply timeout, 60-second ping interval, and 60-second reconnect delay by default.</li>
-                    <li><strong>Safety:</strong> Certificate verification bypass is explicit and loopback-only. Remote server binding is opt-in; wildcard binds are copied as a connectable loopback host.</li>
+                    <li><strong>Advanced:</strong> Certificate paths, Allow unverified, Allow remote, and the timing values are collapsed under Advanced. Validation opens Advanced and focuses any missing required field.</li>
+                    <li><strong>Safety:</strong> The certificate verification bypass is explicit, off by default, and applies to any host — not only localhost. STARTTLS still encrypts the stream, but the server identity is not checked. Remote server binding is opt-in; wildcard binds are copied as a connectable loopback host.</li>
+                    <li><strong>SASL:</strong> A secure stream uses the server's preferred mechanism, normally SCRAM-SHA-1. An unsecure stream uses a non-PLAIN mechanism, and falls back to PLAIN only when the TLS policy is deliberately set to Disabled. Both PLAIN and SCRAM-SHA-1 accept an empty password.</li>
                 </ul>
             </div>
 
@@ -60,6 +82,8 @@
                     <li><strong>CA cert path:</strong> Custom CA certificate file (PEM). Leave empty to use the OS certificate store. Only needed for enterprise or self-signed CAs.</li>
                     <li><strong>TLS cert path:</strong> Client or server certificate file (PEM). Required for server-mode TLS; only needed in client mode for mutual TLS (mTLS).</li>
                     <li><strong>TLS key path:</strong> Private key file (PEM). Required for server-mode TLS and client-side mTLS.</li>
+                    <li><strong>Advanced:</strong> Collapsed disclosure holding the CA, certificate, and key paths plus Allow unverified. Format, TLS, and HTTP Path stay visible in the row.</li>
+                    <li><strong>Allow unverified:</strong> Client-only warning checkbox shown when TLS is enabled. Accepts an unverified HTTPS server certificate for any host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Off by default.</li>
                     <li><strong>HTTP Path:</strong> URL path appended after host:port (default <code>/</code>). In server mode, only POST requests matching this path are accepted. In client mode, this path is used in outgoing POST URLs. Set to the Velocity feed's system-generated path (e.g. <code>/receiver/feed-id</code>) when connecting to a real endpoint.</li>
                 </ul>
             </div>
@@ -72,6 +96,8 @@
                     <li><strong>CA cert path:</strong> Custom CA certificate file (PEM). Leave empty to use the OS certificate store. Only needed for enterprise or self-signed CAs.</li>
                     <li><strong>TLS cert path:</strong> Client or server certificate file (PEM). Required for server-mode TLS; only needed in client mode for mutual TLS (mTLS).</li>
                     <li><strong>TLS key path:</strong> Private key file (PEM). Required for server-mode TLS and client-side mTLS.</li>
+                    <li><strong>Advanced:</strong> Collapsed disclosure holding the CA, certificate, and key paths, Allow unverified, the subscription message, Ignore First Message, and the custom headers. Format, TLS, and Path stay visible in the row.</li>
+                    <li><strong>Allow unverified:</strong> Client-only warning checkbox shown when TLS is enabled. Accepts an unverified WSS server certificate for any host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Off by default.</li>
                     <li><strong>Path:</strong> URL path appended after host:port (default <code>/</code>). In server mode, only WebSocket upgrade requests matching this path are accepted. In client mode, this path is used in the outgoing connection URL.</li>
                     <li><strong>Subscription Message:</strong> Optional text message sent to the server immediately after the WebSocket connection is established. Useful for subscribing to a specific data feed or channel.</li>
                     <li><strong>Ignore First Message:</strong> When enabled, the first message received after connecting is silently discarded. Useful when the server sends an initial handshake, welcome, or acknowledgement message that is not actual data.</li>
@@ -86,6 +112,8 @@
                     <li><strong>RPC Type:</strong> Client Streaming (persistent stream, higher throughput) or Unary (individual request/response per message).</li>
                     <li><strong>TLS:</strong> Enable TLS for the gRPC connection. Uses the OS certificate store automatically.</li>
                     <li><strong>Header Path Key / Path:</strong> Custom gRPC metadata header for endpoint routing (client mode only).</li>
+                    <li><strong>Advanced:</strong> Collapsed disclosure holding the CA, certificate, and key paths plus Allow unverified. Serialization, RPC Type, header path, and TLS stay visible in the row.</li>
+                    <li><strong>Allow unverified:</strong> Client-only warning checkbox shown when TLS is enabled. Accepts an unverified gRPC server certificate for any host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Off by default.</li>
                 </ul>
 
                 <h3>Velocity Login &amp; Output Picker (🔑)</h3>

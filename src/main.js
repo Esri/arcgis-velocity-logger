@@ -949,6 +949,7 @@ async function getCurrentLaunchConfig() {
         httpTlsCaPath: getVal('http-tls-ca-path') || null,
         httpTlsCertPath: getVal('http-tls-cert-path') || null,
         httpTlsKeyPath: getVal('http-tls-key-path') || null,
+        httpAllowUnverifiedTls: getChecked('http-allow-unverified'),
         ip: getVal('host') || '127.0.0.1',
         mode: parts[1] || 'server',
         port: parseInt(getVal('port'), 10) || 5565,
@@ -957,6 +958,7 @@ async function getCurrentLaunchConfig() {
         tlsCertPath: getVal('grpc-tls-cert-path') || null,
         tlsKeyPath: getVal('grpc-tls-key-path') || null,
         useTls: getChecked('grpc-tls'),
+        allowUnverifiedTls: getChecked('grpc-allow-unverified'),
         wsFormat: getVal('ws-format') || 'delimited',
         wsHeaders: getVal('ws-headers') || null,
         wsIgnoreFirstMsg: getChecked('ws-ignore-first-msg'),
@@ -966,6 +968,7 @@ async function getCurrentLaunchConfig() {
         wsTlsCaPath: getVal('ws-tls-ca-path') || null,
         wsTlsCertPath: getVal('ws-tls-cert-path') || null,
         wsTlsKeyPath: getVal('ws-tls-key-path') || null,
+        wsAllowUnverifiedTls: getChecked('ws-allow-unverified'),
       });
     })()
   `);
@@ -993,6 +996,7 @@ async function getCurrentLaunchConfig() {
       httpTlsCaPath: s.httpTlsCaPath,
       httpTlsCertPath: s.httpTlsCertPath,
       httpTlsKeyPath: s.httpTlsKeyPath,
+      httpAllowUnverifiedTls: s.httpAllowUnverifiedTls,
       ip: s.ip,
       mode: s.mode,
       port: s.port,
@@ -1001,6 +1005,7 @@ async function getCurrentLaunchConfig() {
       tlsCertPath: s.tlsCertPath,
       tlsKeyPath: s.tlsKeyPath,
       useTls: s.useTls,
+      allowUnverifiedTls: s.allowUnverifiedTls,
       wsFormat: s.wsFormat,
       wsHeaders: s.wsHeaders,
       wsIgnoreFirstMsg: s.wsIgnoreFirstMsg,
@@ -1010,6 +1015,7 @@ async function getCurrentLaunchConfig() {
       wsTlsCaPath: s.wsTlsCaPath,
       wsTlsCertPath: s.wsTlsCertPath,
       wsTlsKeyPath: s.wsTlsKeyPath,
+      wsAllowUnverifiedTls: s.wsAllowUnverifiedTls,
     },
     output: {
       appendOutput: false,
@@ -2131,8 +2137,8 @@ function updateGrpcButtonStates(connectionState) {
     mainWindow.webContents.send('tcp-connection-state', connectionState);
 }
 
-ipcMain.on('connect-grpc', (event, { type, port, host, grpcSerialization, grpcSendMethod, headerPathKey, headerPath, useTls, tlsCaPath, tlsCertPath, tlsKeyPath }) => {
-    currentConnectionDetails = { protocol: 'grpc', type, port, host, grpcSerialization, grpcSendMethod, headerPathKey, headerPath, useTls, tlsCaPath, tlsCertPath, tlsKeyPath };
+ipcMain.on('connect-grpc', (event, { type, port, host, grpcSerialization, grpcSendMethod, headerPathKey, headerPath, useTls, tlsCaPath, tlsCertPath, tlsKeyPath, allowUnverifiedTls }) => {
+    currentConnectionDetails = { protocol: 'grpc', type, port, host, grpcSerialization, grpcSendMethod, headerPathKey, headerPath, useTls, tlsCaPath, tlsCertPath, tlsKeyPath, allowUnverifiedTls };
     updateGrpcButtonStates('connecting');
     const ser = grpcSerialization || 'protobuf';
 
@@ -2160,7 +2166,7 @@ ipcMain.on('connect-grpc', (event, { type, port, host, grpcSerialization, grpcSe
     } else { // client
         const onClientMetadata = (line) => sendMetadataLine(line);
         const onClientStatus = (line) => sendMetadataLine(line);
-        grpcTransport = createGrpcClientTransport({ ip: host, port, grpcSerialization, grpcSendMethod, headerPathKey, headerPath, useTls, tlsCaPath, tlsCertPath, tlsKeyPath, authToken: getVelocityAuthTokenForConnection(), onData, onMetadata: onClientMetadata, onStatus: onClientStatus });
+        grpcTransport = createGrpcClientTransport({ ip: host, port, grpcSerialization, grpcSendMethod, headerPathKey, headerPath, useTls, tlsCaPath, tlsCertPath, tlsKeyPath, allowUnverifiedTls, authToken: getVelocityAuthTokenForConnection(), onData, onMetadata: onClientMetadata, onStatus: onClientStatus });
         grpcTransport.connect().then((result) => {
             mainWindow.webContents.send('grpc-status', `gRPC Client connected to ${result.address} [${ser}] ${headerPathKey}=${headerPath}\n  ${result.tlsInfo || 'tls=off'}`);
             updateGrpcButtonStates('connected');
@@ -2198,8 +2204,8 @@ function updateHttpButtonStates(connectionState) {
     mainWindow.webContents.send('tcp-connection-state', connectionState);
 }
 
-ipcMain.on('connect-http', (event, { type, port, host, httpFormat, httpTls, httpTlsCaPath, httpTlsCertPath, httpTlsKeyPath, httpPath }) => {
-    currentConnectionDetails = { protocol: 'http', type, port, host, httpFormat, httpTls, httpTlsCaPath, httpTlsCertPath, httpTlsKeyPath, httpPath };
+ipcMain.on('connect-http', (event, { type, port, host, httpFormat, httpTls, httpTlsCaPath, httpTlsCertPath, httpTlsKeyPath, httpPath, httpAllowUnverifiedTls }) => {
+    currentConnectionDetails = { protocol: 'http', type, port, host, httpFormat, httpTls, httpTlsCaPath, httpTlsCertPath, httpTlsKeyPath, httpPath, httpAllowUnverifiedTls };
     updateHttpButtonStates('connecting');
     const contentType = FORMAT_CONTENT_TYPES[httpFormat] || 'text/plain';
 
@@ -2224,7 +2230,7 @@ ipcMain.on('connect-http', (event, { type, port, host, httpFormat, httpTls, http
             updateHttpButtonStates('disconnected');
         });
     } else { // client
-        httpTransport = createHttpClientTransport({ ip: host, port, httpFormat, httpPath, httpTls, httpTlsCaPath, httpTlsCertPath, httpTlsKeyPath, authToken: getVelocityAuthTokenForConnection(), onData });
+        httpTransport = createHttpClientTransport({ ip: host, port, httpFormat, httpPath, httpTls, httpTlsCaPath, httpTlsCertPath, httpTlsKeyPath, httpAllowUnverifiedTls, authToken: getVelocityAuthTokenForConnection(), onData });
         httpTransport.connect().then((result) => {
             mainWindow.webContents.send('http-status', `HTTP Client connected to ${result.address} [${httpFormat}] Content-Type: ${contentType}\n  ${result.tlsInfo || 'tls=off'}`);
             updateHttpButtonStates('connected');
@@ -2262,8 +2268,8 @@ function updateWsButtonStates(connectionState) {
     mainWindow.webContents.send('tcp-connection-state', connectionState);
 }
 
-ipcMain.on('connect-ws', (event, { type, port, host, wsFormat, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsPath, wsSubscriptionMsg, wsIgnoreFirstMsg, wsHeaders }) => {
-    currentConnectionDetails = { protocol: 'ws', type, port, host, wsFormat, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsPath };
+ipcMain.on('connect-ws', (event, { type, port, host, wsFormat, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsPath, wsSubscriptionMsg, wsIgnoreFirstMsg, wsHeaders, wsAllowUnverifiedTls }) => {
+    currentConnectionDetails = { protocol: 'ws', type, port, host, wsFormat, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsPath, wsAllowUnverifiedTls };
     updateWsButtonStates('connecting');
 
     const contentType = WS_CONTENT_TYPES[wsFormat] || 'text/plain';
@@ -2288,7 +2294,7 @@ ipcMain.on('connect-ws', (event, { type, port, host, wsFormat, wsTls, wsTlsCaPat
                 updateWsButtonStates('disconnected');
             });
         } else {
-            wsTransport = createWsClientTransport({ ip: host, port, wsFormat, wsPath, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsSubscriptionMsg, wsIgnoreFirstMsg, wsHeaders, authToken: getVelocityAuthTokenForConnection(), onData });
+            wsTransport = createWsClientTransport({ ip: host, port, wsFormat, wsPath, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsSubscriptionMsg, wsIgnoreFirstMsg, wsHeaders, wsAllowUnverifiedTls, authToken: getVelocityAuthTokenForConnection(), onData });
             wsTransport.connect().then((result) => {
                 mainWindow.webContents.send('ws-status', `WebSocket Client connected to ${result.address} [${wsFormat}] Content-Type: ${contentType}\n  ${result.tlsInfo || 'tls=off'}`);
                 updateWsButtonStates('connected');

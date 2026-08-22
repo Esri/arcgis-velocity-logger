@@ -42,7 +42,7 @@ const grpc = require('@grpc/grpc-js');
 const protoLoader = require('@grpc/proto-loader');
 
 const PROTO_DIR = path.join(__dirname, 'proto');
-const { getSystemRootCertificates, formatTlsCertSummary, generateSelfSignedCert } = require('./tls-utils');
+const { getSystemRootCertificates, formatTlsCertSummary, resolveClientTlsVerification, generateSelfSignedCert } = require('./tls-utils');
 const VELOCITY_PROTO_PATH = path.join(PROTO_DIR, 'velocity-grpc.proto');
 const FEATURE_SERVICE_PROTO_PATH = path.join(PROTO_DIR, 'feature-service.proto');
 const WRAPPERS_PROTO_PATH = path.join(PROTO_DIR, 'google', 'protobuf', 'wrappers.proto');
@@ -138,23 +138,26 @@ function featureAttributesToCsv(attributes, wrapperTypes) {
  * When useTls is true with no custom certs, loads both the Node.js bundled
  * root certificates AND the OS certificate store so that connections to
  * servers using enterprise/internal CAs (e.g. Esri Root CA) succeed even
- * when running inside Electron.
+ * when running inside Electron. Certificate verification stays on unless the
+ * caller explicitly opts in with allowUnverifiedTls, which is the supported
+ * way to accept a local self-signed server certificate. The trust decision is
+ * shared with the HTTP and WebSocket clients via tls-utils.
  *
  * @returns {{ credentials: object, tlsInfo: string }}
  */
-function buildChannelCredentials({ useTls = true, tlsCaPath, tlsCertPath, tlsKeyPath } = {}) {
+function buildChannelCredentials({ useTls = true, tlsCaPath, tlsCertPath, tlsKeyPath, allowUnverifiedTls = false } = {}) {
   if (!useTls) {
     return { credentials: grpc.credentials.createInsecure(), tlsInfo: 'tls=off (unsecure)' };
   }
   const hasCustomCerts = tlsCaPath || tlsCertPath || tlsKeyPath;
   if (!hasCustomCerts) {
-    const certResult = getSystemRootCertificates();
-    // No CA cert provided — skip server certificate authority verification so that
-    // auto-generated self-signed server certs are accepted. TLS encryption is still
-    // active; only CA chain validation is skipped.
+    const verification = resolveClientTlsVerification({ allowUnverifiedTls });
+    const verifyOptions = verification.rejectUnauthorized
+      ? undefined
+      : { checkServerIdentity: () => undefined, rejectUnauthorized: false };
     return {
-      credentials: grpc.credentials.createSsl(certResult.pemBuffer, null, null, { checkServerIdentity: () => undefined, rejectUnauthorized: false }),
-      tlsInfo: `tls=on (cert verification skipped — no CA provided), ${formatTlsCertSummary(certResult)}`,
+      credentials: grpc.credentials.createSsl(verification.ca, null, null, verifyOptions),
+      tlsInfo: verification.tlsInfo,
     };
   }
   const rootCerts = tlsCaPath ? fs.readFileSync(tlsCaPath) : undefined;
@@ -164,8 +167,12 @@ function buildChannelCredentials({ useTls = true, tlsCaPath, tlsCertPath, tlsKey
   if (tlsCaPath) customParts.push(`ca=${tlsCaPath}`);
   if (tlsCertPath) customParts.push(`cert=${tlsCertPath}`);
   if (tlsKeyPath) customParts.push(`key=${tlsKeyPath}`);
+  if (allowUnverifiedTls === true) customParts.push('cert verification disabled by explicit allowUnverifiedTls');
+  const verifyOptions = allowUnverifiedTls === true
+    ? { checkServerIdentity: () => undefined, rejectUnauthorized: false }
+    : undefined;
   return {
-    credentials: grpc.credentials.createSsl(rootCerts, privateKey, certChain),
+    credentials: grpc.credentials.createSsl(rootCerts, privateKey, certChain, verifyOptions),
     tlsInfo: `tls=on, custom certs: ${customParts.join(', ')}`,
   };
 }
@@ -331,7 +338,7 @@ class GrpcServerTransportProtobuf {
 }
 
 class GrpcClientTransportProtobuf {
-  constructor({ ip, port, onData, onMetadata, onStatus, grpcSendMethod = 'stream', headerPathKey = 'grpc-path', headerPath = 'replace.with.dedicated.uid', useTls = true, tlsCaPath, tlsCertPath, tlsKeyPath, authToken }) {
+  constructor({ ip, port, onData, onMetadata, onStatus, grpcSendMethod = 'stream', headerPathKey = 'grpc-path', headerPath = 'replace.with.dedicated.uid', useTls = true, tlsCaPath, tlsCertPath, tlsKeyPath, allowUnverifiedTls = false, authToken }) {
     this.ip = ip;
     this.port = port;
     this.onData = onData;
@@ -344,6 +351,7 @@ class GrpcClientTransportProtobuf {
     this.tlsCaPath = tlsCaPath;
     this.tlsCertPath = tlsCertPath;
     this.tlsKeyPath = tlsKeyPath;
+    this.allowUnverifiedTls = allowUnverifiedTls === true;
     this.authToken = authToken || null;
     this.client = null;
     this.stream = null;
@@ -518,7 +526,7 @@ class GrpcServerTransportInternal {
 }
 
 class GrpcClientTransportInternal {
-  constructor({ ip, port, grpcSerialization = 'text', onData, onMetadata, onStatus, grpcSendMethod = 'stream', headerPathKey = 'grpc-path', headerPath = 'replace.with.dedicated.uid', useTls = true, tlsCaPath, tlsCertPath, tlsKeyPath, authToken }) {
+  constructor({ ip, port, grpcSerialization = 'text', onData, onMetadata, onStatus, grpcSendMethod = 'stream', headerPathKey = 'grpc-path', headerPath = 'replace.with.dedicated.uid', useTls = true, tlsCaPath, tlsCertPath, tlsKeyPath, allowUnverifiedTls = false, authToken }) {
     this.ip = ip;
     this.port = port;
     this.grpcSerialization = grpcSerialization;
@@ -532,6 +540,7 @@ class GrpcClientTransportInternal {
     this.tlsCaPath = tlsCaPath;
     this.tlsCertPath = tlsCertPath;
     this.tlsKeyPath = tlsKeyPath;
+    this.allowUnverifiedTls = allowUnverifiedTls === true;
     this.authToken = authToken || null;
     this.client = null;
     this.stream = null;
@@ -650,6 +659,7 @@ function createGrpcClientTransport(opts) {
 module.exports = {
   createGrpcServerTransport,
   createGrpcClientTransport,
+  buildChannelCredentials,
   GrpcServerTransport: GrpcServerTransportProtobuf,
   GrpcClientTransport: GrpcClientTransportProtobuf,
   SERIALIZATION_FORMATS,

@@ -20,6 +20,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearLogsBtn = document.getElementById('clear-logs-btn');
     const saveLogsBtn = document.getElementById('save-logs-btn');
     const connectionTypeSelect = document.getElementById('connection-type');
+    const connectionPresetSelect = document.getElementById('connection-preset');
+    const connectionPresetState = document.getElementById('connection-preset-state');
     const grpcSerializationSelect = document.getElementById('grpc-serialization');
     const grpcSendMethodSelect = document.getElementById('grpc-send-method');
     const grpcHeaderPathKeyInput = document.getElementById('grpc-header-path-key');
@@ -29,6 +31,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const grpcTlsCaInput = document.getElementById('grpc-tls-ca-path');
     const grpcTlsCertInput = document.getElementById('grpc-tls-cert-path');
     const grpcTlsKeyInput = document.getElementById('grpc-tls-key-path');
+    const grpcAllowUnverifiedCheckbox = document.getElementById('grpc-allow-unverified');
+    const grpcAllowUnverifiedLabel = document.getElementById('grpc-allow-unverified-label');
+    const grpcAdvancedDetails = document.getElementById('grpc-advanced');
+    const httpAdvancedDetails = document.getElementById('http-advanced');
+    const wsAdvancedDetails = document.getElementById('ws-advanced');
+    const xmppAdvancedDetails = document.getElementById('xmpp-advanced');
     const hostInput = document.getElementById('host');
     const portInput = document.getElementById('port');
     const themeSelector = document.getElementById('theme-selector');
@@ -45,13 +53,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const httpTlsCaInput = document.getElementById('http-tls-ca-path');
     const httpTlsCertInput = document.getElementById('http-tls-cert-path');
     const httpTlsKeyInput = document.getElementById('http-tls-key-path');
+    const httpAllowUnverifiedCheckbox = document.getElementById('http-allow-unverified');
+    const httpAllowUnverifiedLabel = document.getElementById('http-allow-unverified-label');
     const httpPathInput = document.getElementById('http-path');
+    const wsAllowUnverifiedCheckbox = document.getElementById('ws-allow-unverified');
+    const wsAllowUnverifiedLabel = document.getElementById('ws-allow-unverified-label');
     const xmppOptionsRow = document.querySelector('.xmpp-options-row');
     const xmppTlsPolicySelect = document.getElementById('xmpp-tls-policy');
     const xmppConversationSelect = document.getElementById('xmpp-conversation');
     const xmppOptionsSummary = xmppOptionsRow?.querySelector('summary');
     const xmppCopySettingsBtn = document.getElementById('xmpp-copy-settings');
     const xmppCopyPasswordCheckbox = document.getElementById('xmpp-copy-password');
+    const xmppAllowUnverifiedCheckbox = document.getElementById('xmpp-allow-unverified');
     const xmppReceivingJid = document.getElementById('xmpp-receiving-jid');
     const xmppValidationMessage = document.getElementById('xmpp-validation-message');
     const logs = document.getElementById('logs');
@@ -175,6 +188,174 @@ document.addEventListener('DOMContentLoaded', () => {
         connectionTypeSelect.setAttribute('aria-label', tooltip);
     }
 
+    // ------------------------------------------------------------------
+    // Connection presets
+    //
+    // A preset only pre-fills editable connection fields. It never connects,
+    // never starts capture, never stores a secret, and never changes the
+    // application startup defaults. Definitions live in connection-presets.js
+    // so the Logger and the Simulator can share the same ids and labels.
+    // ------------------------------------------------------------------
+    const connectionPresets = window.ConnectionPresets || null;
+    const CUSTOM_PRESET_ID = connectionPresets ? connectionPresets.CUSTOM_PRESET_ID : 'custom';
+    let activePresetId = CUSTOM_PRESET_ID;
+    let modifiedFromPresetId = '';
+    let applyingPresetValues = false;
+
+    function updateConnectionPresetTooltip() {
+        if (!connectionPresetSelect || !connectionPresets) return;
+        const tooltip = connectionPresets.describeConnectionPreset(connectionPresetSelect.value, {
+            modified: Boolean(modifiedFromPresetId),
+            baseId: modifiedFromPresetId,
+        });
+        connectionPresetSelect.title = tooltip;
+        connectionPresetSelect.dataset.tooltip = tooltip;
+        connectionPresetSelect.dataset.tooltipIcon = modifiedFromPresetId ? '✎' : '🎚';
+        connectionPresetSelect.dataset.tooltipKind = 'info';
+        connectionPresetSelect.setAttribute('aria-label', tooltip.replace(/\n+/g, ' '));
+        if (connectionPresetState) {
+            connectionPresetState.hidden = !modifiedFromPresetId;
+            if (modifiedFromPresetId) {
+                const base = connectionPresets.getConnectionPreset(modifiedFromPresetId);
+                const stateTooltip = `Modified\nThese fields started from "${base ? base.label : 'a preset'}" and were edited. Select the preset again to restore its values.`;
+                connectionPresetState.dataset.tooltip = stateTooltip;
+                connectionPresetState.setAttribute('aria-label', stateTooltip.replace(/\n+/g, ' '));
+            }
+        }
+    }
+
+    /** Opens every collapsed ancestor so a control can be seen and focused. */
+    function revealControl(element) {
+        if (!element) return;
+        let node = element.parentElement;
+        while (node) {
+            if (node.tagName === 'DETAILS') node.open = true;
+            node = node.parentElement;
+        }
+        if (connectionControls && connectionControls.classList.contains('hidden')) {
+            setToggleConnectionLineState(true);
+        }
+    }
+
+    /** Opens the options area that belongs to the selected connection type. */
+    function revealProtocolOptions() {
+        const type = connectionTypeSelect.value;
+        if (connectionControls && connectionControls.classList.contains('hidden')) {
+            setToggleConnectionLineState(true);
+        }
+        if (type.startsWith('xmpp') && xmppOptionsRow) xmppOptionsRow.open = true;
+        if (type.startsWith('grpc')) showGrpcRow();
+    }
+
+    function setPresetControlValue(field, value) {
+        const control = connectionPresets.CONNECTION_PRESET_CONTROLS[field];
+        if (!control) return;
+        const element = document.getElementById(control.elementId);
+        if (!element) return;
+        if (control.kind === 'checked') {
+            element.checked = value === true;
+        } else {
+            element.value = value === null || value === undefined ? '' : String(value);
+        }
+        element.dispatchEvent(new Event('change'));
+    }
+
+    /**
+     * Fills the connection fields from a preset. Field order matters: the
+     * connection type is applied first so protocol-specific rows exist and the
+     * smart port default does not overwrite the preset port.
+     */
+    function applyConnectionPreset(presetId) {
+        if (!connectionPresets) return false;
+        const preset = connectionPresets.getConnectionPreset(presetId);
+        if (!preset) return false;
+        const values = connectionPresets.buildConnectionPresetValues(presetId);
+        applyingPresetValues = true;
+        try {
+            setPresetControlValue('connectionType', values.connectionType);
+            updateGrpcRowVisibility();
+            Object.keys(values).forEach((field) => {
+                if (field === 'connectionType') return;
+                setPresetControlValue(field, values[field]);
+            });
+            setPresetControlValue('port', values.port);
+            updateGrpcRowVisibility();
+        } finally {
+            applyingPresetValues = false;
+        }
+        activePresetId = presetId;
+        modifiedFromPresetId = '';
+        clearXmppValidation();
+        revealProtocolOptions();
+        // Reset disclosures, then reveal any explicit certificate bypass a
+        // preset enabled so a warning-valued setting is never hidden.
+        [grpcAdvancedDetails, httpAdvancedDetails, wsAdvancedDetails, xmppAdvancedDetails]
+            .forEach((details) => { if (details) details.open = false; });
+        Object.entries({
+            allowUnverifiedTls: grpcAllowUnverifiedCheckbox,
+            httpAllowUnverifiedTls: httpAllowUnverifiedCheckbox,
+            wsAllowUnverifiedTls: wsAllowUnverifiedCheckbox,
+            xmppAllowUnverifiedTls: xmppAllowUnverifiedCheckbox,
+        }).forEach(([field, control]) => {
+            if (values[field] === true) revealControl(control);
+        });
+        updateConnectionPresetTooltip();
+        setStatus(`Preset applied: ${preset.label}\n  ${preset.summary}\n  Fields were pre-filled only; review them and select Connect when ready.`, { category: 'connection' });
+        return true;
+    }
+
+    /** Any manual edit to a populated connection field falls back to Custom. */
+    function markConnectionFieldsModified() {
+        if (applyingPresetValues) return;
+        if (activePresetId === CUSTOM_PRESET_ID) return;
+        modifiedFromPresetId = activePresetId;
+        activePresetId = CUSTOM_PRESET_ID;
+        if (connectionPresetSelect) connectionPresetSelect.value = CUSTOM_PRESET_ID;
+        updateConnectionPresetTooltip();
+    }
+
+    if (connectionPresetSelect && connectionPresets) {
+        connectionPresetSelect.addEventListener('change', () => {
+            const selected = connectionPresetSelect.value;
+            if (selected === CUSTOM_PRESET_ID) {
+                // Custom preserves whatever is currently entered.
+                activePresetId = CUSTOM_PRESET_ID;
+                modifiedFromPresetId = '';
+                updateConnectionPresetTooltip();
+                setStatus('Preset set to Custom; the current connection fields were kept unchanged', { category: 'connection' });
+                return;
+            }
+            applyConnectionPreset(selected);
+        });
+        if (connectionControls) {
+            ['change', 'input'].forEach((eventName) => {
+                connectionControls.addEventListener(eventName, (event) => {
+                    if (event.target === connectionPresetSelect) return;
+                    markConnectionFieldsModified();
+                });
+            });
+        }
+        updateConnectionPresetTooltip();
+    }
+
+    /**
+     * Shows the explicit "Allow unverified" certificate control only where it
+     * applies: client modes with TLS enabled. Server modes are unaffected.
+     */
+    function updateUnverifiedTlsVisibility() {
+        const type = connectionTypeSelect.value;
+        const isClient = type.endsWith('-client');
+        const wsTlsEl = document.getElementById('ws-tls');
+        const rules = [
+            [grpcAllowUnverifiedLabel, type.startsWith('grpc') && grpcTlsCheckbox.checked],
+            [httpAllowUnverifiedLabel, type.startsWith('http') && Boolean(httpTlsCheckbox && httpTlsCheckbox.checked)],
+            [wsAllowUnverifiedLabel, type.startsWith('ws') && Boolean(wsTlsEl && wsTlsEl.checked)],
+        ];
+        rules.forEach(([label, protocolMatches]) => {
+            if (label) label.style.display = isClient && protocolMatches ? '' : 'none';
+        });
+    }
+
     // Show/hide gRPC options row and individual controls based on connection type
     let grpcAutoHideTimer = null;
 
@@ -188,6 +369,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function startGrpcAutoHideTimer() {
         clearGrpcAutoHideTimer();
         grpcAutoHideTimer = setTimeout(() => {
+            // Keep the row open while the Advanced disclosure is expanded or a
+            // control inside it has focus, so it cannot collapse mid-edit.
+            if (grpcAdvancedDetails?.open || grpcOptionsRow.contains(document.activeElement)) {
+                startGrpcAutoHideTimer();
+                return;
+            }
             grpcOptionsRow.classList.add('auto-hidden');
             connectionControls.classList.add('grpc-row-hidden');
         }, 5000);
@@ -323,6 +510,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateWsFormatTooltip();
         updateXmppTlsPolicyTooltip();
         updateXmppConversationTooltip();
+        updateUnverifiedTlsVisibility();
         refreshTlsBadge();
     }
 
@@ -385,6 +573,7 @@ document.addEventListener('DOMContentLoaded', () => {
         grpcTlsCaInput.style.display = show ? '' : 'none';
         grpcTlsCertInput.style.display = show ? '' : 'none';
         grpcTlsKeyInput.style.display = show ? '' : 'none';
+        updateUnverifiedTlsVisibility();
         refreshTlsBadge();
     });
 
@@ -407,6 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     lastProtocolDefault = HTTP_PORT_TLS_OFF;
                 }
             }
+            updateUnverifiedTlsVisibility();
             refreshTlsBadge();
         });
     }
@@ -433,6 +623,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     lastProtocolDefault = HTTP_PORT_TLS_OFF;
                 }
             }
+            updateUnverifiedTlsVisibility();
             refreshTlsBadge();
         });
     }
@@ -1076,11 +1267,14 @@ document.addEventListener('DOMContentLoaded', () => {
             hostInput.disabled = false;
             portInput.disabled = false;
         }
+        const controlsLocked = state !== 'disconnected' && state !== 'error';
         if (xmppOptionsRow) {
             xmppOptionsRow.querySelectorAll('input:not(#xmpp-copy-password), select, button:not(#xmpp-copy-settings)').forEach((control) => {
-                control.disabled = state !== 'disconnected' && state !== 'error';
+                control.disabled = controlsLocked;
             });
         }
+        [connectionPresetSelect, grpcAllowUnverifiedCheckbox, httpAllowUnverifiedCheckbox, wsAllowUnverifiedCheckbox]
+            .forEach((control) => { if (control) control.disabled = controlsLocked; });
         const canCopyXmppSettings = state === 'connected' && connectionTypeSelect.value === 'xmpp-server';
         if (xmppCopySettingsBtn) xmppCopySettingsBtn.disabled = !canCopyXmppSettings;
         if (xmppCopyPasswordCheckbox) xmppCopyPasswordCheckbox.disabled = !canCopyXmppSettings;
@@ -1102,11 +1296,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function validateXmppConnection(type, host, port) {
         clearXmppValidation();
+        // Passwords are intentionally not required: an XMPP account may be
+        // configured with a present-but-empty password for relaxed local
+        // testing. Usernames and JIDs remain required.
         const required = [
             ['xmpp-domain', 'Domain'],
             ...(type === 'server'
-                ? [['xmpp-external-username', 'External user'], ['xmpp-external-password', 'External password']]
-                : [['xmpp-username', 'Username'], ['xmpp-password', 'Password']]),
+                ? [['xmpp-external-username', 'External user']]
+                : [['xmpp-username', 'Username']]),
             ...(xmppConversationSelect?.value === 'muc'
                 ? [['xmpp-room', 'Room'], ['xmpp-nickname', 'Nickname']]
                 : []),
@@ -1151,6 +1348,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (invalidElement) {
             xmppOptionsRow.open = true;
+            revealControl(invalidElement);
             if (xmppValidationMessage) {
                 xmppValidationMessage.textContent = message;
                 xmppValidationMessage.hidden = false;
@@ -1228,6 +1426,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // Apply CLI presets for UI prepopulation
     window.electronAPI.on('cli-presets', (presets) => {
         if (!presets) return;
+        // CLI prepopulation is a programmatic fill, not a manual edit, so it
+        // must not flip the preset indicator to "Custom (modified)".
+        applyingPresetValues = true;
+        try {
+            applyCliPresets(presets);
+        } finally {
+            applyingPresetValues = false;
+        }
+    });
+
+    function applyCliPresets(presets) {
         if (presets.protocol || presets.mode) {
             const p = (presets.protocol || 'tcp').toLowerCase();
             const m = (presets.mode || 'server').toLowerCase();
@@ -1309,8 +1518,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (presets.xmppAllowRemote !== undefined) {
             document.getElementById('xmpp-allow-remote').checked = presets.xmppAllowRemote === true || presets.xmppAllowRemote === 'true';
         }
+        const unverifiedPresetIds = {
+            allowUnverifiedTls: 'grpc-allow-unverified',
+            httpAllowUnverifiedTls: 'http-allow-unverified',
+            wsAllowUnverifiedTls: 'ws-allow-unverified',
+        };
+        Object.entries(unverifiedPresetIds).forEach(([key, id]) => {
+            const element = document.getElementById(id);
+            if (presets[key] !== undefined && element) {
+                element.checked = presets[key] === true || presets[key] === 'true';
+            }
+        });
         updateGrpcRowVisibility();
-    });
+    }
 
     connectBtn.addEventListener('click', () => {
         if (connectBtn.disabled) return;
@@ -1342,11 +1562,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const tlsCaPath = grpcTlsCaInput.value || undefined;
             const tlsCertPath = grpcTlsCertInput.value || undefined;
             const tlsKeyPath = grpcTlsKeyInput.value || undefined;
-            const tlsLabel = useTls ? 'tls=on' : 'tls=off';
+            const allowUnverifiedTls = type === 'client' && Boolean(grpcAllowUnverifiedCheckbox?.checked);
+            const tlsLabel = useTls
+                ? (allowUnverifiedTls ? 'tls=on (unverified)' : 'tls=on')
+                : 'tls=off';
             const methodLabel = grpcSendMethod === 'unary' ? 'unary' : 'streaming';
             const headerLabel = type === 'client' ? ` ${headerPathKey}=${headerPath}` : '';
             setStatus(`Connecting via gRPC ${type} to ${host}:${port} [${serialization}] ${methodLabel} ${tlsLabel}${headerLabel}...`, { category: 'connection' });
-            window.electronAPI.send('connect-grpc', { type, port, host, grpcSerialization: serialization, grpcSendMethod, headerPathKey, headerPath, useTls, tlsCaPath, tlsCertPath, tlsKeyPath });
+            window.electronAPI.send('connect-grpc', { type, port, host, grpcSerialization: serialization, grpcSendMethod, headerPathKey, headerPath, useTls, tlsCaPath, tlsCertPath, tlsKeyPath, allowUnverifiedTls });
         } else if (connectionType.startsWith('http')) {
             const type = connectionType.split('-')[1];
             const httpFormat = httpFormatSelect ? httpFormatSelect.value : 'json';
@@ -1355,9 +1578,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const httpTlsCertPath = httpTlsCertInput ? httpTlsCertInput.value || undefined : undefined;
             const httpTlsKeyPath = httpTlsKeyInput ? httpTlsKeyInput.value || undefined : undefined;
             const httpPath = httpPathInput ? httpPathInput.value || '/' : '/';
-            const tlsLabel = httpTls ? 'tls=on' : 'tls=off';
+            const httpAllowUnverifiedTls = type === 'client' && Boolean(httpAllowUnverifiedCheckbox?.checked);
+            const tlsLabel = httpTls
+                ? (httpAllowUnverifiedTls ? 'tls=on (unverified)' : 'tls=on')
+                : 'tls=off';
             setStatus(`Connecting via HTTP ${type} to ${host}:${port} [${httpFormat}] ${tlsLabel} path=${httpPath}...`, { category: 'connection' });
-            window.electronAPI.send('connect-http', { type, port, host, httpFormat, httpTls, httpTlsCaPath, httpTlsCertPath, httpTlsKeyPath, httpPath });
+            window.electronAPI.send('connect-http', { type, port, host, httpFormat, httpTls, httpTlsCaPath, httpTlsCertPath, httpTlsKeyPath, httpPath, httpAllowUnverifiedTls });
         } else if (connectionType.startsWith('ws')) {
             const type = connectionType.split('-')[1];
             const wsFormatEl = document.getElementById('ws-format');
@@ -1371,9 +1597,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const wsSubscriptionMsg = (document.getElementById('ws-subscription-msg') || {}).value || undefined;
             const wsIgnoreFirstMsg = (document.getElementById('ws-ignore-first-msg') || {}).checked || false;
             const wsHeaders = (document.getElementById('ws-headers') || {}).value || undefined;
+            const wsAllowUnverifiedTls = type === 'client' && Boolean(wsAllowUnverifiedCheckbox?.checked);
             const scheme = wsTls ? 'wss' : 'ws';
             setStatus(`Connecting via WebSocket ${type} to ${scheme}://${host}:${port}${wsPath} [${wsFormat}]...`, { category: 'connection' });
-            window.electronAPI.send('connect-ws', { type, port, host, wsFormat, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsPath, wsSubscriptionMsg, wsIgnoreFirstMsg, wsHeaders });
+            window.electronAPI.send('connect-ws', { type, port, host, wsFormat, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsPath, wsSubscriptionMsg, wsIgnoreFirstMsg, wsHeaders, wsAllowUnverifiedTls });
         } else if (connectionType.startsWith('xmpp')) {
             const type = connectionType.split('-')[1];
             const value = (id) => document.getElementById(id)?.value || '';

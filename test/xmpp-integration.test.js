@@ -38,14 +38,68 @@ test('CLI resolves XMPP server defaults without changing app-wide transport defa
 });
 
 test('CLI validates required XMPP fields and MUC settings', () => {
-  const missing = parseCommandLineArgs(['/node', '/app', 'runMode=headless', 'protocol=xmpp']);
+  const missing = parseCommandLineArgs([
+    '/node', '/app', 'runMode=headless', 'protocol=xmpp', 'mode=client',
+  ]);
   assert.strictEqual(missing.mode, 'error');
+  assert.ok(missing.errors.some((error) => error.includes('xmppUsername')));
+  const missingDomain = parseCommandLineArgs([
+    '/node', '/app', 'runMode=headless', 'protocol=xmpp', 'mode=server', 'xmppDomain=',
+  ]);
+  assert.strictEqual(missingDomain.mode, 'error');
+  assert.ok(missingDomain.errors.some((error) => error.includes('xmppDomain')));
   const muc = parseCommandLineArgs([
     '/node', '/app', 'runMode=headless', 'protocol=xmpp', 'mode=client',
     'xmppUsername=logger', 'xmppPassword=secret', 'xmppConversation=muc',
   ]);
   assert.strictEqual(muc.mode, 'error');
   assert.ok(muc.errors.some((error) => error.includes('xmppRoom')));
+});
+
+test('CLI and the account store accept a present-but-empty XMPP password', () => {
+  const { createAccountStore, readExternalAccountFromEnv } = require('../src/xmpp-accounts');
+
+  const client = parseCommandLineArgs([
+    '/node', '/app', 'runMode=headless', 'protocol=xmpp', 'mode=client',
+    'xmppUsername=velocity-logger', 'xmppPassword=',
+  ]);
+  assert.strictEqual(client.mode, 'headless');
+  assert.strictEqual(client.headless.xmppPassword, '');
+
+  const server = parseCommandLineArgs([
+    '/node', '/app', 'runMode=headless', 'protocol=xmpp', 'mode=server',
+    'xmppExternalUsername=simulator', 'xmppExternalPassword=',
+  ]);
+  assert.strictEqual(server.mode, 'headless');
+  assert.strictEqual(server.headless.xmppExternalPassword, '');
+
+  const store = createAccountStore({
+    domain: 'localhost',
+    externalAccount: { username: 'simulator', password: '' },
+  });
+  assert.strictEqual(store.verifyPassword('simulator', ''), true);
+  assert.strictEqual(store.verifyPassword('simulator', 'wrong'), false);
+  assert.strictEqual(store.getPassword('simulator'), '');
+  assert.strictEqual(store.describe().external.password, '<empty>');
+
+  // A missing password is still rejected; an empty one is not.
+  assert.throws(
+    () => createAccountStore({ domain: 'localhost', externalAccount: { username: 'simulator' } }),
+    /password may be empty/,
+  );
+
+  // Environment account path: empty password accepted, missing username rejected.
+  assert.deepStrictEqual(
+    readExternalAccountFromEnv({ XMPP_EXTERNAL_USERNAME: 'simulator', XMPP_EXTERNAL_PASSWORD: '' }),
+    { username: 'simulator', password: '' },
+  );
+  assert.strictEqual(readExternalAccountFromEnv({ XMPP_EXTERNAL_USERNAME: 'simulator' }), null);
+  assert.strictEqual(readExternalAccountFromEnv({ XMPP_EXTERNAL_PASSWORD: '' }), null);
+  const envStore = createAccountStore({
+    domain: 'localhost',
+    env: { XMPP_EXTERNAL_USERNAME: 'simulator', XMPP_EXTERNAL_PASSWORD: '' },
+  });
+  assert.strictEqual(envStore.verifyPassword('simulator', ''), true);
 });
 
 test('canonical XMPP launch config is portable without repository-specific aliases', () => {
@@ -194,6 +248,13 @@ test('UI and help expose XMPP controls, accessibility, lifecycle and TLS', () =>
   assert.ok(renderer.includes("accountPassword.value = ''"));
   assert.ok(renderer.includes("roomPassword.value = ''"));
   assert.ok(help.includes('XMPP'));
+  assert.ok(help.includes('/Users/hano4470/Backup/data/faa.csv'));
+  assert.ok(help.includes('xmppExternalUsername=simulator xmppExternalPassword='));
+  assert.ok(help.includes('xmppUsername=simulator xmppPassword='));
+  assert.ok(help.includes('xmppDestination=velocity-logger@localhost xmppAllowUnverifiedTls=true'));
+  assert.ok(help.includes('Local XMPP — Logger Server / Simulator Client'));
+  assert.ok(help.includes('a password may be present but empty'));
+  assert.doesNotMatch(help, /loopback-only certificate bypass/);
 });
 
 console.log(`\n${passed} passed`);

@@ -12,6 +12,7 @@ This guide is intended for users and developers who automate runs, script CI pip
 - [In-app command line interface dialog](#in-app-command-line-interface-dialog)
 - [Required vs optional parameters](#required-vs-optional-parameters)
 - [Parameter reference](#parameter-reference)
+- [Connection presets and the command line](#connection-presets-and-the-command-line)
 - [IP address behavior](#ip-address-behavior)
 - [Aliases and shortcuts](#aliases-and-shortcuts)
 - [Help layout parameters](#help-layout-parameters)
@@ -135,6 +136,7 @@ These parameters only apply when `protocol=grpc`. See the [gRPC guide](grpc.md) 
 | `tlsCaPath` | path, omitted | `(none)` | No | `tlsCaPath=./certs/ca.pem` | Custom CA certificate file (PEM) for gRPC TLS. When omitted, the system default CA bundle is used. Only applies when `useTls=true`. |
 | `tlsCertPath` | path, omitted | `(none)` | No | `tlsCertPath=./certs/client.pem` | Client/server certificate file (PEM) for gRPC mutual TLS (mTLS). Required for TLS server mode. Only applies when `useTls=true`. |
 | `tlsKeyPath` | path, omitted | `(none)` | No | `tlsKeyPath=./certs/client-key.pem` | Private key file (PEM) for gRPC mutual TLS (mTLS). Required for TLS server mode. Only applies when `useTls=true`. |
+| `allowUnverifiedTls` | `true`, `false` | `false` | No | `allowUnverifiedTls=true` | Explicitly accept an unverified gRPC server certificate in client mode. The connection stays encrypted, but the server identity is not checked and the bypass applies to any host, not only localhost. Server mode is unaffected. Only applies when `protocol=grpc`, `mode=client`, and `useTls=true`. |
 
 ### HTTP parameters
 
@@ -148,6 +150,7 @@ These parameters only apply when `protocol=http`. See the [HTTP guide](http.md) 
 | `httpTlsCaPath` | path, omitted | `(none)` | No | `httpTlsCaPath=./certs/ca.pem` | Custom CA certificate file (PEM) for HTTP TLS. Leave empty to use the OS certificate store. Only applies when `httpTls=true`. |
 | `httpTlsCertPath` | path, omitted | `(none)` | No | `httpTlsCertPath=./certs/server.pem` | Client or server certificate file (PEM) for HTTP TLS. Required for server-mode TLS; only needed in client mode for mutual TLS (mTLS). Only applies when `httpTls=true`. |
 | `httpTlsKeyPath` | path, omitted | `(none)` | No | `httpTlsKeyPath=./certs/server-key.pem` | Private key file (PEM) for HTTP TLS. Required for server-mode TLS and client-side mTLS. Only applies when `httpTls=true`. |
+| `httpAllowUnverifiedTls` | `true`, `false` | `false` | No | `httpAllowUnverifiedTls=true` | Explicitly accept an unverified HTTPS server certificate in client mode. The connection stays encrypted, but the server identity is not checked and the bypass applies to any host, not only localhost. Server mode is unaffected. Only applies when `protocol=http`, `mode=client`, and `httpTls=true`. |
 
 ### WebSocket parameters
 
@@ -164,6 +167,7 @@ These parameters only apply when `protocol=ws`. See the [WebSocket guide](websoc
 | `wsTlsCaPath` | path, omitted | `(none)` | No | `wsTlsCaPath=./certs/ca.pem` | Custom CA certificate file (PEM) for WebSocket TLS. Leave empty to use the OS certificate store. Only applies when `wsTls=true`. |
 | `wsTlsCertPath` | path, omitted | `(none)` | No | `wsTlsCertPath=./certs/server.pem` | Client or server certificate file (PEM) for WebSocket TLS. Required for server-mode TLS; only needed in client mode for mutual TLS (mTLS). Only applies when `wsTls=true`. |
 | `wsTlsKeyPath` | path, omitted | `(none)` | No | `wsTlsKeyPath=./certs/server-key.pem` | Private key file (PEM) for WebSocket TLS. Required for server-mode TLS and client-side mTLS. Only applies when `wsTls=true`. |
+| `wsAllowUnverifiedTls` | `true`, `false` | `false` | No | `wsAllowUnverifiedTls=true` | Explicitly accept an unverified WSS server certificate in client mode. The connection stays encrypted, but the server identity is not checked and the bypass applies to any host, not only localhost. Server mode is unaffected. Only applies when `protocol=ws`, `mode=client`, and `wsTls=true`. |
 
 ### XMPP parameters
 
@@ -173,16 +177,16 @@ These parameters only apply when `protocol=xmpp`. See the [XMPP guide](xmpp.md) 
 | --- | --- | --- | --- | --- | --- |
 | `xmppDomain` | XMPP domain | `localhost` | No | `xmppDomain=example.com` | XMPP service domain, separate from the top-level `ip` network host override. |
 | `xmppUsername` | string | (empty string) | No | `xmppUsername=logger` | XMPP client account username. |
-| `xmppPassword` | secret | (empty string) | No | `xmppPassword=secret` | XMPP client password; never written to logs or metadata. |
+| `xmppPassword` | secret, empty | (empty string) | No | `xmppPassword=secret` | XMPP client password; may be present but empty (`xmppPassword=`). Never written to logs or metadata. |
 | `xmppResource` | string | `velocity-logger` | No | `xmppResource=velocity-logger` | Resource appended to the authenticated XMPP JID. |
 | `xmppLocalJid` | bare JID, omitted | (empty string) | No | `xmppLocalJid=logger@example.com` | Optional local bare JID used to filter direct messages. |
 | `xmppExternalUsername` | string | `velocity-client` | No | `xmppExternalUsername=velocity` | External account accepted by XMPP server mode. |
-| `xmppExternalPassword` | secret | (empty string) | No | `xmppExternalPassword=secret` | External account password; never logged. |
+| `xmppExternalPassword` | secret, empty | (empty string) | No | `xmppExternalPassword=secret` | External account password; may be present but empty (`xmppExternalPassword=`). Never logged. |
 | `xmppTlsPolicy` | `required`, `preferred`, `disabled` | `required` | No | `xmppTlsPolicy=required` | STARTTLS policy. `required` is the secure default. |
 | `xmppTlsCaPath` | PEM path, omitted | `(none)` | No | `xmppTlsCaPath=./ca.pem` | Custom CA certificate path; OS trust is used when omitted. |
 | `xmppTlsCertPath` | PEM path, omitted | `(none)` | No | `xmppTlsCertPath=./server.pem` | Server certificate path; an ephemeral self-signed certificate is automatic when omitted. |
 | `xmppTlsKeyPath` | PEM path, omitted | `(none)` | No | `xmppTlsKeyPath=./server-key.pem` | Private key corresponding to `xmppTlsCertPath`. |
-| `xmppAllowUnverifiedTls` | `true`, `false` | `false` | No | `xmppAllowUnverifiedTls=true` | Explicitly skip verification for loopback client connections only. |
+| `xmppAllowUnverifiedTls` | `true`, `false` | `false` | No | `xmppAllowUnverifiedTls=true` | Explicitly accept an unverified XMPP server certificate. STARTTLS still encrypts the stream, but the server identity is not checked and the bypass applies to any host, not only localhost. |
 | `xmppAllowRemote` | `true`, `false` | `false` | No | `xmppAllowRemote=true` | Allow XMPP server binding outside loopback. |
 | `xmppConversation` | `direct`, `muc` | `direct` | No | `xmppConversation=muc` | Receive direct chat or Multi-User Chat (MUC) messages. |
 | `xmppRoom` | bare room JID, omitted | (empty string) | No | `xmppRoom=events@conference.example.com` | Room JID used in MUC mode. |
@@ -192,6 +196,23 @@ These parameters only apply when `protocol=xmpp`. See the [XMPP guide](xmpp.md) 
 | `xmppReplyTimeoutMs` | `integer >= 1` | `15000` | No | `xmppReplyTimeoutMs=15000` | Timeout for stanza, IQ, room join, and ping replies. |
 | `xmppPingIntervalMs` | `integer >= 1` | `60000` | No | `xmppPingIntervalMs=60000` | XMPP keepalive ping interval. |
 | `xmppReconnectDelayMs` | `integer >= 1` | `60000` | No | `xmppReconnectDelayMs=60000` | Delay before reconnecting an interrupted XMPP client session. |
+
+XMPP client mode requires `xmppUsername` and XMPP server mode requires
+`xmppExternalUsername`. The matching password parameter must be present, but it
+may be empty: `xmppPassword=` and `xmppExternalPassword=` are accepted for both
+PLAIN and SCRAM-SHA-1 and keep a local Logger/Simulator pairing free of a shared
+secret. Password whitespace is preserved exactly.
+
+## Connection presets and the command line
+
+The UI **Preset** dropdown pre-fills the same connection fields these parameters
+set. A preset only fills editable fields: it never connects, starts capture,
+saves a secret, or changes startup defaults, and the equivalent command line is
+always spelled out. See [Connection presets](connection-presets.md) for the
+twelve paired Logger and Simulator entries.
+
+Passing connection parameters in UI mode prepopulates the same controls without
+selecting a preset; the dropdown stays on **Custom**.
 
 ## IP address behavior
 

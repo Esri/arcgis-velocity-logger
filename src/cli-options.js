@@ -99,18 +99,21 @@ const CLI_OPTION_KEYS = new Set([
   'tlsCaPath',
   'tlsCertPath',
   'tlsKeyPath',
+  'allowUnverifiedTls',
   'httpFormat',
   'httpTls',
   'httpPath',
   'httpTlsCaPath',
   'httpTlsCertPath',
   'httpTlsKeyPath',
+  'httpAllowUnverifiedTls',
   'wsFormat',
   'wsTls',
   'wsPath',
   'wsTlsCaPath',
   'wsTlsCertPath',
   'wsTlsKeyPath',
+  'wsAllowUnverifiedTls',
   'wsSubscriptionMsg',
   'wsIgnoreFirstMsg',
   'wsHeaders',
@@ -169,18 +172,21 @@ const APP_DEFAULTS = {
   tlsCaPath: null,
   tlsCertPath: null,
   tlsKeyPath: null,
+  allowUnverifiedTls: false,
   httpFormat: 'delimited',
   httpTls: true,
   httpPath: '/',
   httpTlsCaPath: null,
   httpTlsCertPath: null,
   httpTlsKeyPath: null,
+  httpAllowUnverifiedTls: false,
   wsFormat: 'delimited',
   wsTls: true,
   wsPath: '/',
   wsTlsCaPath: null,
   wsTlsCertPath: null,
   wsTlsKeyPath: null,
+  wsAllowUnverifiedTls: false,
   wsSubscriptionMsg: null,
   wsIgnoreFirstMsg: false,
   wsHeaders: null,
@@ -574,6 +580,30 @@ const CLI_PARAMETER_DEFINITIONS = [
     purpose: 'Private key file (PEM) for HTTP TLS. Required for server-mode TLS and client-side mTLS. Only applies when protocol=http and httpTls=true.',
   },
   {
+    key: 'httpAllowUnverifiedTls',
+    defaultValue: DEFAULT_HEADLESS_OPTIONS.httpAllowUnverifiedTls,
+    options: ['true', 'false'],
+    example: 'httpAllowUnverifiedTls=true',
+    requiredInHeadless: 'No',
+    purpose: 'Explicitly accept an unverified HTTPS server certificate in client mode. Traffic stays encrypted, but the server identity is not checked and the bypass applies to any host, not only localhost. Default false; server mode is unaffected. Only applies when protocol=http, mode=client, and httpTls=true.',
+  },
+  {
+    key: 'wsAllowUnverifiedTls',
+    defaultValue: DEFAULT_HEADLESS_OPTIONS.wsAllowUnverifiedTls,
+    options: ['true', 'false'],
+    example: 'wsAllowUnverifiedTls=true',
+    requiredInHeadless: 'No',
+    purpose: 'Explicitly accept an unverified WSS server certificate in client mode. Traffic stays encrypted, but the server identity is not checked and the bypass applies to any host, not only localhost. Default false; server mode is unaffected. Only applies when protocol=ws, mode=client, and wsTls=true.',
+  },
+  {
+    key: 'allowUnverifiedTls',
+    defaultValue: DEFAULT_HEADLESS_OPTIONS.allowUnverifiedTls,
+    options: ['true', 'false'],
+    example: 'allowUnverifiedTls=true',
+    requiredInHeadless: 'No',
+    purpose: 'Explicitly accept an unverified gRPC server certificate in client mode. Traffic stays encrypted, but the server identity is not checked and the bypass applies to any host, not only localhost. Default false; server mode is unaffected. Only applies when protocol=grpc, mode=client, and useTls=true.',
+  },
+  {
     key: 'showMetadata',
     defaultValue: DEFAULT_HEADLESS_OPTIONS.showMetadata,
     options: ['true', 'false'],
@@ -696,16 +726,16 @@ const CLI_PARAMETER_DEFINITIONS = [
   ...[
     ['xmppDomain', 'XMPP domain', 'xmppDomain=example.com', 'XMPP service domain, separate from the top-level ip network host override.'],
     ['xmppUsername', 'string', 'xmppUsername=logger', 'XMPP client account username.'],
-    ['xmppPassword', 'secret', 'xmppPassword=secret', 'XMPP client password; never written to logs or metadata.'],
+    ['xmppPassword', 'secret | empty', 'xmppPassword=secret', 'XMPP client password; may be present but empty for relaxed local testing. Never written to logs or metadata.'],
     ['xmppResource', 'string', 'xmppResource=velocity-logger', 'Resource appended to the authenticated XMPP JID.'],
     ['xmppLocalJid', 'bare JID | omitted', 'xmppLocalJid=logger@example.com', 'Optional local bare JID used to filter direct messages.'],
     ['xmppExternalUsername', 'string', 'xmppExternalUsername=velocity', 'External account accepted by XMPP server mode.'],
-    ['xmppExternalPassword', 'secret', 'xmppExternalPassword=secret', 'External account password; never logged.'],
+    ['xmppExternalPassword', 'secret | empty', 'xmppExternalPassword=secret', 'External account password; may be present but empty for relaxed local testing. Never logged.'],
     ['xmppTlsPolicy', 'required | preferred | disabled', 'xmppTlsPolicy=required', 'STARTTLS policy. Required is the secure default.'],
     ['xmppTlsCaPath', 'PEM path | omitted', 'xmppTlsCaPath=./ca.pem', 'Custom CA certificate path; OS trust is used when omitted.'],
     ['xmppTlsCertPath', 'PEM path | omitted', 'xmppTlsCertPath=./server.pem', 'Server certificate path; an ephemeral self-signed certificate is automatic when omitted.'],
     ['xmppTlsKeyPath', 'PEM path | omitted', 'xmppTlsKeyPath=./server-key.pem', 'Private key corresponding to xmppTlsCertPath.'],
-    ['xmppAllowUnverifiedTls', 'true | false', 'xmppAllowUnverifiedTls=true', 'Explicitly skip verification for loopback client connections only.'],
+    ['xmppAllowUnverifiedTls', 'true | false', 'xmppAllowUnverifiedTls=true', 'Explicitly accept an unverified XMPP server certificate for any host; STARTTLS still encrypts the stream.'],
     ['xmppAllowRemote', 'true | false', 'xmppAllowRemote=true', 'Allow XMPP server binding outside loopback.'],
     ['xmppConversation', 'direct | muc', 'xmppConversation=muc', 'Receive direct chat or Multi-User Chat messages.'],
     ['xmppRoom', 'bare room JID | omitted', 'xmppRoom=events@conference.example.com', 'Room JID used in MUC mode.'],
@@ -1361,6 +1391,9 @@ function validateHeadlessOptions(values, errors, warnings) {
   if (normalized.tlsKeyPath !== undefined && normalized.tlsKeyPath !== '') {
     options.tlsKeyPath = resolvePathValue(normalized.tlsKeyPath);
   }
+  ['allowUnverifiedTls', 'httpAllowUnverifiedTls', 'wsAllowUnverifiedTls'].forEach((key) => {
+    if (normalized[key] !== undefined) options[key] = parseBoolean(normalized[key], key, errors);
+  });
 
   // --- HTTP params ---
   if (normalized.httpFormat !== undefined) {
@@ -1457,11 +1490,19 @@ function validateHeadlessOptions(values, errors, warnings) {
   });
   if (options.protocol === 'xmpp') {
     if (!options.xmppDomain) errors.push("XMPP requires 'xmppDomain'.");
-    if (options.mode === 'client' && (!options.xmppUsername || !options.xmppPassword)) {
-      errors.push('XMPP client mode requires xmppUsername and xmppPassword.');
+    // Passwords may be present but empty for relaxed local testing, so only a
+    // missing (non-string) password is rejected. Usernames remain required.
+    if (options.mode === 'client') {
+      if (!options.xmppUsername) errors.push('XMPP client mode requires xmppUsername.');
+      if (typeof options.xmppPassword !== 'string') {
+        errors.push('XMPP client mode requires xmppPassword; an empty value is allowed.');
+      }
     }
-    if (options.mode === 'server' && (!options.xmppExternalUsername || !options.xmppExternalPassword)) {
-      errors.push('XMPP server mode requires xmppExternalUsername and xmppExternalPassword.');
+    if (options.mode === 'server') {
+      if (!options.xmppExternalUsername) errors.push('XMPP server mode requires xmppExternalUsername.');
+      if (typeof options.xmppExternalPassword !== 'string') {
+        errors.push('XMPP server mode requires xmppExternalPassword; an empty value is allowed.');
+      }
     }
     if (options.xmppConversation === 'muc' && (!options.xmppRoom || !options.xmppNickname)) {
       errors.push('XMPP MUC mode requires xmppRoom and xmppNickname.');
@@ -1511,6 +1552,23 @@ function validateHeadlessOptions(values, errors, warnings) {
   }
   if (normalized.filter !== undefined && normalized.exclude !== undefined && options.filter === options.exclude) {
     warnings.push("'filter' and 'exclude' are identical, which means no records will be captured.");
+  }
+  [
+    ['allowUnverifiedTls', 'grpc', options.useTls, 'useTls'],
+    ['httpAllowUnverifiedTls', 'http', options.httpTls, 'httpTls'],
+    ['wsAllowUnverifiedTls', 'ws', options.wsTls, 'wsTls'],
+  ].forEach(([key, protocol, tlsEnabled, tlsKey]) => {
+    if (normalized[key] === undefined) return;
+    if (options.protocol !== protocol || !isClient) {
+      warnings.push(`'${key}' is ignored outside ${protocol} client mode. It only applies when protocol=${protocol} and mode=client.`);
+    } else if (!tlsEnabled) {
+      warnings.push(`'${key}' has no effect because ${tlsKey} is false. Certificate verification only applies to a TLS connection.`);
+    } else if (options[key] === true) {
+      warnings.push(`'${key}=true' disables certificate verification for any host, not only localhost. The connection stays encrypted, but the server identity is not checked.`);
+    }
+  });
+  if (options.protocol === 'xmpp' && options.xmppAllowUnverifiedTls === true) {
+    warnings.push("'xmppAllowUnverifiedTls=true' disables certificate verification for any host, not only localhost. STARTTLS still encrypts the stream, but the server identity is not checked.");
   }
 
   return options;
@@ -1739,6 +1797,7 @@ function parseCommandLineArgs(rawArgv, { isPackaged = false } = {}) {
     const uiPresetKeys = new Set([
       'protocol', 'mode', 'ip', 'port', 'grpcSerialization', 'grpcSendMethod',
       'grpcHeaderPath', 'grpcHeaderPathKey', 'useTls', 'tlsCaPath', 'tlsCertPath', 'tlsKeyPath',
+      'allowUnverifiedTls', 'httpAllowUnverifiedTls', 'wsAllowUnverifiedTls',
       'httpFormat', 'httpTls', 'httpPath', 'httpTlsCaPath', 'httpTlsCertPath', 'httpTlsKeyPath',
       'wsFormat', 'wsTls', 'wsPath', 'wsTlsCaPath', 'wsTlsCertPath', 'wsTlsKeyPath',
       'wsSubscriptionMsg', 'wsIgnoreFirstMsg', 'wsHeaders',
@@ -1862,12 +1921,15 @@ function formatExplainOutput(cliOptions) {
       ['grpcHeaderPath', (presets && presets.grpcHeaderPath) || `(default: ${d.grpcHeaderPath})`],
       ['grpcHeaderPathKey', (presets && presets.grpcHeaderPathKey) || `(default: ${d.grpcHeaderPathKey})`],
       ['useTls', presets && presets.useTls !== undefined ? presets.useTls : `(default: ${d.useTls})`],
+      ['allowUnverifiedTls', presets && presets.allowUnverifiedTls !== undefined ? presets.allowUnverifiedTls : `(default: ${d.allowUnverifiedTls})`],
       ['httpFormat', (presets && presets.httpFormat) || `(default: ${d.httpFormat})`],
       ['httpTls', presets && presets.httpTls !== undefined ? presets.httpTls : `(default: ${d.httpTls})`],
       ['httpPath', (presets && presets.httpPath) || `(default: ${d.httpPath})`],
+      ['httpAllowUnverifiedTls', presets && presets.httpAllowUnverifiedTls !== undefined ? presets.httpAllowUnverifiedTls : `(default: ${d.httpAllowUnverifiedTls})`],
       ['wsFormat', (presets && presets.wsFormat) || `(default: ${d.wsFormat})`],
       ['wsTls', presets && presets.wsTls !== undefined ? presets.wsTls : `(default: ${d.wsTls})`],
       ['wsPath', (presets && presets.wsPath) || `(default: ${d.wsPath})`],
+      ['wsAllowUnverifiedTls', presets && presets.wsAllowUnverifiedTls !== undefined ? presets.wsAllowUnverifiedTls : `(default: ${d.wsAllowUnverifiedTls})`],
     ];
 
     const maxKeyLen = Math.max(...configLines.map(([key]) => key.length));

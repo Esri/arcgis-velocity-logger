@@ -26,7 +26,7 @@ const {
   DEFAULT_PING_INTERVAL_MS,
   DEFAULT_RECONNECT_DELAY_MS,
 } = require('./xmpp-constants');
-const { canonicalizeDomain, isLoopbackHost } = require('./xmpp-utils');
+const { canonicalizeDomain } = require('./xmpp-utils');
 
 const XMPP_CHAT_MODES = Object.freeze({ DIRECT: 'direct', MUC: 'muc' });
 const VALID_CHAT_MODES = new Set(Object.values(XMPP_CHAT_MODES));
@@ -90,8 +90,9 @@ function createXmppClientTransport(options = {}) {
 
   return {
     async connect() {
-      if (!options.xmppUsername || !options.xmppPassword) {
-        throw new Error('XMPP Client Username and Password are required');
+      // The password may be present but empty for relaxed local testing.
+      if (!options.xmppUsername || typeof options.xmppPassword !== 'string') {
+        throw new Error('XMPP Client Username and Password are required; the password may be empty');
       }
       core = new XmppClientCore({
         service,
@@ -193,8 +194,9 @@ function createXmppServerTransport(options = {}) {
 
   return {
     async connect() {
-      if (!options.xmppExternalUsername || !options.xmppExternalPassword) {
-        throw new Error('XMPP Server External user and External password are required');
+      // The external password may be present but empty for relaxed local testing.
+      if (!options.xmppExternalUsername || typeof options.xmppExternalPassword !== 'string') {
+        throw new Error('XMPP Server External user and External password are required; the password may be empty');
       }
       core = new XmppServerCore({
         host, port, domain, tlsPolicy,
@@ -238,9 +240,11 @@ function createXmppServerTransport(options = {}) {
       });
       const result = await core.listen();
       boundAddress = result.address;
-      allowUnverifiedTls = Boolean(
-        result.selfSignedCertificate && isLoopbackHost(toConnectableHost(boundAddress.address)),
-      );
+      // Copied client settings advertise the certificate bypass whenever this
+      // server presents an ephemeral self-signed certificate, so the paired
+      // client can trust it. The value is explicit in the copied JSON; nothing
+      // is enabled silently on this side.
+      allowUnverifiedTls = Boolean(result.selfSignedCertificate);
       return {
         success: true, mode: 'server', address: result.address, domain,
         appJid: core.internalAccount.jid,

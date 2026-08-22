@@ -651,6 +651,94 @@ button:disabled {
     flex-wrap: nowrap;
 }
 
+/* Preset picker: sits ahead of Connection Type and stays compact so the
+   primary row keeps its single-line rhythm. */
+.connection-preset-select {
+    flex: 0 1 auto;
+    max-width: 210px;
+    min-width: 80px;
+    text-align: left;
+    text-align-last: left;
+    text-overflow: ellipsis;
+}
+
+.connection-preset-state {
+    flex: 0 0 auto;
+    padding: 1px 6px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    font-size: 0.75em;
+    line-height: 1.6;
+    white-space: nowrap;
+    opacity: 0.85;
+}
+
+.connection-preset-state[hidden] {
+    display: none;
+}
+
+/* Progressive disclosure: advanced protocol options stay one click away
+   instead of crowding the essentials row. */
+.advanced-options {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+.advanced-options > summary {
+    cursor: pointer;
+    white-space: nowrap;
+    padding: 2px 6px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 0.85em;
+    list-style: none;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.advanced-options > summary::-webkit-details-marker {
+    display: none;
+}
+
+.advanced-options > summary::before {
+    content: '⚙ ';
+    opacity: 0.8;
+}
+
+.advanced-options > summary:hover,
+.advanced-options > summary:focus-visible {
+    border-color: var(--text-color);
+    background-color: color-mix(in srgb, var(--text-color) 8%, transparent);
+}
+
+.advanced-options-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 6px 0 2px;
+    width: 100%;
+}
+
+.advanced-options[open] {
+    flex: 1 1 100%;
+}
+
+/* Explicit certificate-verification bypass is a warning-level control. */
+.unverified-tls-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+    padding: 1px 6px;
+    border: 1px solid var(--button-danger-bg, #dc3545);
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--button-danger-bg, #dc3545) 10%, transparent);
+}
+
+.unverified-tls-check::before {
+    content: '⚠';
+}
+
 /* gRPC options second row — slides in/out with a max-height transition */
 .grpc-options-row {
     display: flex;
@@ -666,7 +754,7 @@ button:disabled {
 }
 
 .grpc-options-row.visible {
-    max-height: 120px; /* generous ceiling; actual content ~36px, wraps to ~80px on narrow windows */
+    max-height: 320px; /* generous ceiling; the Advanced disclosure expands within this row */
     padding-top: 6px;
     opacity: 1;
     border-top-color: var(--border-color);
@@ -808,6 +896,16 @@ button:disabled {
 
 .xmpp-options-grid .xmpp-check {
     justify-content: flex-start;
+}
+
+/* The XMPP Advanced disclosure spans the full options grid so its own grid
+   keeps the same column rhythm as the essentials above it. */
+.xmpp-options-grid > .xmpp-advanced {
+    grid-column: 1 / -1;
+}
+
+.xmpp-advanced-grid {
+    padding-top: 6px;
 }
 
 .xmpp-actions {

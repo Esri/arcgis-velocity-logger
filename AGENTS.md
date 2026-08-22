@@ -398,8 +398,43 @@ Treat the following as one shared surface that must not drift between the reposi
 - **Option vocabulary.** CLI keys, launch-config keys, and UI element ids must be identical. For XMPP, canonical shared names include `xmppConversation`, `xmppAllowUnverifiedTls`, and the connect/reply/ping/reconnect timing fields.
 - **Defaults and bounds.** Ports, positive timeouts, size caps, TLS/STARTTLS policies, and validation rules must match. XMPP itself defaults to **client** mode in the Simulator and **server** mode in the Logger; neither changes the app-wide default transport.
 - **Wire-level guarantees.** Framing, message types, self-echo handling, and error conditions must stay compatible because one app's send path is the other app's receive path.
-- **XMPP safeguards.** Keep account/JID canonicalization, password-whitespace handling, loopback-only unverified TLS, Direct/MUC semantics, waiter cancellation, reconnect cleanup, and acknowledgement-only XEP-0198 claims aligned.
+- **XMPP safeguards.** Keep account/JID canonicalization, password-whitespace handling, explicit opt-in unverified TLS, empty-password acceptance for PLAIN and SCRAM-SHA-1, Direct/MUC semantics, waiter cancellation, reconnect cleanup, and acknowledgement-only XEP-0198 claims aligned.
+- **Client TLS verification.** Client-mode certificate verification is on by default and is bypassed only through the explicit `allowUnverifiedTls` (gRPC), `httpAllowUnverifiedTls`, `wsAllowUnverifiedTls`, and `xmppAllowUnverifiedTls` options. Keep the option names, defaults, warning styling, and log wording identical in both repositories, and keep the decision in one shared TLS helper rather than duplicating it per transport.
 - **Documentation.** Matching transport guides, help sections, and tooltip references should describe the same behavior, adjusted only for data direction.
+
+### Connection preset parity
+
+`src/connection-presets.js` defines twelve paired connection presets. The preset
+**identifiers and labels are a cross-application contract** and must match the
+Simulator exactly, character for character, including the em dash in each label:
+
+| Identifier | Label |
+|---|---|
+| `local-tcp-logger-server` | Local TCP — Logger Server / Simulator Client |
+| `local-tcp-simulator-server` | Local TCP — Simulator Server / Logger Client |
+| `local-udp-logger-server` | Local UDP — Logger Server / Simulator Client |
+| `local-udp-simulator-server` | Local UDP — Simulator Server / Logger Client |
+| `local-grpc-logger-server` | Local gRPC — Logger Server / Simulator Client |
+| `local-grpc-simulator-server` | Local gRPC — Simulator Server / Logger Client |
+| `local-http-logger-server` | Local HTTP — Logger Server / Simulator Client |
+| `local-http-simulator-server` | Local HTTP — Simulator Server / Logger Client |
+| `local-ws-logger-server` | Local WebSocket — Logger Server / Simulator Client |
+| `local-ws-simulator-server` | Local WebSocket — Simulator Server / Logger Client |
+| `local-xmpp-logger-server` | Local XMPP — Logger Server / Simulator Client |
+| `local-xmpp-simulator-server` | Local XMPP — Simulator Server / Logger Client |
+
+Only the **role mapping** is inverted. In the Logger, a label naming *Logger
+Server* selects a `*-server` connection type and a label naming *Simulator
+Server* selects a `*-client` connection type; the Simulator maps the same labels
+the other way. Hosts, ports, formats, serialization, paths, and TLS choices must
+stay identical.
+
+Preset semantics must also match: a preset only pre-fills editable fields, never
+connects, never starts capture or sending, never saves a secret, and never
+changes startup defaults. Selecting **Custom** preserves current values, and
+editing any populated field switches the display to **Custom (modified)**.
+Adding, renaming, or repurposing a preset requires the same change in the
+sister repository in the same release.
 
 Invert only genuine role differences. The Simulator publishes to role-specific `xmppDestination`; the Logger receives and may filter with role-specific `xmppLocalJid`. Do not add send behavior or `xmppDestination` to the Logger, and do not rename these asymmetric fields to make them appear identical.
 

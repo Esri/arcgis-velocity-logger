@@ -16,6 +16,7 @@ This guide is intended for users and developers who need to configure TLS, mTLS,
 - [Working with a custom certificate authority](#working-with-a-custom-certificate-authority)
 - [OS certificate stores (client mode)](#os-certificate-stores-client-mode)
 - [Server-mode TLS: automatic self-signed certificate](#server-mode-tls-automatic-self-signed-certificate)
+- [Explicit certificate verification bypass](#explicit-certificate-verification-bypass)
 - [Mutual TLS (mTLS)](#mutual-tls-mtls)
 - [TLS trust badge](#tls-trust-badge)
 - [Per-protocol notes](#per-protocol-notes)
@@ -45,6 +46,13 @@ These parameters apply to all TLS-capable protocols (HTTP, WebSocket, gRPC):
 | `tlsCaPath` | Path to a custom CA certificate PEM file. When omitted in client mode, OS root CAs are loaded automatically. |
 | `tlsCertPath` | Path to a client/server certificate PEM file. Required for server-mode TLS; required in client mode only for mTLS. |
 | `tlsKeyPath` | Path to a private key PEM file. Required for server-mode TLS and client-side mTLS. |
+| `allowUnverifiedTls` | gRPC client only. Explicitly accept an unverified server certificate (default: `false`). |
+| `httpAllowUnverifiedTls` | HTTP client only. Explicitly accept an unverified server certificate (default: `false`). |
+| `wsAllowUnverifiedTls` | WebSocket client only. Explicitly accept an unverified server certificate (default: `false`). |
+
+Each protocol keeps its own parameter name so the option matches the TLS switch
+it modifies (`useTls`, `httpTls`, `wsTls`). XMPP has its own in-band equivalent,
+`xmppAllowUnverifiedTls`.
 
 ## Certificate types
 
@@ -543,8 +551,47 @@ When `useTls=true` is set on a server transport **without** providing `tlsCertPa
 
 Because the certificate is not signed by a trusted CA, connecting clients will reject it by default.
 
-- **Logger / Simulator pairing (same machine):** Both apps automatically set `rejectUnauthorized: false` when the server advertises a self-signed certificate — no configuration needed for local testing.
+- **Logger / Simulator pairing (same machine):** Turn on **Allow unverified** for the client protocol, or pass `allowUnverifiedTls=true` (gRPC), `httpAllowUnverifiedTls=true` (HTTP), or `wsAllowUnverifiedTls=true` (WebSocket). The bypass is explicit and off by default.
 - **Custom cert files:** Provide your own cert/key via `tlsCertPath` and `tlsKeyPath`. If clients have the corresponding CA in their trust store they will connect without warnings.
+- **Trusted CA copy:** Export the server certificate and point the client at it with `tlsCaPath` to keep verification enabled.
+
+## Explicit certificate verification bypass
+
+Client-mode certificate verification is **on by default** on every TLS-capable
+transport. The Node.js bundled roots and the OS certificate store are merged and
+the server certificate chain is validated.
+
+A client accepts an unverified certificate only when you explicitly opt in:
+
+| Transport | UI control | CLI parameter |
+|-----------|-----------|---------------|
+| gRPC client | **Allow unverified** (gRPC Advanced) | `allowUnverifiedTls=true` |
+| HTTP client | **Allow unverified** (HTTP Advanced) | `httpAllowUnverifiedTls=true` |
+| WebSocket client | **Allow unverified** (WebSocket Advanced) | `wsAllowUnverifiedTls=true` |
+| XMPP client | **Allow unverified** (XMPP Advanced) | `xmppAllowUnverifiedTls=true` |
+
+What the option does and does not do:
+
+- The connection stays **encrypted**. Only the certificate chain and host
+  identity checks are skipped.
+- The bypass applies to **any host, not only localhost**. Use it for local
+  self-signed testing and turn it off afterwards.
+- It is a **client-mode** option. Server modes are unaffected.
+- The default is `false` everywhere. Nothing enables it silently. The only
+  automatic use is the **Local XMPP — Simulator Server / Logger Client**
+  connection preset, where the checkbox is visibly turned on after the preset is
+  applied. See [Connection presets](connection-presets.md).
+- Each control is styled as a warning and its tooltip states that verification
+  is disabled for every host.
+- The connection log and the TLS trust badge report the choice:
+
+  ```text
+  tls=on (cert verification enabled), 180 trusted CAs loaded, ...
+  tls=on (cert verification disabled by explicit allowUnverifiedTls), 180 trusted CAs loaded, ...
+  ```
+
+The headless runner and launch configuration accept the same keys, so an
+automated run makes the same choice explicit.
 
 ## Mutual TLS (mTLS)
 
@@ -573,25 +620,26 @@ The badge is hidden for TCP and UDP because those transports do not support TLS.
 
 - `updateTlsBadge(tooltip)` in `renderer.js` parses the tooltip string from the transport and sets the `data-trust` attribute on the badge element.
 - CSS `filter` rules in `style.css` apply the colour tint to the emoji icon via the `data-trust` attribute.
+- `resolveClientTlsVerification()` in `tls-utils.js` is the single place that decides client trust; `buildHttpsAgentOptions()` (HTTP and WebSocket) and `buildChannelCredentials()` (gRPC) both call it so the behavior and log wording match.
 - `tlsInfoToTooltip(raw)` converts raw transport `tlsInfo` strings (e.g. `"tls=on, custom certs: ca=./certs/ca.pem"`) into human-readable popover content.
 
 ## Per-protocol notes
 
 ### gRPC
 
-- Uses `@grpc/grpc-js` `credentials.createSsl()` with `rejectUnauthorized: false` so self-signed certs work automatically between the Simulator and Logger on the same machine.
+- Uses `@grpc/grpc-js` `credentials.createSsl()` with the merged OS CA bundle and certificate verification enabled. Set `allowUnverifiedTls=true` to accept a self-signed server certificate.
 - Server mode auto-generates a self-signed cert when no cert/key are provided (see above).
 - See the [gRPC transport guide](grpc.md) for log output examples.
 
 ### HTTP
 
-- Client mode uses Node.js `https.Agent` with the merged OS CA bundle.
+- Client mode uses Node.js `https.Agent` with the merged OS CA bundle and certificate verification enabled. Set `httpAllowUnverifiedTls=true` to accept a self-signed server certificate.
 - Server mode uses `https.createServer()` with the provided cert/key (or auto-generated self-signed).
 - See the [HTTP transport guide](http.md) for UI controls and CLI examples.
 
 ### WebSocket
 
-- Client mode passes TLS agent options to the `ws` library's `WebSocket` constructor.
+- Client mode passes TLS agent options to the `ws` library's `WebSocket` constructor, with certificate verification enabled. Set `wsAllowUnverifiedTls=true` to accept a self-signed server certificate.
 - Server mode wraps an `https.Server` before upgrading connections to WebSocket.
 - See the [WebSocket transport guide](websocket.md) for UI controls and CLI examples.
 

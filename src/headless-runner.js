@@ -310,6 +310,7 @@ function createReceiver(options, { logger, onLine, onError }) {
       const tlsCaPath = options.tlsCaPath || undefined;
       const tlsCertPath = options.tlsCertPath || undefined;
       const tlsKeyPath = options.tlsKeyPath || undefined;
+      const allowUnverifiedTls = options.allowUnverifiedTls === true || options.allowUnverifiedTls === 'true';
       const showMetadata = options.showMetadata === true || options.showMetadata === 'true';
       const onMetaLine = showMetadata ? (text) => onLine(text) : null;
       const tlsLabel = useTls ? 'tls=on' : 'tls=off';
@@ -330,7 +331,7 @@ function createReceiver(options, { logger, onLine, onError }) {
       } else {
         const transport = createGrpcClientTransport({
           ip, port, grpcSerialization, headerPathKey, headerPath,
-          useTls, tlsCaPath, tlsCertPath, tlsKeyPath,
+          useTls, tlsCaPath, tlsCertPath, tlsKeyPath, allowUnverifiedTls,
           onData: (text) => onLine(text),
           onMetadata: onMetaLine,
           onStatus: onMetaLine,
