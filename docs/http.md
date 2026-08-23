@@ -27,6 +27,22 @@ It is intended for users and developers connecting the Logger to an HTTP(S) endp
 | HTTP Client | Receives POST data from an HTTP(S) endpoint |
 | HTTP Server | Connects to an HTTP(S) server to receive data |
 
+In client mode the Logger subscribes to the endpoint's Server-Sent Events
+stream, which is how a paired ArcGIS Velocity Simulator in HTTP server mode
+delivers records. The subscription follows two rules. When the endpoint answers
+the subscription with anything other than HTTP 200 and a `text/event-stream`
+content type — for example a POST-only endpoint that answers
+`200 application/json` — the answer is definitive: the subscription stops for
+the life of the connection, is logged once, and the endpoint is never polled or
+re-sent the `Authorization` header. When a stream that was established does
+drop, it is a transport failure rather than an answer, so the client
+re-subscribes after one second and retries a refused connection every two
+seconds.
+
+A single failed request is a per-request failure, not a disconnect. The client
+stays connected and a later request succeeds once the peer is reachable again.
+Only an explicit disconnect ends the connection.
+
 ## Format options
 
 The HTTP Format dropdown controls the `Content-Type` header used when sending data. These match the formats supported by the ArcGIS Velocity TCP and HTTP Receiver feeds. **Delimited (CSV) is the default**, matching the order used by ArcGIS Velocity:
@@ -74,16 +90,18 @@ When connecting to an ArcGIS Velocity HTTP Receiver endpoint, set this to the sy
 
 ## UI controls
 
-When HTTP is selected as the connection type in the UI, the following controls appear in the HTTP options row:
+When HTTP is selected as the connection type, its controls live in the **Protocol Settings** dialog (**Protocol Settings…** in the connection row, or `Cmd/Ctrl+Shift+P`), grouped into **Basics** and **Security** (HTTP has no Advanced settings). See [Connection summary and protocol settings](connection-summary.md).
+
+The following controls appear:
 
 - **Mode** - `HTTP Client` or `HTTP Server` (selected from the main Mode dropdown). Hovering over each option shows a description of that connection mode. All connection modes (TCP, UDP, HTTP, gRPC) have descriptive tooltips.
 - **Format** - `Delimited (CSV)` (default), `JSON`, `Esri JSON`, `GeoJSON`, or `XML`. Controls the `Content-Type` header sent with each request. Must match the format configured in the ArcGIS Velocity HTTP Receiver feed. Hovering over the dropdown shows a detailed tooltip for the currently selected format.
 - **TLS** - Checkbox to enable TLS (HTTPS). When checked, the connection uses HTTPS and the port defaults to `8443`. When unchecked, uses plain HTTP with port `8080`. Toggling this checkbox also reveals/hides the certificate path fields.
-- **Advanced** - Disclosure that holds the certificate paths and the verification option. Format, TLS, and HTTP Path stay visible in the row.
+- **Section** - **Basics** holds Format and HTTP Path; **Security** holds TLS, the certificate paths, and the verification option.
 - **CA cert path** - Path to a custom CA certificate file (PEM). Leave empty to use the OS certificate store. Only needed for enterprise or self-signed CAs.
 - **TLS cert path** - Path to a client or server certificate file (PEM). Required for server-mode TLS; only needed in client mode for mutual TLS (mTLS).
 - **TLS key path** - Path to the private key file (PEM). Required for server-mode TLS and client-side mTLS.
-- **Allow unverified** - Client-only warning checkbox inside **Advanced**, shown when TLS is enabled. Accepts an unverified server certificate for any host. Off by default; see [TLS and SSL security](tls.md#explicit-certificate-verification-bypass).
+- **Allow unverified** - Client-only warning checkbox in **Security**, shown when TLS is enabled. Accepts an unverified server certificate for any host. Off by default; see [TLS and SSL security](tls.md#explicit-certificate-verification-bypass).
 - **HTTP Path** - The URL path appended after the host:port (default `/`). In server mode, only POST requests matching this path are accepted. In client mode, this path is used in outgoing POST URLs. Set this to the ArcGIS Velocity feed's system-generated path when connecting to a real endpoint.
 
 ## Tooltip reference
@@ -115,7 +133,11 @@ The following tooltips appear when hovering over HTTP-related controls in the UI
 | CA cert path | Path to a custom CA certificate file (PEM). Leave empty to use the OS certificate store automatically. Only needed for enterprise or self-signed CAs not in the system trust store. |
 | TLS cert path | Path to a client or server certificate file (PEM). Required for server-mode TLS. For client mode, only needed for mutual TLS (mTLS) authentication. |
 | TLS key path | Path to the private key file (PEM) corresponding to the TLS certificate. Required for server-mode TLS and client-side mTLS. |
-| Advanced | Show or hide the advanced HTTP certificate and verification options. Format, path, and TLS stay visible above. |
+| Format field label | Content type expected for each HTTP payload |
+| Path field label | URL path used after host and port |
+| CA certificate field label | Custom certificate authority used to verify the HTTPS peer |
+| Certificate field label | Certificate presented by this HTTP connection |
+| Private key field label | Private key that matches the HTTP certificate |
 | Allow unverified | Warning: accept any HTTPS server certificate<br>---<br>Certificate verification is disabled for every host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Use only for local self-signed testing. |
 | HTTP Path | HTTP endpoint URL path appended after the host:port (e.g. /receiver/feed-id). In server mode, only POST requests matching this path are accepted; all others return 404. In client mode, this path is used in the outgoing POST request URL. Default is /. |
 
@@ -174,6 +196,7 @@ HTTP parameters can be set in launch configuration JSON files:
 
 ## Related documentation
 
+- [Connection summary and protocol settings](connection-summary.md)
 - [TLS guide](tls.md)
 - [gRPC transport](grpc.md)
 - [WebSocket transport](websocket.md)

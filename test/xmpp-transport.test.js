@@ -556,6 +556,38 @@ function pickFreePort() {
     }
   });
 
+  await test('client shutdown stays bounded when the peer closes concurrently', async () => {
+    const server = new XmppServerCore({
+      host: '127.0.0.1',
+      port: 0,
+      domain: 'localhost',
+      externalAccount: { username: 'simulator', password: '' },
+      tlsPolicy: 'required',
+    });
+    const listening = await server.listen();
+    const client = new XmppClientCore({
+      service: `xmpp://127.0.0.1:${listening.address.port}`,
+      domain: 'localhost',
+      username: 'simulator',
+      password: '',
+      resource: 'velocity-simulator',
+      rejectUnauthorized: false,
+      startTlsPolicy: 'required',
+      timeout: 5000,
+    });
+    client.on('error', () => {});
+    try {
+      await client.connect();
+      const startedAt = Date.now();
+      await Promise.all([server.close(), client.close()]);
+      const elapsedMs = Date.now() - startedAt;
+      assert.ok(elapsedMs < 2500, `concurrent shutdown took ${elapsedMs}ms`);
+    } finally {
+      await client.close().catch(() => {});
+      await server.close().catch(() => {});
+    }
+  });
+
   await test('oversized message stanzas are rejected before body delivery', async () => {
     const received = [];
     const warnings = [];

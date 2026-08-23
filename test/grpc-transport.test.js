@@ -6,6 +6,7 @@
  */
 
 const path = require('path');
+const { fork } = require('child_process');
 const {
   GrpcServerTransport,
   GrpcClientTransport,
@@ -13,6 +14,86 @@ const {
   createGrpcClientTransport,
   SERIALIZATION_FORMATS,
 } = require('../src/grpc-transport.js');
+
+/**
+ * Marker that turns this file into a short-lived gRPC peer process.
+ * The peer-loss tests need a peer they can kill outright, because that is what
+ * ends the pending Watch call with "14 UNAVAILABLE: Connection dropped".
+ *
+ * The peer plays the sending role — a Watch-capable server, the shape the
+ * ArcGIS Velocity Simulator hosts — so the Logger client under test is a plain
+ * receiver throughout.
+ */
+const PEER_CHILD_FLAG = '--grpc-peer-child';
+
+/** Builds the Watch-capable peer server for one serialization family. */
+function createWatchPeerServer(serialization) {
+  const grpc = require('@grpc/grpc-js');
+  const protoLoader = require('@grpc/proto-loader');
+  const protoDir = path.join(__dirname, '..', 'src', 'proto');
+  const isProtobuf = serialization === 'protobuf';
+  const packageDef = protoLoader.loadSync(
+    path.join(protoDir, isProtobuf ? 'velocity-grpc.proto' : 'feature-service.proto'),
+    { keepCase: true, longs: String, enums: String, defaults: true, oneofs: true, includeDirs: [protoDir] }
+  );
+  const loaded = grpc.loadPackageDefinition(packageDef);
+  const server = new grpc.Server();
+  const keepOpen = (call) => {
+    call.on('cancelled', () => {});
+    call.on('error', () => {});
+  };
+  if (isProtobuf) {
+    server.addService(loaded.esri.realtime.core.grpc.GrpcFeed.service, {
+      Send: (call, callback) => callback(null, { message: 'OK', code: 0 }),
+      Stream: (call, callback) => { call.on('end', () => callback(null, { message: 'OK', code: 0 })); },
+      Watch: keepOpen,
+    });
+  } else {
+    server.addService(loaded.grpc.GrpcFeatureService.service, {
+      execute: (call, callback) => callback(null, { itemId: call.request.itemId || '', success: true }),
+      executeMulti: (call) => { call.on('end', () => call.end()); },
+      watch: keepOpen,
+    });
+  }
+  return new Promise((resolve, reject) => {
+    server.bindAsync('127.0.0.1:0', grpc.ServerCredentials.createInsecure(), (error, port) => {
+      if (error) reject(error);
+      else resolve({ server, port });
+    });
+  });
+}
+
+function startPeerServerChild() {
+  const serialization = process.argv[process.argv.indexOf(PEER_CHILD_FLAG) + 1] || 'protobuf';
+  createWatchPeerServer(serialization)
+    .then(({ port }) => {
+      process.send({ port });
+      setInterval(() => {}, 1000); // stay alive until the parent kills this process
+    })
+    .catch((error) => {
+      process.send({ error: error.message });
+      process.exit(1);
+    });
+}
+
+/** Starts a Watch-capable gRPC peer in its own process and resolves once it is listening. */
+function forkPeerServer(serialization) {
+  return new Promise((resolve, reject) => {
+    const child = fork(__filename, [PEER_CHILD_FLAG, serialization], { stdio: ['ignore', 'ignore', 'inherit', 'ipc'] });
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      reject(new Error('The gRPC peer process did not report a port in time.'));
+    }, 15000);
+    child.once('message', (message) => {
+      clearTimeout(timer);
+      if (message.error) {
+        reject(new Error(message.error));
+        return;
+      }
+      resolve({ child, port: message.port });
+    });
+  });
+}
 
 async function runGrpcTransportTests() {
   console.log('\n=== gRPC Transport Test Suite (Logger) ===');
@@ -1037,6 +1118,146 @@ async function runGrpcTransportTests() {
     return metadata.get('grpc-path')[0] === 'test.feed.uid';
   });
 
+  // --- Test 12: Teardown after the peer disappears ---
+  console.log('\n--- Test 12: Client teardown after the peer disappears ---');
+
+  /**
+   * Runs the peer-loss scenario: a Watch subscriber whose sending peer is
+   * killed outright, which is the case that ends the pending call with
+   * "14 UNAVAILABLE: Connection dropped". Teardown used to leave that
+   * rejection unhandled and the transport reported as connected.
+   */
+  const peerLossTest = async (grpcSerialization) => {
+    const { child, port } = await forkPeerServer(grpcSerialization);
+    const diagnostics = [];
+    const client = createGrpcClientTransport({
+      ip: '127.0.0.1', port, useTls: false, grpcSerialization,
+      onData: () => {},
+      onLog: (level, message) => diagnostics.push(`${level}: ${message}`),
+    });
+    await client.connect();
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    let completionFailed = false;
+    client._streamCompletion.catch(() => { completionFailed = true; });
+    child.kill('SIGKILL');
+    await new Promise((resolve) => setTimeout(resolve, 700));
+
+    const started = Date.now();
+    let teardownError = null;
+    let result = null;
+    try {
+      result = await client.disconnect();
+    } catch (error) {
+      teardownError = error;
+    }
+    return {
+      completionFailed,
+      teardownError,
+      result,
+      diagnostics,
+      elapsedMs: Date.now() - started,
+      clientCleared: client.client === null && client.stream === null,
+      connected: client.isConnected(),
+    };
+  };
+
+  await runTest('GrpcClientTransportProtobuf.disconnect never rejects after the peer disappears', async () => {
+    const outcome = await peerLossTest('protobuf');
+    if (outcome.teardownError) console.log(`   rejected: ${outcome.teardownError.message}`);
+    return outcome.completionFailed === true
+      && outcome.teardownError === null
+      && outcome.clientCleared === true
+      && outcome.connected === false
+      && outcome.elapsedMs < 2000
+      && outcome.result.warnings.some((warning) => warning.includes('UNAVAILABLE'))
+      && outcome.diagnostics.some((entry) => entry.startsWith('warn: ') && entry.includes('gRPC teardown reported:'));
+  });
+
+  await runTest('GrpcClientTransportInternal.disconnect never rejects after the peer disappears', async () => {
+    const outcome = await peerLossTest('text');
+    if (outcome.teardownError) console.log(`   rejected: ${outcome.teardownError.message}`);
+    return outcome.completionFailed === true
+      && outcome.teardownError === null
+      && outcome.clientCleared === true
+      && outcome.connected === false
+      && outcome.elapsedMs < 2000
+      && outcome.result.warnings.some((warning) => warning.includes('UNAVAILABLE'));
+  });
+
+  await runTest('a second disconnect after the peer disappeared is still safe', async () => {
+    const { child, port } = await forkPeerServer('protobuf');
+    const client = createGrpcClientTransport({
+      ip: '127.0.0.1', port, useTls: false, grpcSerialization: 'protobuf', onData: () => {},
+    });
+    await client.connect();
+    child.kill('SIGKILL');
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const first = await client.disconnect();
+    const second = await client.disconnect();
+    return Array.isArray(first.warnings) && Array.isArray(second.warnings)
+      && second.warnings.length === 0 && client.isConnected() === false;
+  });
+
+  await runTest('a graceful peer shutdown leaves no teardown diagnostic', async () => {
+    const { server, port } = await createWatchPeerServer('protobuf');
+    const diagnostics = [];
+    const client = createGrpcClientTransport({
+      ip: '127.0.0.1', port, useTls: false, grpcSerialization: 'protobuf',
+      onData: () => {},
+      onLog: (level, message) => diagnostics.push(`${level}: ${message}`),
+    });
+    await client.connect();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const started = Date.now();
+    const result = await client.disconnect();
+    const elapsedMs = Date.now() - started;
+    server.forceShutdown();
+    return result.warnings.length === 0
+      && diagnostics.length === 0
+      && client.isConnected() === false
+      && elapsedMs < 1000;
+  });
+
+  await runTest('a stream that refuses to cancel still closes the channel and reports the diagnostic', async () => {
+    // The pre-fix teardown called stream.cancel() outside any guard, so a throw
+    // there skipped client.close() and left the channel open and the transport
+    // still reporting connected.
+    const { server, port } = await createWatchPeerServer('protobuf');
+    const diagnostics = [];
+    const client = createGrpcClientTransport({
+      ip: '127.0.0.1', port, useTls: false, grpcSerialization: 'protobuf',
+      onData: () => {},
+      onLog: (level, message) => diagnostics.push(`${level}: ${message}`),
+    });
+    await client.connect();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const realStream = client.stream;
+    let channelClosed = false;
+    const realClose = client.client.close.bind(client.client);
+    client.client.close = () => { channelClosed = true; realClose(); };
+    client.stream = {
+      cancel() { throw new Error('cancel refused'); },
+      once() {},
+      on() {},
+    };
+    // The pending completion never settles once cancel is refused, so the
+    // bounded wait is what keeps teardown finite.
+    client._streamCompletion = new Promise(() => {});
+    const started = Date.now();
+    const result = await client.disconnect();
+    const elapsedMs = Date.now() - started;
+    realStream.cancel();
+    server.forceShutdown();
+    return channelClosed === true
+      && client.isConnected() === false
+      && client.client === null
+      && client.stream === null
+      && elapsedMs < 6000
+      && result.warnings.some((warning) => warning.includes('did not finish within'))
+      && diagnostics.some((entry) => entry.startsWith('warn: ') && entry.includes('gRPC teardown reported:'));
+  });
+
   // --- Results ---
   console.log(`\n=== Test Results ===`);
   console.log(`✅ Passed: ${passed}`);
@@ -1049,10 +1270,14 @@ async function runGrpcTransportTests() {
 }
 
 if (require.main === module) {
-  runGrpcTransportTests().catch((error) => {
-    console.error('Test suite error:', error);
-    process.exit(1);
-  });
+  if (process.argv.includes(PEER_CHILD_FLAG)) {
+    startPeerServerChild();
+  } else {
+    runGrpcTransportTests().catch((error) => {
+      console.error('Test suite error:', error);
+      process.exit(1);
+    });
+  }
 }
 
 module.exports = { runGrpcTransportTests };

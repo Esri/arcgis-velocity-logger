@@ -156,7 +156,11 @@ class XmppClientCore extends EventEmitter {
     this.waiters = new Set();
     this.onlineCount = 0;
     this.entity.on('error', (error) => this.emit('error', error));
-    this.entity.on('status', (status) => this.emit('status', status));
+    this.entity.on('status', (status) => {
+      const socket = this.entity.socket?.socket || this.entity.socket;
+      if (typeof socket?.destroy === 'function') this.activeSocket = socket;
+      this.emit('status', status);
+    });
     this.entity.on('stanza', (stanza) => this._onStanza(stanza));
     this.entity.on('online', async (address) => {
       this.address = address;
@@ -179,17 +183,37 @@ class XmppClientCore extends EventEmitter {
 
   async connect() {
     await installXmppTlsSocketOverride();
-    return tlsOptionsContext.run(this.tlsOptions, () => this.entity.start());
+    const connecting = tlsOptionsContext.run(this.tlsOptions, () => this.entity.start());
+    const socket = this.entity.socket?.socket || this.entity.socket;
+    if (typeof socket?.destroy === 'function') this.activeSocket = socket;
+    return connecting;
   }
 
   async close() {
     this.joinedRooms.clear();
     this.entity.reconnect.stop();
-    if (!['online', 'offline'].includes(this.entity.status)) {
-      this._forceCloseSocket();
+    const activeSocket = this.entity.socket?.socket || this.activeSocket || this.entity.socket;
+    if (this.entity.status === 'offline') {
+      this._forceCloseSocket(activeSocket);
+      this.activeSocket = null;
       return;
     }
-    await this.entity.stop();
+    if (this.entity.status !== 'online') {
+      this._forceCloseSocket(activeSocket);
+      this.activeSocket = null;
+      return;
+    }
+
+    const closeTimeout = Math.max(100, Math.min(this.options.timeout || DEFAULT_CLIENT_TIMEOUT_MS, 1000));
+    const previousTimeout = this.entity.timeout;
+    this.entity.timeout = closeTimeout;
+    try {
+      await this.entity.stop();
+    } finally {
+      this.entity.timeout = previousTimeout;
+      this._forceCloseSocket(activeSocket);
+      this.activeSocket = null;
+    }
   }
 
   abort() {
@@ -198,11 +222,11 @@ class XmppClientCore extends EventEmitter {
     this._forceCloseSocket();
   }
 
-  _forceCloseSocket() {
-    const socket = this.entity.socket;
-    if (!socket || socket.destroyed) return;
-    if (typeof socket.resetAndDestroy === 'function') socket.resetAndDestroy();
-    else socket.destroy();
+  _forceCloseSocket(socket = this.entity.socket || this.activeSocket) {
+    const underlying = socket?.socket || socket;
+    if (!underlying || typeof underlying.destroy !== 'function' || underlying.destroyed) return;
+    if (typeof underlying.resetAndDestroy === 'function') underlying.resetAndDestroy();
+    else underlying.destroy();
   }
 
   async disconnectForReconnect() {

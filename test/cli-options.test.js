@@ -353,6 +353,18 @@ test('grpcHeaderPathKey in UI mode is recognized as a UI preset, not an ignored 
   assert.strictEqual(r.presets && r.presets.grpcHeaderPathKey, 'my-key');
 });
 
+test('grpcSerialization=text is parsed in headless mode', () => {
+  const r = parseCommandLineArgs(argv('runMode=headless', 'protocol=grpc', 'grpcSerialization=text'));
+  assert.strictEqual(r.mode, 'headless');
+  assert.strictEqual(r.headless.grpcSerialization, 'text');
+});
+
+test('invalid grpcSerialization produces an error', () => {
+  const r = parseCommandLineArgs(argv('runMode=headless', 'protocol=grpc', 'grpcSerialization=invalid'));
+  assert.strictEqual(r.mode, 'error');
+  assert.ok(r.errors.some((e) => e.includes('grpcSerialization')));
+});
+
 test('DEFAULT_HEADLESS_OPTIONS has showMetadata default of false', () => {
   assert.strictEqual(DEFAULT_HEADLESS_OPTIONS.showMetadata, false);
 });

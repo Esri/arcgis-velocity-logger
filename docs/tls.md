@@ -565,10 +565,10 @@ A client accepts an unverified certificate only when you explicitly opt in:
 
 | Transport | UI control | CLI parameter |
 |-----------|-----------|---------------|
-| gRPC client | **Allow unverified** (gRPC Advanced) | `allowUnverifiedTls=true` |
-| HTTP client | **Allow unverified** (HTTP Advanced) | `httpAllowUnverifiedTls=true` |
-| WebSocket client | **Allow unverified** (WebSocket Advanced) | `wsAllowUnverifiedTls=true` |
-| XMPP client | **Allow unverified** (XMPP Advanced) | `xmppAllowUnverifiedTls=true` |
+| gRPC client | **Allow unverified** (Protocol Settings → Security) | `allowUnverifiedTls=true` |
+| HTTP client | **Allow unverified** (Protocol Settings → Security) | `httpAllowUnverifiedTls=true` |
+| WebSocket client | **Allow unverified** (Protocol Settings → Security) | `wsAllowUnverifiedTls=true` |
+| XMPP client | **Allow unverified** (Protocol Settings → Security) | `xmppAllowUnverifiedTls=true` |
 
 What the option does and does not do:
 
@@ -680,6 +680,7 @@ electron . protocol=ws mode=server port=8443 useTls=true \
 
 ## Related documentation
 
+- [Connection summary and protocol settings](connection-summary.md)
 - [gRPC transport](grpc.md)
 - [HTTP transport](http.md)
 - [WebSocket transport](websocket.md)

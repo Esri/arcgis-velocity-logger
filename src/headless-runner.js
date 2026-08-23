@@ -32,6 +32,7 @@ const path = require('path');
 const net = require('net');
 const dgram = require('dgram');
 const { RunLogger } = require('./run-logger.js');
+const { registerUdpClient } = require('./udp-utils.js');
 
 /**
  * Exit codes used when headless mode is launched from the terminal or Electron main process.
@@ -112,7 +113,7 @@ class RecordSink {
 }
 
 /**
- * Internal: creates a TCP/UDP receiver and emits each incoming line via `onLine`.
+ * Internal: creates a protocol receiver and emits each incoming record via `onLine`.
  *
  * The returned object exposes a `stop()` function and a `startedPromise` that resolves
  * when the socket is ready (listening or connected), respecting `connectTimeoutMs`.
@@ -258,9 +259,14 @@ function createReceiver(options, { logger, onLine, onError }) {
       socket.on('message', (msg) => emitLines(msg));
       socket.on('error', (err) => { clearTimer(); onError(err); reject(err); });
       socket.on('connect', () => {
-        clearTimer();
-        logger.info(`UDP client connected to ${ip}:${port}`);
-        resolve();
+        registerUdpClient(socket).then(() => {
+          clearTimer();
+          logger.info(`UDP client connected to ${ip}:${port} and registered as a recipient`);
+          resolve();
+        }).catch((error) => {
+          clearTimer();
+          reject(new Error(`UDP client registration failed: ${error.message}`));
+        });
       });
       socket.on('listening', () => { try { socket.connect(port, ip); } catch (err) { reject(err); } });
       socket.bind();
@@ -272,6 +278,47 @@ function createReceiver(options, { logger, onLine, onError }) {
           socket.close(() => res());
         } catch (_) { res(); }
       }));
+    } else if (protocol === 'http' || protocol === 'ws') {
+      const isHttp = protocol === 'http';
+      const {
+        createHttpClientTransport,
+        createHttpServerTransport,
+      } = isHttp ? require('./http-transport.js') : {};
+      const {
+        createWsClientTransport,
+        createWsServerTransport,
+      } = !isHttp ? require('./ws-transport.js') : {};
+      const createTransport = isHttp
+        ? (mode === 'server' ? createHttpServerTransport : createHttpClientTransport)
+        : (mode === 'server' ? createWsServerTransport : createWsClientTransport);
+      const transport = createTransport({
+        ...options,
+        ip,
+        port,
+        onData: (data, metadata) => {
+          if (options.showMetadata && metadata) {
+            const fields = Object.entries(metadata)
+              .filter(([, value]) => value !== '')
+              .map(([key, value]) => `${key}=${value}`)
+              .join(' ');
+            onLine(`[metadata] ${fields}`);
+          }
+          onLine(data);
+        },
+      });
+      closers.push(() => Promise.resolve(transport.disconnect()));
+      transport.connect().then((result) => {
+        clearTimer();
+        const endpoint = mode === 'server'
+          ? `${result.address.address}:${result.address.port}`
+          : result.address;
+        const label = isHttp ? 'HTTP' : 'WebSocket';
+        logger.info(`${label} ${mode} ready at ${endpoint}; ${result.tlsInfo}`);
+        resolve();
+      }).catch((err) => {
+        clearTimer();
+        reject(err);
+      });
     } else if (protocol === 'xmpp') {
       const { createXmppClientTransport, createXmppServerTransport } = require('./xmpp-transport');
       const createTransport = mode === 'server' ? createXmppServerTransport : createXmppClientTransport;
@@ -321,11 +368,13 @@ function createReceiver(options, { logger, onLine, onError }) {
           onData: (text) => onLine(text),
           onRawHeaders: onMetaLine,
         });
+        // Registered before connect: a bind that fails part-way still has to
+        // release whatever the transport already allocated.
+        closers.push(async () => transport.disconnect());
         transport.connect().then((result) => {
           clearTimer();
           logger.info(`gRPC server listening on ${result.address}:${result.port} [${grpcSerialization}]`);
           logger.info(`  ${result.tlsInfo || tlsLabel}`);
-          closers.push(async () => transport.disconnect());
           resolve();
         }).catch((err) => { clearTimer(); reject(err); });
       } else {
@@ -335,12 +384,15 @@ function createReceiver(options, { logger, onLine, onError }) {
           onData: (text) => onLine(text),
           onMetadata: onMetaLine,
           onStatus: onMetaLine,
+          onLog: (level, message) => logger[level] && logger[level](message),
         });
+        // Registered before connect: a connect that fails after the channel was
+        // created still has to close that channel.
+        closers.push(async () => transport.disconnect());
         transport.connect().then((result) => {
           clearTimer();
           logger.info(`gRPC client connected to ${result.address} [${grpcSerialization}] ${headerPathKey}=${headerPath}`);
           logger.info(`  ${result.tlsInfo || 'tls=off'}`);
-          closers.push(async () => transport.disconnect());
           resolve();
         }).catch((err) => { clearTimer(); reject(err); });
       }
@@ -351,11 +403,19 @@ function createReceiver(options, { logger, onLine, onError }) {
 
   return {
     startedPromise,
-    stop: async () => {
+    /**
+     * Tears down every receiver resource without letting a teardown failure
+     * change the outcome of the run.
+     *
+     * A peer that disappeared before shutdown, or a socket that never answered
+     * its close handshake, is a diagnostic: a capture that already collected
+     * its records must still report success and exit 0.
+     */
+    stop: async (context = 'after the run') => {
       if (stopped) return;
       stopped = true;
       for (const close of closers) {
-        try { await close(); } catch (err) { logger.warn(`Receiver close error: ${err.message}`); }
+        try { await close(); } catch (err) { logger.warn(`[Transport] Teardown ${context} reported: ${err.message}`); }
       }
     },
   };
@@ -484,7 +544,13 @@ async function runHeadlessSession(options, { app = null, logger = null } = {}) {
   } finally {
     if (durationTimer) clearTimeout(durationTimer);
     if (idleTimer) clearTimeout(idleTimer);
-    try { await receiver.stop(); } catch (err) { logger.warn(`Receiver stop error: ${err.message}`); }
+    const teardownContext = runtimeError ? 'after a failed run' : 'after the run';
+    try {
+      await receiver.stop(teardownContext);
+    } catch (err) {
+      // Teardown is total: it is reported, never allowed to fail a completed run.
+      logger.warn(`[Transport] Teardown ${teardownContext} reported: ${err.message}`);
+    }
     try { await sink.close(); } catch (err) { logger.warn(`Sink close error: ${err.message}`); }
   }
 

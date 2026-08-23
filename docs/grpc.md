@@ -192,6 +192,13 @@ How it works depending on serialization:
 
 The optional `grpcHeaderPathKey` / `grpcHeaderPath` parameters inject a metadata header on the `Watch`/`watch` call. This is required when connecting to a real ArcGIS Velocity endpoint so the platform can route the subscription to the correct feed item. When connecting to the Simulator, these parameters are accepted but ignored by the server.
 
+Disconnect always completes. It cancels the streaming subscription, waits for
+that call to settle, and closes the channel. When the peer disappeared first,
+the pending call ends with an error such as `14 UNAVAILABLE: Connection
+dropped`; that is recorded as a teardown diagnostic in the log, the channel is
+still closed, and neither a headless capture that already collected its records
+nor the user interface is left reporting a connection that no longer exists.
+
 ## Feature examples
 
 Below are examples of features received and displayed by the logger using the **Protobuf** serialization format.
@@ -300,16 +307,18 @@ electron . runMode=headless protocol=grpc mode=server ip=0.0.0.0 port=50051 useT
 
 ## UI usage
 
-When gRPC is selected as the connection type in the UI, the following controls appear:
+When gRPC is selected as the connection type, its controls live in the **Protocol Settings** dialog (**Protocol Settings…** in the connection row, or `Cmd/Ctrl+Shift+P`), grouped into **Basics**, **Security**, and — in client mode — **Advanced**. See [Connection summary and protocol settings](connection-summary.md).
+
+The following controls appear:
 
 - **Serialization** - `Protobuf` (default), `Kryo`, or `Text`
 - **RPC type** - `Client Streaming` (default) or `Unary`. Selects the gRPC call pattern for sending data. Client Streaming opens a persistent stream for high-throughput ingestion. Unary sends each message as an independent request/response round-trip. Only applies in gRPC Client mode. **Locked while connected** (the streaming vs. unary choice is baked into the transport at connect time).
 - **TLS** - Checkbox to enable TLS (SSL) connections. When checked, additional certificate path fields appear.
-- **Advanced** - Disclosure that holds the certificate paths and the verification option. Serialization, RPC type, header path, and TLS stay visible in the row.
+- **Section** - **Basics** holds Serialization and RPC type; **Security** holds TLS, the certificate paths, and the verification option; **Advanced** holds the client-only endpoint header.
 - **CA cert path** - Path to a custom CA certificate file (PEM). Leave empty to use OS root certificates automatically.
 - **TLS cert path** - Path to a client/server certificate file (PEM) for mutual TLS.
 - **TLS key path** - Path to a private key file (PEM) for mutual TLS.
-- **Allow unverified** - Client-only warning checkbox inside **Advanced**, shown when TLS is enabled. Accepts an unverified server certificate for any host. Off by default; see [TLS and SSL security](tls.md#explicit-certificate-verification-bypass).
+- **Allow unverified** - Client-only warning checkbox in **Security**, shown when TLS is enabled. Accepts an unverified server certificate for any host. Off by default; see [TLS and SSL security](tls.md#explicit-certificate-verification-bypass).
 - **Header path key** - gRPC endpoint header path key (default: `grpc-path`). Sent as gRPC metadata on every outgoing call. **Visible only in gRPC Client mode.**
 - **Header path** - gRPC endpoint header path value (default: `replace.with.dedicated.uid`). Sent as gRPC metadata on every outgoing call. **Visible only in gRPC Client mode.**
 
@@ -331,7 +340,13 @@ The following tooltips appear when hovering over gRPC-related controls in the UI
 
 | Control | Tooltip |
 |---------|---------|
-| Advanced | Show or hide the advanced gRPC certificate and verification options. The essential gRPC settings stay visible above. |
+| Serialization field label | Feature serialization used by the gRPC connection |
+| RPC type field label | RPC pattern used for each message |
+| CA certificate field label | Custom certificate authority used to verify the gRPC peer |
+| Certificate field label | Certificate presented by this gRPC connection |
+| Private key field label | Private key that matches the gRPC certificate |
+| Endpoint header key field label | Metadata header key used to route the gRPC endpoint |
+| Endpoint header path field label | Metadata header value that identifies the gRPC endpoint |
 | Allow unverified | Warning: accept any gRPC server certificate<br>---<br>Certificate verification is disabled for every host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Use only for local self-signed testing. |
 
 #### RPC type tooltips
@@ -412,7 +427,7 @@ tls=on, cert=self-signed (auto-generated), key=self-signed (auto-generated)
 
 Because the certificate is not signed by a trusted CA, connecting clients will reject it by default. Options:
 
-- **Logger / Simulator pairing (same machine):** Turn on **Allow unverified** in the gRPC **Advanced** disclosure, or pass `allowUnverifiedTls=true`. The bypass is explicit and off by default.
+- **Logger / Simulator pairing (same machine):** Turn on **Allow unverified** in the gRPC **Security** section, or pass `allowUnverifiedTls=true`. The bypass is explicit and off by default.
 - **Custom CA cert:** If you provide your own `tlsCertPath`/`tlsKeyPath`, the cert is used as-is. Clients that have the CA cert in their trust store will connect without warnings.
 - **Providing your own cert:** Generate a self-signed pair with OpenSSL and supply both paths:
 
@@ -459,6 +474,7 @@ Both scenarios work with all three serialization formats (protobuf, text, kryo).
 
 ## Related documentation
 
+- [Connection summary and protocol settings](connection-summary.md)
 - [TLS guide](tls.md)
 - [HTTP transport](http.md)
 - [WebSocket transport](websocket.md)

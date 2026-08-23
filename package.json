@@ -16,6 +16,10 @@
     "test:help": "node test/help.test.js",
     "test:headless-runner": "node test/headless-runner.test.js",
     "test:grpc": "node test/grpc-transport.test.js",
+    "test:summary": "node test/connection-summary.test.js",
+    "test:protocol-settings": "node test/protocol-settings-dialog.test.js",
+    "test:presets": "node test/connection-presets.test.js",
+    "test:parity": "node test/transport-parity.test.js",
     "debug": "node scripts/start-helper.js --electron:--inspect=9229",
     "debug-brk": "node scripts/start-helper.js --electron:--inspect-brk=9229",
     "debug-main": "node scripts/start-helper.js --electron:--inspect=9229",
@@ -69,7 +73,7 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "electron": "^41.2.1",
-    "electron-builder": "^26.9.0",
+    "electron-builder": "^26.15.0",
     "jsdom": "^29.0.2"
   },
   "build": {
@@ -139,13 +143,13 @@
     }
   },
   "dependencies": {
-    "@grpc/grpc-js": "^1.14.3",
+    "@grpc/grpc-js": "^1.14.4",
     "@grpc/proto-loader": "^0.8.0",
     "@xmpp/client": "^0.14.0",
     "@xmpp/jid": "^0.14.0",
     "@xmpp/xml": "^0.14.0",
-    "protobufjs": "^8.0.1",
+    "protobufjs": "^8.7.2",
     "selfsigned": "^2.4.1",
-    "ws": "^8.20.0"
+    "ws": "^8.21.0"
   }
 }

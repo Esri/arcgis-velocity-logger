@@ -19,7 +19,7 @@
             <div class="help-section">
                 <h3>Getting Started</h3>
                 <p>Capture and log network data from TCP, UDP, HTTP/HTTPS, WebSocket, gRPC, and XMPP connections. Useful for debugging and monitoring ArcGIS Velocity outputs, ArcGIS GeoEvent Server integrations, and other data sources.</p>
-                <p>The connection row starts with a <strong>Preset</strong> dropdown. Pick a paired Logger and Simulator preset to pre-fill every field for a local test, then review the values and select <strong>Connect</strong>. Each protocol shows its essentials directly and keeps certificates, verification, timing, and metadata options one click away under <strong>Advanced</strong>.</p>
+                <p>The connection row starts with a <strong>Preset</strong> dropdown. Pick a paired Logger and Simulator preset to pre-fill every field for a local test, then review the values and select <strong>Connect</strong>. The row keeps only the fields every protocol shares — preset, connection type, host, and port — and every protocol-specific control lives in the <strong>Protocol Settings</strong> dialog (<kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd>), grouped into <strong>Basics</strong>, <strong>Security</strong>, <strong>Advanced</strong>, and a read-only <strong>Summary</strong>.</p>
             </div>
 
             <div class="help-section">
@@ -68,7 +68,7 @@
                     <li><strong>Server account:</strong> The Logger identity is automatic and its live Receiving JID appears after the server starts. Configure one external username/password. Copy Client Settings is available only while listening, includes the Receiving JID as <code>xmppDestination</code>, and excludes the password unless explicitly enabled.</li>
                     <li><strong>Conversation:</strong> Direct (default) or MUC. MUC requires a bare room JID and nickname; room password is optional. Room history, bodyless stanzas, and self-echoes are ignored.</li>
                     <li><strong>Timing:</strong> Positive values with 30-second connection timeout, 15-second reply timeout, 60-second ping interval, and 60-second reconnect delay by default.</li>
-                    <li><strong>Advanced:</strong> Certificate paths, Allow unverified, Allow remote, and the timing values are collapsed under Advanced. Validation opens Advanced and focuses any missing required field.</li>
+                    <li><strong>Sections:</strong> Basics holds the domain, conversation, and account and room fields; Security holds the TLS policy, certificate paths, and Allow unverified; Advanced holds Allow remote and the timing values. A failed Connect opens the dialog, selects the owning section, and focuses the offending field.</li>
                     <li><strong>Safety:</strong> The certificate verification bypass is explicit, off by default, and applies to any host — not only localhost. STARTTLS still encrypts the stream, but the server identity is not checked. Remote server binding is opt-in; wildcard binds are copied as a connectable loopback host.</li>
                     <li><strong>SASL:</strong> A secure stream uses the server's preferred mechanism, normally SCRAM-SHA-1. An unsecure stream uses a non-PLAIN mechanism, and falls back to PLAIN only when the TLS policy is deliberately set to Disabled. Both PLAIN and SCRAM-SHA-1 accept an empty password.</li>
                 </ul>
@@ -82,7 +82,7 @@
                     <li><strong>CA cert path:</strong> Custom CA certificate file (PEM). Leave empty to use the OS certificate store. Only needed for enterprise or self-signed CAs.</li>
                     <li><strong>TLS cert path:</strong> Client or server certificate file (PEM). Required for server-mode TLS; only needed in client mode for mutual TLS (mTLS).</li>
                     <li><strong>TLS key path:</strong> Private key file (PEM). Required for server-mode TLS and client-side mTLS.</li>
-                    <li><strong>Advanced:</strong> Collapsed disclosure holding the CA, certificate, and key paths plus Allow unverified. Format, TLS, and HTTP Path stay visible in the row.</li>
+                    <li><strong>Sections:</strong> Basics holds Format and HTTP Path; Security holds TLS, the CA, certificate, and key paths, and Allow unverified. HTTP has no Advanced section.</li>
                     <li><strong>Allow unverified:</strong> Client-only warning checkbox shown when TLS is enabled. Accepts an unverified HTTPS server certificate for any host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Off by default.</li>
                     <li><strong>HTTP Path:</strong> URL path appended after host:port (default <code>/</code>). In server mode, only POST requests matching this path are accepted. In client mode, this path is used in outgoing POST URLs. Set to the Velocity feed's system-generated path (e.g. <code>/receiver/feed-id</code>) when connecting to a real endpoint.</li>
                 </ul>
@@ -96,7 +96,7 @@
                     <li><strong>CA cert path:</strong> Custom CA certificate file (PEM). Leave empty to use the OS certificate store. Only needed for enterprise or self-signed CAs.</li>
                     <li><strong>TLS cert path:</strong> Client or server certificate file (PEM). Required for server-mode TLS; only needed in client mode for mutual TLS (mTLS).</li>
                     <li><strong>TLS key path:</strong> Private key file (PEM). Required for server-mode TLS and client-side mTLS.</li>
-                    <li><strong>Advanced:</strong> Collapsed disclosure holding the CA, certificate, and key paths, Allow unverified, the subscription message, Ignore First Message, and the custom headers. Format, TLS, and Path stay visible in the row.</li>
+                    <li><strong>Sections:</strong> Basics holds Format and Path; Security holds TLS, the CA, certificate, and key paths, and Allow unverified; Advanced holds the subscription message, Skip 1st, and the custom headers.</li>
                     <li><strong>Allow unverified:</strong> Client-only warning checkbox shown when TLS is enabled. Accepts an unverified WSS server certificate for any host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Off by default.</li>
                     <li><strong>Path:</strong> URL path appended after host:port (default <code>/</code>). In server mode, only WebSocket upgrade requests matching this path are accepted. In client mode, this path is used in the outgoing connection URL.</li>
                     <li><strong>Subscription Message:</strong> Optional text message sent to the server immediately after the WebSocket connection is established. Useful for subscribing to a specific data feed or channel.</li>
@@ -112,7 +112,7 @@
                     <li><strong>RPC Type:</strong> Client Streaming (persistent stream, higher throughput) or Unary (individual request/response per message).</li>
                     <li><strong>TLS:</strong> Enable TLS for the gRPC connection. Uses the OS certificate store automatically.</li>
                     <li><strong>Header Path Key / Path:</strong> Custom gRPC metadata header for endpoint routing (client mode only).</li>
-                    <li><strong>Advanced:</strong> Collapsed disclosure holding the CA, certificate, and key paths plus Allow unverified. Serialization, RPC Type, header path, and TLS stay visible in the row.</li>
+                    <li><strong>Sections:</strong> Basics holds Serialization and RPC Type; Security holds TLS, the CA, certificate, and key paths, and Allow unverified; Advanced holds the client-only endpoint header key and path.</li>
                     <li><strong>Allow unverified:</strong> Client-only warning checkbox shown when TLS is enabled. Accepts an unverified gRPC server certificate for any host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Off by default.</li>
                 </ul>
 
@@ -246,6 +246,23 @@
                         </tr>
                     </tbody>
                 </table>
+            </div>
+
+            <div class="help-section">
+                <h3>Protocol Settings &amp; Connection Summary</h3>
+                <p>Select <strong>Protocol Settings…</strong> in the connection row, or press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd>, to open the settings for the selected protocol. The button carries a chip that reports the configured state, for example <code>HTTP · 2 changed</code> or <code>TCP · no protocol settings</code>, and turns into a warning chip whenever the summary reports a warning.</p>
+                <ul>
+                    <li><strong>Basics:</strong> The settings this protocol needs before it can receive data.</li>
+                    <li><strong>Security:</strong> TLS or the STARTTLS policy, certificate verification, and the CA, certificate, and key paths.</li>
+                    <li><strong>Advanced:</strong> Optional settings most connections leave at their defaults — the gRPC endpoint header, the WebSocket subscription message, Skip 1st, headers, and the XMPP Allow remote and timing values.</li>
+                    <li><strong>Summary:</strong> Every connection setting in one read-only list, warnings first. Passwords are never shown.</li>
+                    <li><strong>Sections shown:</strong> Only sections with content for the selected protocol and mode are offered. TCP and UDP have no protocol settings, HTTP has no Advanced section, and a gRPC Server has none either.</li>
+                    <li><strong>Editing:</strong> Edits apply live. <strong>Done</strong> and <kbd>Escape</kbd> keep them, <strong>Revert changes</strong> restores the values the dialog opened with, and <strong>Reset to preset</strong> re-applies the preset the fields started from.</li>
+                    <li><strong>While connected:</strong> The dialog opens read-only in Summary mode with <em>Disconnect to change these settings</em>. Copy Client Settings and Include password stay available for a connected XMPP Server.</li>
+                    <li><strong>Validation:</strong> A failed Connect opens the dialog, selects the section that owns the offending control, focuses it, and explains the problem in an assertive banner.</li>
+                    <li><strong>Keyboard:</strong> Arrow keys move between sections, <kbd>Home</kbd> and <kbd>End</kbd> jump to the first and last, and closing returns focus to the control that opened the dialog.</li>
+                </ul>
+                <p>The same summary appears on three surfaces: the inline card under the connection row (three rows, warnings first, with <strong>Show all</strong> and <strong>Copy</strong>), the status-bar entry showing the mode and endpoint with a <code>⚠</code> mark when a warning applies, and the read-only Summary section. None of them is hover-only — select the card action or the status-bar entry, or press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd>. Secrets are reported only as <code>Set (hidden)</code>, <code>Empty</code>, or <code>Not set</code>, and <strong>Copy</strong> never includes a password.</p>
             </div>
 
             <div class="help-section">
@@ -443,6 +460,14 @@
                         <tr>
                             <td>Show Config Dialog</td>
                             <td><kbd>Ctrl</kbd> + <kbd>I</kbd> or <kbd>Cmd</kbd> + <kbd>I</kbd></td>
+                        </tr>
+                        <tr>
+                            <td>Open Protocol Settings Dialog</td>
+                            <td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd> (macOS: <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd>)</td>
+                        </tr>
+                        <tr>
+                            <td>Open Connection Summary</td>
+                            <td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd> (macOS: <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd>)</td>
                         </tr>
                         <tr>
                             <td>Close Any Dialog</td>

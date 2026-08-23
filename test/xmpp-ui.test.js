@@ -10,6 +10,8 @@ function tick() {
 (async () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.html'), 'utf8')
     .replace(/<script[\s\S]*?<\/script>/g, '');
+  const presetsSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'connection-presets.js'), 'utf8');
+  const summarySource = fs.readFileSync(path.join(__dirname, '..', 'src', 'connection-summary.js'), 'utf8');
   const renderer = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer.js'), 'utf8');
   const listeners = new Map();
   const sent = [];
@@ -35,11 +37,14 @@ function tick() {
     shouldSendVelocityTokenByDefault: () => false,
     describeVelocityAuthType: (value) => value || 'not specified',
   };
+  window.eval(presetsSource);
+  window.eval(summarySource);
   window.eval(renderer);
   await new Promise((resolve) => window.addEventListener('DOMContentLoaded', resolve, { once: true }));
 
   const connectionType = window.document.getElementById('connection-type');
-  const details = window.document.querySelector('.xmpp-options-row');
+  const dialog = window.document.getElementById('protocol-settings-dialog');
+  const xmppGroups = [...dialog.querySelectorAll('.protocol-settings-group[data-protocol="xmpp"]')];
   const copyButton = window.document.getElementById('xmpp-copy-settings');
   const copyPassword = window.document.getElementById('xmpp-copy-password');
   const tlsPolicy = window.document.getElementById('xmpp-tls-policy');
@@ -47,7 +52,8 @@ function tick() {
 
   connectionType.value = 'xmpp-server';
   connectionType.dispatchEvent(new window.Event('change'));
-  assert.strictEqual(details.open, true);
+  assert.ok(xmppGroups.every((group) => group.hidden === false));
+  assert.match(window.document.getElementById('protocol-settings-title').textContent, /XMPP Server settings/);
   assert.match(tlsPolicy.dataset.tooltip, /Require STARTTLS/);
   conversation.value = 'muc';
   conversation.dispatchEvent(new window.Event('change'));
@@ -90,7 +96,7 @@ function tick() {
     conversation: 'direct',
     tlsPolicy: 'required',
   });
-  assert.strictEqual(details.open, true);
+  assert.strictEqual(dialog.open, true);
   assert.strictEqual(window.document.activeElement.id, 'xmpp-password');
   assert.match(window.document.getElementById('logs').textContent, /credentials required before connecting/);
   assert.doesNotMatch(window.document.getElementById('logs').textContent, /XMPP output applied - ready to connect/);
@@ -106,7 +112,7 @@ function tick() {
     sendsBeforeValidation,
   );
   assert.strictEqual(window.document.getElementById('xmpp-username').getAttribute('aria-invalid'), 'true');
-  assert.strictEqual(window.document.getElementById('xmpp-validation-message').hidden, false);
+  assert.strictEqual(window.document.getElementById('protocol-settings-alert').hidden, false);
 
   listeners.get('xmpp-error')('XMPP Client error: authentication failed');
   assert.strictEqual(window.document.getElementById('app-status-text').textContent, 'Error');

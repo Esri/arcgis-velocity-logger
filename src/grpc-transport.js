@@ -57,6 +57,94 @@ const SERIALIZATION_FORMATS = Object.freeze({
 
 const VALID_SERIALIZATION_FORMATS = new Set(Object.values(SERIALIZATION_FORMATS));
 
+/**
+ * Waits for a streaming call to settle, bounded so a peer that never answers
+ * cannot stall teardown.
+ *
+ * @param {Promise} promise - the call completion promise
+ * @param {string} label - streaming call name used in diagnostics
+ * @param {number} [timeoutMs] - bound on the wait
+ * @returns {Promise<*>}
+ */
+function waitForGrpcCompletion(promise, label, timeoutMs = 5000) {
+  let timeout;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timeout = setTimeout(() => reject(new Error(`${label} did not finish within ${timeoutMs}ms.`)), timeoutMs);
+    }),
+  ]).finally(() => {
+    if (timeout) clearTimeout(timeout);
+  });
+}
+
+/**
+ * Cancels a streaming call and resolves once the cancellation has been issued.
+ *
+ * The Logger's client role reads a server-streaming call, so the half-close a
+ * sending client performs has no counterpart here: cancelling is what ends a
+ * read stream. Cancellation never throws out of teardown.
+ *
+ * @param {object} stream - gRPC client call
+ * @returns {Promise<void>}
+ */
+function cancelGrpcStream(stream) {
+  return new Promise((resolve) => {
+    try {
+      stream.cancel();
+    } catch (_) { /* already gone */ }
+    resolve();
+  });
+}
+
+/**
+ * Tears down a gRPC client transport: cancels the streaming call it is reading,
+ * waits for that call to settle, and always closes the channel.
+ *
+ * Teardown is total and never throws. A peer that disappeared before disconnect
+ * ends the pending call with a connection loss instead of a clean status, and
+ * the completion promise rejects with it. That is a diagnostic, not a
+ * disconnect failure: the channel is still closed, the transport is still
+ * marked disconnected, and a headless capture that already collected its
+ * records still finishes successfully.
+ *
+ * Shared by both client implementations so the two serialization families tear
+ * down identically.
+ *
+ * @param {object} transport - gRPC client transport instance
+ * @param {string} label - streaming call name used in diagnostics
+ * @returns {Promise<{warnings: Array<string>}>} teardown diagnostics, if any
+ */
+async function teardownGrpcClient(transport, label) {
+  const warnings = [];
+  const stream = transport.stream;
+  const completion = transport._streamCompletion;
+  transport.stream = null;
+  transport._streamCompletion = null;
+
+  if (stream) {
+    try {
+      await cancelGrpcStream(stream);
+      if (completion) await waitForGrpcCompletion(completion, label);
+    } catch (error) {
+      warnings.push(error.message);
+    }
+  }
+
+  try {
+    if (transport.client) transport.client.close();
+  } catch (error) {
+    warnings.push(`Closing the gRPC channel reported: ${error.message}`);
+  }
+  transport.client = null;
+  transport._connected = false;
+
+  if (warnings.length && typeof transport.onLog === 'function') {
+    warnings.forEach((message) => transport.onLog('warn', `[Transport] gRPC teardown reported: ${message}`));
+  }
+  return { warnings };
+}
+
 function loadVelocityProto() {
   const packageDefinition = protoLoader.loadSync(VELOCITY_PROTO_PATH, {
     keepCase: true,
@@ -338,7 +426,7 @@ class GrpcServerTransportProtobuf {
 }
 
 class GrpcClientTransportProtobuf {
-  constructor({ ip, port, onData, onMetadata, onStatus, grpcSendMethod = 'stream', headerPathKey = 'grpc-path', headerPath = 'replace.with.dedicated.uid', useTls = true, tlsCaPath, tlsCertPath, tlsKeyPath, allowUnverifiedTls = false, authToken }) {
+  constructor({ ip, port, onData, onMetadata, onStatus, grpcSendMethod = 'stream', headerPathKey = 'grpc-path', headerPath = 'replace.with.dedicated.uid', useTls = true, tlsCaPath, tlsCertPath, tlsKeyPath, allowUnverifiedTls = false, authToken, onLog = null }) {
     this.ip = ip;
     this.port = port;
     this.onData = onData;
@@ -353,8 +441,10 @@ class GrpcClientTransportProtobuf {
     this.tlsKeyPath = tlsKeyPath;
     this.allowUnverifiedTls = allowUnverifiedTls === true;
     this.authToken = authToken || null;
+    this.onLog = typeof onLog === 'function' ? onLog : null;
     this.client = null;
     this.stream = null;
+    this._streamCompletion = null;
     this._connected = false;
     this.wrapperTypes = loadWrapperTypes();
   }
@@ -388,6 +478,14 @@ class GrpcClientTransportProtobuf {
         }
         // Use Watch (server-streaming) to receive data pushed by the server.
         this.stream = this.client.Watch({ client_id: 'logger' }, this._buildMetadata());
+        this._streamCompletion = new Promise((resolveStream, rejectStream) => {
+          this.stream.once('end', resolveStream);
+          this.stream.once('error', (error) => {
+            if (error.code === grpc.status.CANCELLED) resolveStream();
+            else rejectStream(new Error(`gRPC Watch failed: ${error.message}`));
+          });
+        });
+        this._streamCompletion.catch(() => {});
         this.stream.on('data', (request) => {
           if (!this.onData) return;
           if (request.features) {
@@ -435,9 +533,7 @@ class GrpcClientTransportProtobuf {
   isConnected() { return this._connected && this.stream !== null; }
 
   async disconnect() {
-    if (this.stream) { this.stream.cancel(); this.stream = null; }
-    if (this.client) { this.client.close(); this.client = null; }
-    this._connected = false;
+    return teardownGrpcClient(this, 'gRPC Watch');
   }
 }
 
@@ -526,7 +622,7 @@ class GrpcServerTransportInternal {
 }
 
 class GrpcClientTransportInternal {
-  constructor({ ip, port, grpcSerialization = 'text', onData, onMetadata, onStatus, grpcSendMethod = 'stream', headerPathKey = 'grpc-path', headerPath = 'replace.with.dedicated.uid', useTls = true, tlsCaPath, tlsCertPath, tlsKeyPath, allowUnverifiedTls = false, authToken }) {
+  constructor({ ip, port, grpcSerialization = 'text', onData, onMetadata, onStatus, grpcSendMethod = 'stream', headerPathKey = 'grpc-path', headerPath = 'replace.with.dedicated.uid', useTls = true, tlsCaPath, tlsCertPath, tlsKeyPath, allowUnverifiedTls = false, authToken, onLog = null }) {
     this.ip = ip;
     this.port = port;
     this.grpcSerialization = grpcSerialization;
@@ -542,8 +638,10 @@ class GrpcClientTransportInternal {
     this.tlsKeyPath = tlsKeyPath;
     this.allowUnverifiedTls = allowUnverifiedTls === true;
     this.authToken = authToken || null;
+    this.onLog = typeof onLog === 'function' ? onLog : null;
     this.client = null;
     this.stream = null;
+    this._streamCompletion = null;
     this._connected = false;
   }
 
@@ -576,6 +674,14 @@ class GrpcClientTransportInternal {
         }
         // Use watch (server-streaming) to receive data pushed by the server.
         this.stream = this.client.watch({ client_id: 'logger' }, this._buildMetadata());
+        this._streamCompletion = new Promise((resolveStream, rejectStream) => {
+          this.stream.once('end', resolveStream);
+          this.stream.once('error', (error) => {
+            if (error.code === grpc.status.CANCELLED) resolveStream();
+            else rejectStream(new Error(`gRPC watch failed: ${error.message}`));
+          });
+        });
+        this._streamCompletion.catch(() => {});
         this.stream.on('data', (request) => {
           if (this.onData) {
             const text = request.bytes ? Buffer.from(request.bytes).toString('utf-8') : '';
@@ -619,9 +725,7 @@ class GrpcClientTransportInternal {
   isConnected() { return this._connected && this.stream !== null; }
 
   async disconnect() {
-    if (this.stream) { this.stream.cancel(); this.stream = null; }
-    if (this.client) { this.client.close(); this.client = null; }
-    this._connected = false;
+    return teardownGrpcClient(this, 'gRPC watch');
   }
 }
 

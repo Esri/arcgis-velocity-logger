@@ -33,10 +33,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const grpcTlsKeyInput = document.getElementById('grpc-tls-key-path');
     const grpcAllowUnverifiedCheckbox = document.getElementById('grpc-allow-unverified');
     const grpcAllowUnverifiedLabel = document.getElementById('grpc-allow-unverified-label');
-    const grpcAdvancedDetails = document.getElementById('grpc-advanced');
-    const httpAdvancedDetails = document.getElementById('http-advanced');
-    const wsAdvancedDetails = document.getElementById('ws-advanced');
-    const xmppAdvancedDetails = document.getElementById('xmpp-advanced');
     const hostInput = document.getElementById('host');
     const portInput = document.getElementById('port');
     const themeSelector = document.getElementById('theme-selector');
@@ -46,8 +42,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleAutoscrollBtn = document.getElementById('toggle-autoscroll-btn');
     const toggleOrderBtn = document.getElementById('toggle-order-btn');
     const connectionControls = document.querySelector('.connection-controls');
-    const grpcOptionsRow = document.querySelector('.grpc-options-row');
-    const httpOptionsRow = document.querySelector('.http-options-row');
+    const protocolSettingsDialog = document.getElementById('protocol-settings-dialog');
+    const protocolSettingsBtn = document.getElementById('protocol-settings-btn');
+    const protocolSettingsCount = document.getElementById('protocol-settings-count');
+    const protocolSettingsTitle = document.getElementById('protocol-settings-title');
+    const protocolSettingsSubtitle = document.getElementById('protocol-settings-subtitle');
+    const protocolSettingsCloseBtn = document.getElementById('protocol-settings-close');
+    const protocolSettingsReadonlyBanner = document.getElementById('protocol-settings-readonly');
+    const protocolSettingsTablist = document.getElementById('protocol-settings-tablist');
+    const protocolSettingsTabs = protocolSettingsTablist
+        ? Array.from(protocolSettingsTablist.querySelectorAll('[role="tab"]'))
+        : [];
+    const protocolSettingsEmpty = document.getElementById('protocol-settings-empty');
+    const protocolSettingsSummaryRows = document.getElementById('protocol-settings-summary-rows');
+    const protocolSettingsResetBtn = document.getElementById('protocol-settings-reset');
+    const protocolSettingsRevertBtn = document.getElementById('protocol-settings-revert');
+    const protocolSettingsDoneBtn = document.getElementById('protocol-settings-done');
+    const connectionSummaryCard = document.getElementById('connection-summary-card');
+    const connectionSummaryRows = document.getElementById('connection-summary-rows');
+    const connectionSummaryShowAllBtn = document.getElementById('connection-summary-show-all');
+    const connectionSummaryCopyBtn = document.getElementById('connection-summary-copy');
+    const connectionSummaryStatusBtn = document.getElementById('connection-summary-status-btn');
+    const connectionSummaryStatusLabel = document.getElementById('connection-summary-status-label');
     const httpFormatSelect = document.getElementById('http-format');
     const httpTlsCheckbox = document.getElementById('http-tls');
     const httpTlsCaInput = document.getElementById('http-tls-ca-path');
@@ -58,15 +74,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const httpPathInput = document.getElementById('http-path');
     const wsAllowUnverifiedCheckbox = document.getElementById('ws-allow-unverified');
     const wsAllowUnverifiedLabel = document.getElementById('ws-allow-unverified-label');
-    const xmppOptionsRow = document.querySelector('.xmpp-options-row');
     const xmppTlsPolicySelect = document.getElementById('xmpp-tls-policy');
     const xmppConversationSelect = document.getElementById('xmpp-conversation');
-    const xmppOptionsSummary = xmppOptionsRow?.querySelector('summary');
     const xmppCopySettingsBtn = document.getElementById('xmpp-copy-settings');
     const xmppCopyPasswordCheckbox = document.getElementById('xmpp-copy-password');
     const xmppAllowUnverifiedCheckbox = document.getElementById('xmpp-allow-unverified');
     const xmppReceivingJid = document.getElementById('xmpp-receiving-jid');
-    const xmppValidationMessage = document.getElementById('xmpp-validation-message');
+    const protocolSettingsAlert = document.getElementById('protocol-settings-alert');
     const logs = document.getElementById('logs');
     const statusDisplay = document.getElementById('status');
     const activityStrip = document.getElementById('activity-strip');
@@ -224,7 +238,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    /** Opens every collapsed ancestor so a control can be seen and focused. */
+    /**
+     * Makes a control reachable: reveals the connection row, opens the Protocol
+     * Settings dialog when the control lives inside it, and selects the section
+     * that owns the control.
+     */
     function revealControl(element) {
         if (!element) return;
         let node = element.parentElement;
@@ -235,16 +253,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (connectionControls && connectionControls.classList.contains('hidden')) {
             setToggleConnectionLineState(true);
         }
+        if (protocolSettingsDialog && protocolSettingsDialog.contains(element)) {
+            openProtocolSettings({ section: getSectionForControl(element) });
+        }
     }
 
-    /** Opens the options area that belongs to the selected connection type. */
+    /** Selects the options area that belongs to the selected connection type. */
     function revealProtocolOptions() {
-        const type = connectionTypeSelect.value;
         if (connectionControls && connectionControls.classList.contains('hidden')) {
             setToggleConnectionLineState(true);
         }
-        if (type.startsWith('xmpp') && xmppOptionsRow) xmppOptionsRow.open = true;
-        if (type.startsWith('grpc')) showGrpcRow();
+        updateProtocolSectionAvailability();
     }
 
     function setPresetControlValue(field, value) {
@@ -262,8 +281,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /**
      * Fills the connection fields from a preset. Field order matters: the
-     * connection type is applied first so protocol-specific rows exist and the
-     * smart port default does not overwrite the preset port.
+     * connection type is applied first so protocol-specific controls exist and
+     * the smart port default does not overwrite the preset port.
      */
     function applyConnectionPreset(presetId) {
         if (!connectionPresets) return false;
@@ -273,33 +292,29 @@ document.addEventListener('DOMContentLoaded', () => {
         applyingPresetValues = true;
         try {
             setPresetControlValue('connectionType', values.connectionType);
-            updateGrpcRowVisibility();
+            updateProtocolVisibility();
             Object.keys(values).forEach((field) => {
                 if (field === 'connectionType') return;
                 setPresetControlValue(field, values[field]);
             });
             setPresetControlValue('port', values.port);
-            updateGrpcRowVisibility();
+            updateProtocolVisibility();
         } finally {
             applyingPresetValues = false;
         }
         activePresetId = presetId;
         modifiedFromPresetId = '';
-        clearXmppValidation();
+        clearConnectionValidation();
         revealProtocolOptions();
-        // Reset disclosures, then reveal any explicit certificate bypass a
-        // preset enabled so a warning-valued setting is never hidden.
-        [grpcAdvancedDetails, httpAdvancedDetails, wsAdvancedDetails, xmppAdvancedDetails]
-            .forEach((details) => { if (details) details.open = false; });
-        Object.entries({
-            allowUnverifiedTls: grpcAllowUnverifiedCheckbox,
-            httpAllowUnverifiedTls: httpAllowUnverifiedCheckbox,
-            wsAllowUnverifiedTls: wsAllowUnverifiedCheckbox,
-            xmppAllowUnverifiedTls: xmppAllowUnverifiedCheckbox,
-        }).forEach(([field, control]) => {
-            if (values[field] === true) revealControl(control);
-        });
+        // Start on Basics, then switch to Security when a preset turns on an
+        // explicit certificate bypass, so a warning-valued setting is the first
+        // thing the dialog shows.
+        activateProtocolSection('basics');
+        const bypassEnabled = ['grpcAllowUnverifiedTls', 'httpAllowUnverifiedTls', 'wsAllowUnverifiedTls', 'xmppAllowUnverifiedTls']
+            .some((field) => values[field] === true);
+        if (bypassEnabled) activateProtocolSection('security');
         updateConnectionPresetTooltip();
+        renderConnectionSummary();
         setStatus(`Preset applied: ${preset.label}\n  ${preset.summary}\n  Fields were pre-filled only; review them and select Connect when ready.`, { category: 'connection' });
         return true;
     }
@@ -356,49 +371,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Show/hide gRPC options row and individual controls based on connection type
-    let grpcAutoHideTimer = null;
-
-    function clearGrpcAutoHideTimer() {
-        if (grpcAutoHideTimer) {
-            clearTimeout(grpcAutoHideTimer);
-            grpcAutoHideTimer = null;
-        }
-    }
-
-    function startGrpcAutoHideTimer() {
-        clearGrpcAutoHideTimer();
-        grpcAutoHideTimer = setTimeout(() => {
-            // Keep the row open while the Advanced disclosure is expanded or a
-            // control inside it has focus, so it cannot collapse mid-edit.
-            if (grpcAdvancedDetails?.open || grpcOptionsRow.contains(document.activeElement)) {
-                startGrpcAutoHideTimer();
-                return;
-            }
-            grpcOptionsRow.classList.add('auto-hidden');
-            connectionControls.classList.add('grpc-row-hidden');
-        }, 5000);
-    }
-
-    function showGrpcRow() {
-        clearGrpcAutoHideTimer();
-        grpcOptionsRow.classList.remove('auto-hidden');
-        connectionControls.classList.remove('grpc-row-hidden');
-    }
-
-    // Hover zone: the whole .connection-controls wrapper (both rows)
-    connectionControls.addEventListener('mouseenter', () => {
-        if (grpcOptionsRow.classList.contains('visible')) {
-            showGrpcRow();
-        }
-    });
-
-    connectionControls.addEventListener('mouseleave', () => {
-        if (grpcOptionsRow.classList.contains('visible')) {
-            startGrpcAutoHideTimer();
-        }
-    });
-
     // Default ports per protocol
     const DEFAULT_PORTS = { tcp: 5565, udp: 5565, grpc: 5565, http: 8443, xmpp: 5222 };
     const HTTP_PORT_TLS_ON = 8443;
@@ -407,92 +379,105 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentAppStatusState = 'disconnected';
     let currentTlsTooltip = '';
 
-    let previousConnectionWasXmpp = connectionTypeSelect.value.startsWith('xmpp');
+    /** Sets a control's visibility, including its label wrapper inside the dialog. */
+    function setControlVisible(element, visible) {
+        if (!element) return;
+        element.style.display = visible ? '' : 'none';
+        const field = element.closest ? element.closest('.protocol-settings-field') : null;
+        if (field) field.hidden = !visible;
+    }
 
-    function updateGrpcRowVisibility() {
+    /** @returns {Array<Element>} every settings group that belongs to a protocol */
+    function getProtocolGroups(protocol) {
+        if (!protocolSettingsDialog) return [];
+        return Array.from(protocolSettingsDialog.querySelectorAll(`.protocol-settings-group[data-protocol="${protocol}"]`));
+    }
+
+    /** @returns {Array<Element>} every settings group, whatever the protocol */
+    function getAllProtocolGroups() {
+        if (!protocolSettingsDialog) return [];
+        return Array.from(protocolSettingsDialog.querySelectorAll('.protocol-settings-group'));
+    }
+
+    /** @returns {string} the section that owns a control inside the dialog */
+    function getSectionForControl(element) {
+        const group = element && element.closest ? element.closest('.protocol-settings-group') : null;
+        return group?.dataset.section || 'basics';
+    }
+
+    /** @returns {string} the protocol half of the selected connection type */
+    function getSelectedProtocol() {
+        return String(connectionTypeSelect.value || 'tcp-server').split('-')[0];
+    }
+
+    /**
+     * Shows only the settings groups that belong to the selected protocol and
+     * keeps every protocol-specific control in the state its mode requires.
+     */
+    function updateProtocolVisibility() {
         const isGrpc = connectionTypeSelect.value.startsWith('grpc');
         const isGrpcClient = connectionTypeSelect.value === 'grpc-client';
         const isHttp = connectionTypeSelect.value.startsWith('http');
         const isWs = connectionTypeSelect.value.startsWith('ws');
         const isXmpp = connectionTypeSelect.value.startsWith('xmpp');
         const isXmppServer = connectionTypeSelect.value === 'xmpp-server';
+        const protocol = getSelectedProtocol();
 
-        if (isGrpc) {
-            grpcOptionsRow.classList.add('visible');
-            connectionControls.classList.add('grpc-active');
-            showGrpcRow();           // reset any previous auto-hidden state
-            startGrpcAutoHideTimer(); // begin the 5-second countdown immediately
-        } else {
-            grpcOptionsRow.classList.remove('visible');
-            grpcOptionsRow.classList.remove('auto-hidden');
-            connectionControls.classList.remove('grpc-active');
-            connectionControls.classList.remove('grpc-row-hidden');
-            clearGrpcAutoHideTimer();
+        getAllProtocolGroups().forEach((group) => {
+            group.hidden = group.dataset.protocol !== protocol;
+        });
+        if (protocol !== lastRenderedProtocol) {
+            // A new protocol starts on its own first section rather than
+            // inheriting whichever section the previous protocol showed.
+            protocolSettingsActiveSection = 'basics';
+            lastRenderedProtocol = protocol;
         }
 
-        // HTTP options row
-        if (httpOptionsRow) {
-            httpOptionsRow.style.display = isHttp ? '' : 'none';
-            if (isHttp) {
-                const showTlsCerts = httpTlsCheckbox.checked;
-                httpTlsCaInput.style.display = showTlsCerts ? '' : 'none';
-                httpTlsCertInput.style.display = showTlsCerts ? '' : 'none';
-                httpTlsKeyInput.style.display = showTlsCerts ? '' : 'none';
-            }
+        if (isHttp) {
+            const showTlsCerts = httpTlsCheckbox.checked;
+            setControlVisible(httpTlsCaInput, showTlsCerts);
+            setControlVisible(httpTlsCertInput, showTlsCerts);
+            setControlVisible(httpTlsKeyInput, showTlsCerts);
         }
 
-        // WebSocket options row
-        const wsOptionsRow = document.querySelector('.ws-options-row');
-        if (wsOptionsRow) {
-            wsOptionsRow.style.display = isWs ? '' : 'none';
-            if (isWs) {
-                const wsTlsEl = document.getElementById('ws-tls');
-                const showWsTlsCerts = wsTlsEl && wsTlsEl.checked;
-                const wsCaEl = document.getElementById('ws-tls-ca-path');
-                const wsCertEl = document.getElementById('ws-tls-cert-path');
-                const wsKeyEl = document.getElementById('ws-tls-key-path');
-                if (wsCaEl) wsCaEl.style.display = showWsTlsCerts ? '' : 'none';
-                if (wsCertEl) wsCertEl.style.display = showWsTlsCerts ? '' : 'none';
-                if (wsKeyEl) wsKeyEl.style.display = showWsTlsCerts ? '' : 'none';
-                // Show optional controls (always visible when WS is selected)
-                const wsSubEl = document.getElementById('ws-subscription-msg');
-                const wsIgnoreLabel = document.getElementById('ws-ignore-first-msg-label');
-                const wsHeadersEl = document.getElementById('ws-headers');
-                if (wsSubEl) wsSubEl.style.display = '';
-                if (wsIgnoreLabel) wsIgnoreLabel.style.display = '';
-                if (wsHeadersEl) wsHeadersEl.style.display = '';
-            }
-
+        if (isWs) {
+            const wsTlsEl = document.getElementById('ws-tls');
+            const showWsTlsCerts = Boolean(wsTlsEl && wsTlsEl.checked);
+            setControlVisible(document.getElementById('ws-tls-ca-path'), showWsTlsCerts);
+            setControlVisible(document.getElementById('ws-tls-cert-path'), showWsTlsCerts);
+            setControlVisible(document.getElementById('ws-tls-key-path'), showWsTlsCerts);
+            setControlVisible(document.getElementById('ws-subscription-msg'), true);
+            setControlVisible(document.getElementById('ws-headers'), true);
+            const wsIgnoreLabel = document.getElementById('ws-ignore-first-msg-label');
+            if (wsIgnoreLabel) wsIgnoreLabel.style.display = '';
         }
 
-        if (xmppOptionsRow) {
-            xmppOptionsRow.style.display = isXmpp ? '' : 'none';
-            if (isXmpp) {
-                if (!previousConnectionWasXmpp) xmppOptionsRow.open = true;
-                xmppOptionsRow.querySelectorAll('.xmpp-client-only').forEach((element) => {
+        if (isXmpp) {
+            getProtocolGroups('xmpp').forEach((group) => {
+                group.querySelectorAll('.xmpp-client-only').forEach((element) => {
                     element.style.display = isXmppServer ? 'none' : '';
                 });
-                xmppOptionsRow.querySelectorAll('.xmpp-server-only').forEach((element) => {
+                group.querySelectorAll('.xmpp-server-only').forEach((element) => {
                     element.style.display = isXmppServer ? '' : 'none';
                 });
                 const isMuc = xmppConversationSelect && xmppConversationSelect.value === 'muc';
-                xmppOptionsRow.querySelectorAll('.xmpp-muc-only').forEach((element) => {
+                group.querySelectorAll('.xmpp-muc-only').forEach((element) => {
                     element.style.display = isMuc ? '' : 'none';
                 });
-            }
+            });
         }
-        previousConnectionWasXmpp = isXmpp;
+        const xmppActions = protocolSettingsDialog?.querySelector('.xmpp-actions');
+        if (xmppActions) xmppActions.style.display = isXmppServer ? '' : 'none';
 
-        grpcHeaderPathKeyInput.style.display = isGrpcClient ? '' : 'none';
-        grpcHeaderPathInput.style.display = isGrpcClient ? '' : 'none';
+        setControlVisible(grpcHeaderPathKeyInput, isGrpcClient);
+        setControlVisible(grpcHeaderPathInput, isGrpcClient);
         const showTlsCerts = isGrpc && grpcTlsCheckbox.checked;
-        grpcTlsCaInput.style.display = showTlsCerts ? '' : 'none';
-        grpcTlsCertInput.style.display = showTlsCerts ? '' : 'none';
-        grpcTlsKeyInput.style.display = showTlsCerts ? '' : 'none';
+        setControlVisible(grpcTlsCaInput, showTlsCerts);
+        setControlVisible(grpcTlsCertInput, showTlsCerts);
+        setControlVisible(grpcTlsKeyInput, showTlsCerts);
 
         // Smart port switching
         const currentPort = parseInt(portInput.value, 10);
-        const protocol = connectionTypeSelect.value.split('-')[0];
         let newDefault;
         if (isHttp || isWs) {
             const tlsEl = isHttp ? httpTlsCheckbox : document.getElementById('ws-tls');
@@ -511,14 +496,16 @@ document.addEventListener('DOMContentLoaded', () => {
         updateXmppTlsPolicyTooltip();
         updateXmppConversationTooltip();
         updateUnverifiedTlsVisibility();
+        updateProtocolSectionAvailability();
+        renderConnectionSummary();
         refreshTlsBadge();
     }
 
-    connectionTypeSelect.addEventListener('change', updateGrpcRowVisibility);
+    connectionTypeSelect.addEventListener('change', updateProtocolVisibility);
     if (xmppConversationSelect) {
         xmppConversationSelect.addEventListener('change', () => {
             updateXmppConversationTooltip();
-            updateGrpcRowVisibility();
+            updateProtocolVisibility();
         });
     }
     if (xmppTlsPolicySelect) {
@@ -539,14 +526,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 .catch((error) => setStatus(`XMPP Server copy error: ${error.message}`, { category: 'connection' }));
         });
     }
-    if (xmppOptionsRow && xmppOptionsSummary) {
-        const updateXmppSummaryLabel = () => {
-            xmppOptionsSummary.setAttribute('aria-label', `${xmppOptionsRow.open ? 'Collapse' : 'Expand'} XMPP options`);
-        };
-        xmppOptionsRow.addEventListener('toggle', updateXmppSummaryLabel);
-        updateXmppSummaryLabel();
-    }
-
     grpcSerializationSelect.addEventListener('change', updateGrpcSerializationTooltip);
     updateGrpcSerializationTooltip();
 
@@ -570,10 +549,11 @@ document.addEventListener('DOMContentLoaded', () => {
     grpcTlsCheckbox.addEventListener('change', () => {
         const isGrpc = connectionTypeSelect.value.startsWith('grpc');
         const show = isGrpc && grpcTlsCheckbox.checked;
-        grpcTlsCaInput.style.display = show ? '' : 'none';
-        grpcTlsCertInput.style.display = show ? '' : 'none';
-        grpcTlsKeyInput.style.display = show ? '' : 'none';
+        setControlVisible(grpcTlsCaInput, show);
+        setControlVisible(grpcTlsCertInput, show);
+        setControlVisible(grpcTlsKeyInput, show);
         updateUnverifiedTlsVisibility();
+        renderConnectionSummary();
         refreshTlsBadge();
     });
 
@@ -582,9 +562,9 @@ document.addEventListener('DOMContentLoaded', () => {
         httpTlsCheckbox.addEventListener('change', () => {
             const isHttp = connectionTypeSelect.value.startsWith('http');
             const show = isHttp && httpTlsCheckbox.checked;
-            if (httpTlsCaInput) httpTlsCaInput.style.display = show ? '' : 'none';
-            if (httpTlsCertInput) httpTlsCertInput.style.display = show ? '' : 'none';
-            if (httpTlsKeyInput) httpTlsKeyInput.style.display = show ? '' : 'none';
+            setControlVisible(httpTlsCaInput, show);
+            setControlVisible(httpTlsCertInput, show);
+            setControlVisible(httpTlsKeyInput, show);
             // Smart port switch between 8080 and 8443
             if (isHttp) {
                 const currentPort = parseInt(portInput.value, 10);
@@ -597,6 +577,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             updateUnverifiedTlsVisibility();
+            renderConnectionSummary();
             refreshTlsBadge();
         });
     }
@@ -610,9 +591,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const wsCaEl = document.getElementById('ws-tls-ca-path');
             const wsCertEl = document.getElementById('ws-tls-cert-path');
             const wsKeyEl = document.getElementById('ws-tls-key-path');
-            if (wsCaEl) wsCaEl.style.display = show ? '' : 'none';
-            if (wsCertEl) wsCertEl.style.display = show ? '' : 'none';
-            if (wsKeyEl) wsKeyEl.style.display = show ? '' : 'none';
+            setControlVisible(wsCaEl, show);
+            setControlVisible(wsCertEl, show);
+            setControlVisible(wsKeyEl, show);
             if (isWs) {
                 const currentPort = parseInt(portInput.value, 10);
                 if (wsTlsCheckbox.checked && currentPort === HTTP_PORT_TLS_OFF) {
@@ -624,12 +605,542 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             updateUnverifiedTlsVisibility();
+            renderConnectionSummary();
             refreshTlsBadge();
         });
     }
 
-    // Apply initial gRPC row state on load (in case a gRPC mode is pre-selected)
-    updateGrpcRowVisibility();
+    // ------------------------------------------------------------------
+    // Protocol Settings dialog and connection summary
+    //
+    // Shared connection fields — preset, connection type, host, port, and the
+    // Connect and Disconnect buttons — stay inline. Every protocol-specific
+    // control lives in the in-window <dialog>, grouped into Basics, Security,
+    // Advanced, and a read-only Summary section. Edits apply live; the dialog
+    // remembers the values it opened with so they can be reverted.
+    // ------------------------------------------------------------------
+    const connectionSummaryApi = window.ConnectionSummary || null;
+    const PROTOCOL_SETTINGS_SECTIONS = ['basics', 'security', 'advanced', 'summary'];
+    let protocolSettingsOpenSnapshot = null;
+    let protocolSettingsOpenPresetState = null;
+    let protocolSettingsActiveSection = 'basics';
+    let protocolSettingsReturnFocus = null;
+    let connectionLockState = 'disconnected';
+    let lastConnectionSummary = null;
+    let lastRenderedProtocol = '';
+    let xmppReceivingJidValue = '';
+
+    /** @returns {boolean} true while the dialog is showing */
+    function isProtocolSettingsOpen() {
+        return Boolean(protocolSettingsDialog && protocolSettingsDialog.open);
+    }
+
+    /** @returns {Array<Element>} every editable control the dialog owns */
+    function getProtocolSettingsControls() {
+        if (!protocolSettingsDialog) return [];
+        return Array.from(protocolSettingsDialog.querySelectorAll('input, select, textarea'));
+    }
+
+    /**
+     * @returns {boolean} whether a control applies to the current protocol and
+     *   mode. Only the control and its own group are inspected, so the answer
+     *   does not depend on which section happens to be selected.
+     */
+    function isControlVisible(control) {
+        const group = control.closest ? control.closest('.protocol-settings-group') : null;
+        let node = control;
+        while (node) {
+            if (node.hidden) return false;
+            if (node.style && node.style.display === 'none') return false;
+            if (node === group || node === protocolSettingsDialog) break;
+            node = node.parentElement;
+        }
+        return true;
+    }
+
+    /** @returns {Array<Element>} the groups a section owns for the selected protocol */
+    function getSectionGroups(section) {
+        return getProtocolGroups(getSelectedProtocol())
+            .filter((group) => group.dataset.section === section);
+    }
+
+    /** @returns {boolean} whether a section has at least one visible control */
+    function sectionHasContent(section) {
+        if (section === 'summary') return true;
+        return getSectionGroups(section).some((group) => Array
+            .from(group.querySelectorAll('input, select, textarea'))
+            .some((control) => isControlVisible(control)));
+    }
+
+    /** @returns {Array<string>} the sections offered for the current state */
+    function getAvailableProtocolSections() {
+        if (connectionLockState === 'connected') return ['summary'];
+        return PROTOCOL_SETTINGS_SECTIONS.filter(sectionHasContent);
+    }
+
+    /** Selects a section, moving the roving tab stop with it. */
+    function activateProtocolSection(section, options = {}) {
+        const available = getAvailableProtocolSections();
+        const target = available.includes(section) ? section : available[0] || 'summary';
+        protocolSettingsActiveSection = target;
+        protocolSettingsTabs.forEach((tab) => {
+            const selected = tab.dataset.section === target;
+            tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+            tab.tabIndex = selected ? 0 : -1;
+            tab.classList.toggle('active', selected);
+            const panel = document.getElementById(tab.getAttribute('aria-controls'));
+            if (panel) panel.hidden = !selected;
+            if (selected && options.focus) tab.focus();
+        });
+    }
+
+    /** Hides the sections that hold nothing for the selected protocol. */
+    function updateProtocolSectionAvailability() {
+        if (!protocolSettingsDialog) return;
+        const available = getAvailableProtocolSections();
+        protocolSettingsTabs.forEach((tab) => {
+            tab.hidden = !available.includes(tab.dataset.section);
+        });
+        const protocolLabel = connectionSummaryApi
+            ? connectionSummaryApi.PROTOCOL_LABELS[getSelectedProtocol()]
+            : getSelectedProtocol().toUpperCase();
+        // Emptiness describes the protocol itself, so the note never appears
+        // for a protocol whose sections are merely hidden while connected.
+        const hasProtocolSections = PROTOCOL_SETTINGS_SECTIONS
+            .some((section) => section !== 'summary' && sectionHasContent(section));
+        if (protocolSettingsEmpty) {
+            protocolSettingsEmpty.hidden = hasProtocolSections;
+            protocolSettingsEmpty.textContent = `${protocolLabel} has no protocol settings. Connection type, host, and port stay in the connection row.`;
+        }
+        activateProtocolSection(protocolSettingsActiveSection);
+    }
+
+    /** Reads every connection field into the shared summary state shape. */
+    function readConnectionState() {
+        const value = (id) => document.getElementById(id)?.value ?? '';
+        const checked = (id) => Boolean(document.getElementById(id)?.checked);
+        const basePreset = connectionPresets ? connectionPresets.getConnectionPreset(activePresetId) : null;
+        const modifiedBase = connectionPresets ? connectionPresets.getConnectionPreset(modifiedFromPresetId) : null;
+        return {
+            connectionType: connectionTypeSelect.value,
+            host: hostInput.value,
+            port: portInput.value,
+            connectionState: connectionLockState,
+            preset: {
+                id: activePresetId,
+                label: basePreset ? basePreset.label : 'Custom',
+                modified: Boolean(modifiedFromPresetId),
+                baseLabel: modifiedBase ? modifiedBase.label : '',
+            },
+            grpcSerialization: value('grpc-serialization'),
+            grpcSendMethod: value('grpc-send-method'),
+            grpcHeaderPathKey: value('grpc-header-path-key'),
+            grpcHeaderPath: value('grpc-header-path'),
+            grpcTls: checked('grpc-tls'),
+            grpcTlsCaPath: value('grpc-tls-ca-path'),
+            grpcTlsCertPath: value('grpc-tls-cert-path'),
+            grpcTlsKeyPath: value('grpc-tls-key-path'),
+            grpcAllowUnverifiedTls: checked('grpc-allow-unverified'),
+            httpFormat: value('http-format'),
+            httpTls: checked('http-tls'),
+            httpPath: value('http-path'),
+            httpTlsCaPath: value('http-tls-ca-path'),
+            httpTlsCertPath: value('http-tls-cert-path'),
+            httpTlsKeyPath: value('http-tls-key-path'),
+            httpAllowUnverifiedTls: checked('http-allow-unverified'),
+            wsFormat: value('ws-format'),
+            wsTls: checked('ws-tls'),
+            wsPath: value('ws-path'),
+            wsTlsCaPath: value('ws-tls-ca-path'),
+            wsTlsCertPath: value('ws-tls-cert-path'),
+            wsTlsKeyPath: value('ws-tls-key-path'),
+            wsSubscriptionMsg: value('ws-subscription-msg'),
+            wsIgnoreFirstMsg: checked('ws-ignore-first-msg'),
+            wsHeaders: value('ws-headers'),
+            wsAllowUnverifiedTls: checked('ws-allow-unverified'),
+            xmppDomain: value('xmpp-domain'),
+            xmppTlsPolicy: value('xmpp-tls-policy'),
+            xmppConversation: value('xmpp-conversation'),
+            xmppUsername: value('xmpp-username'),
+            xmppPassword: value('xmpp-password'),
+            xmppResource: value('xmpp-resource'),
+            xmppLocalJid: value('xmpp-local-jid'),
+            xmppExternalUsername: value('xmpp-external-username'),
+            xmppExternalPassword: value('xmpp-external-password'),
+            xmppRoom: value('xmpp-room'),
+            xmppNickname: value('xmpp-nickname'),
+            xmppRoomPassword: value('xmpp-room-password'),
+            xmppTlsCaPath: value('xmpp-tls-ca-path'),
+            xmppTlsCertPath: value('xmpp-tls-cert-path'),
+            xmppTlsKeyPath: value('xmpp-tls-key-path'),
+            xmppAllowUnverifiedTls: checked('xmpp-allow-unverified'),
+            xmppAllowRemote: checked('xmpp-allow-remote'),
+            xmppConnectTimeoutMs: value('xmpp-connect-timeout'),
+            xmppReplyTimeoutMs: value('xmpp-reply-timeout'),
+            xmppPingIntervalMs: value('xmpp-ping-interval'),
+            xmppReconnectDelayMs: value('xmpp-reconnect-delay'),
+            receivingJid: xmppReceivingJidValue,
+        };
+    }
+
+    /** Renders summary rows into a definition list. */
+    function renderSummaryRows(container, rows) {
+        if (!container) return;
+        container.textContent = '';
+        rows.forEach((entry) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'connection-summary-row';
+            wrapper.dataset.rowKey = entry.key;
+            wrapper.dataset.kind = entry.kind;
+            wrapper.dataset.severity = entry.severity;
+            const label = document.createElement('dt');
+            label.className = 'connection-summary-label';
+            label.textContent = entry.label;
+            const value = document.createElement('dd');
+            value.className = 'connection-summary-value';
+            value.textContent = entry.value;
+            wrapper.appendChild(label);
+            wrapper.appendChild(value);
+            container.appendChild(wrapper);
+        });
+    }
+
+    /**
+     * Refreshes every summary surface from one generated summary: the inline
+     * card, the status-bar button, the dialog heading and chip, and the
+     * read-only Summary section.
+     */
+    function renderConnectionSummary() {
+        if (!connectionSummaryApi) return null;
+        const summary = connectionSummaryApi.buildConnectionSummary(readConnectionState());
+        lastConnectionSummary = summary;
+
+        renderSummaryRows(connectionSummaryRows, summary.primaryRows);
+        renderSummaryRows(protocolSettingsSummaryRows, summary.rows);
+
+        if (connectionSummaryCard) {
+            connectionSummaryCard.dataset.warning = summary.warnings.length ? 'true' : 'false';
+            connectionSummaryCard.setAttribute('aria-label', `Connection summary: ${summary.headline}`);
+        }
+        if (connectionSummaryStatusLabel) {
+            connectionSummaryStatusLabel.textContent = connectionSummaryApi.formatConnectionSummaryChip(summary);
+        }
+        if (connectionSummaryStatusBtn) {
+            const warningLine = summary.warnings.length
+                ? `\n---\n⚠ ${summary.warnings[0].label}: ${summary.warnings[0].value}`
+                : '';
+            const tooltip = `Connection summary\n---\n${summary.connectionTypeLabel} · ${summary.headline}\nSelect or press Enter to open the full read-only summary. Hovering only previews this line.${warningLine}`;
+            connectionSummaryStatusBtn.dataset.tooltip = tooltip;
+            connectionSummaryStatusBtn.dataset.tooltipKind = summary.warnings.length ? 'warning' : 'info';
+            connectionSummaryStatusBtn.setAttribute('aria-label', tooltip.replace(/\n+/g, ' '));
+            connectionSummaryStatusBtn.dataset.warning = summary.warnings.length ? 'true' : 'false';
+        }
+        if (protocolSettingsTitle) protocolSettingsTitle.textContent = summary.title;
+        if (protocolSettingsSubtitle) protocolSettingsSubtitle.textContent = summary.headline;
+        if (protocolSettingsCount) {
+            protocolSettingsCount.textContent = summary.settings.label;
+            protocolSettingsCount.dataset.warning = summary.warnings.length ? 'true' : 'false';
+        }
+        if (protocolSettingsBtn) {
+            const tooltip = `Protocol Settings (Cmd/Ctrl+Shift+P)\n---\nOpen the ${summary.connectionTypeLabel} settings: ${summary.settings.hasSettings ? `${summary.settings.count} of ${summary.settings.total} changed from their defaults` : 'this protocol has no protocol settings'}.\nPreset, connection type, host, and port stay in this row.`;
+            protocolSettingsBtn.dataset.tooltip = tooltip;
+            protocolSettingsBtn.setAttribute('aria-label', `Protocol Settings for ${summary.connectionTypeLabel}: ${summary.settings.label}`);
+        }
+        return summary;
+    }
+
+    /** @returns {object} the current value of every dialog control, by id */
+    function snapshotProtocolSettings() {
+        const snapshot = {};
+        getProtocolSettingsControls().forEach((control) => {
+            if (!control.id) return;
+            snapshot[control.id] = control.type === 'checkbox' ? control.checked : control.value;
+        });
+        return snapshot;
+    }
+
+    /** @returns {boolean} whether any dialog control differs from the snapshot */
+    function hasProtocolSettingsChanges() {
+        if (!protocolSettingsOpenSnapshot) return false;
+        return getProtocolSettingsControls().some((control) => {
+            if (!control.id || !(control.id in protocolSettingsOpenSnapshot)) return false;
+            const previous = protocolSettingsOpenSnapshot[control.id];
+            return control.type === 'checkbox' ? control.checked !== previous : control.value !== previous;
+        });
+    }
+
+    /** Restores snapshot values without marking the preset state as edited. */
+    function restoreProtocolSettings(snapshot) {
+        if (!snapshot) return;
+        applyingPresetValues = true;
+        try {
+            getProtocolSettingsControls().forEach((control) => {
+                if (!control.id || !(control.id in snapshot)) return;
+                const previous = snapshot[control.id];
+                if (control.type === 'checkbox') {
+                    if (control.checked === previous) return;
+                    control.checked = previous;
+                } else {
+                    if (control.value === previous) return;
+                    control.value = previous;
+                }
+                control.dispatchEvent(new Event('change'));
+            });
+        } finally {
+            applyingPresetValues = false;
+        }
+    }
+
+    /** Applies the read-only rules for the current connection state. */
+    function updateProtocolSettingsMode() {
+        if (!protocolSettingsDialog) return;
+        const locked = connectionLockState !== 'disconnected' && connectionLockState !== 'error';
+        protocolSettingsDialog.dataset.readOnly = locked ? 'true' : 'false';
+        protocolSettingsDialog.dataset.mode = connectionLockState === 'connected' ? 'summary' : 'edit';
+        if (protocolSettingsReadonlyBanner) {
+            protocolSettingsReadonlyBanner.hidden = !locked;
+            if (connectionLockState === 'connected') {
+                protocolSettingsReadonlyBanner.textContent = 'Connected. Disconnect to change these settings.';
+            } else if (connectionLockState === 'connecting') {
+                protocolSettingsReadonlyBanner.textContent = 'Connecting. Disconnect to change these settings.';
+            } else if (locked) {
+                protocolSettingsReadonlyBanner.textContent = 'Disconnecting. Settings become editable when the connection ends.';
+            }
+        }
+        updateProtocolSectionAvailability();
+        updateProtocolSettingsFooter();
+    }
+
+    /** Enables Revert and Reset only when they have something to restore. */
+    function updateProtocolSettingsFooter() {
+        const locked = connectionLockState !== 'disconnected' && connectionLockState !== 'error';
+        if (protocolSettingsRevertBtn) {
+            protocolSettingsRevertBtn.disabled = locked || !hasProtocolSettingsChanges();
+        }
+        if (protocolSettingsResetBtn) {
+            const presetLabel = connectionPresets && modifiedFromPresetId
+                ? connectionPresets.getConnectionPreset(modifiedFromPresetId)?.label
+                : '';
+            protocolSettingsResetBtn.disabled = locked || !presetLabel;
+            protocolSettingsResetBtn.dataset.tooltip = presetLabel
+                ? `Restore every field of "${presetLabel}", the preset these settings started from.`
+                : 'Restore every field of the preset these settings started from. Available only after a preset is applied and edited.';
+        }
+    }
+
+    /** Moves focus to the first control a reader should act on. */
+    function focusInitialProtocolSettingsControl() {
+        if (!protocolSettingsDialog) return;
+        const panel = document.getElementById(`protocol-settings-panel-${protocolSettingsActiveSection}`);
+        const control = panel
+            ? Array.from(panel.querySelectorAll('input, select, textarea'))
+                .find((candidate) => !candidate.disabled && isControlVisible(candidate))
+            : null;
+        const target = control
+            || protocolSettingsTabs.find((tab) => !tab.hidden && tab.getAttribute('aria-selected') === 'true')
+            || protocolSettingsDoneBtn;
+        target?.focus?.();
+    }
+
+    /**
+     * Opens the dialog. The first open of a session records the snapshot that
+     * Revert changes restores.
+     *
+     * @param {{section?: string, focus?: boolean, returnFocus?: Element}} [options]
+     */
+    function openProtocolSettings(options = {}) {
+        if (!protocolSettingsDialog) return;
+        if (connectionControls && connectionControls.classList.contains('hidden')) {
+            setToggleConnectionLineState(true);
+        }
+        const alreadyOpen = isProtocolSettingsOpen();
+        if (!alreadyOpen) {
+            protocolSettingsReturnFocus = options.returnFocus
+                || (document.activeElement && document.activeElement !== document.body ? document.activeElement : protocolSettingsBtn);
+            protocolSettingsOpenSnapshot = snapshotProtocolSettings();
+            protocolSettingsOpenPresetState = { activePresetId, modifiedFromPresetId };
+        }
+        updateProtocolSettingsMode();
+        if (options.section) activateProtocolSection(options.section);
+        renderConnectionSummary();
+        if (!alreadyOpen) {
+            if (typeof protocolSettingsDialog.showModal === 'function') {
+                protocolSettingsDialog.showModal();
+            } else {
+                // Environments without modal dialog support still expose `open`.
+                protocolSettingsDialog.open = true;
+            }
+            if (protocolSettingsBtn) protocolSettingsBtn.setAttribute('aria-expanded', 'true');
+            if (options.focus !== false) focusInitialProtocolSettingsControl();
+        } else if (options.focus === true) {
+            focusInitialProtocolSettingsControl();
+        }
+        updateProtocolSettingsFooter();
+    }
+
+    /** Closes the dialog, keeps the edits, and returns focus to the opener. */
+    function closeProtocolSettings(options = {}) {
+        if (!protocolSettingsDialog || !isProtocolSettingsOpen()) return;
+        if (typeof protocolSettingsDialog.close === 'function') {
+            protocolSettingsDialog.close();
+        } else {
+            protocolSettingsDialog.open = false;
+        }
+        if (protocolSettingsBtn) protocolSettingsBtn.setAttribute('aria-expanded', 'false');
+        renderConnectionSummary();
+        if (options.restoreFocus !== false) {
+            const target = protocolSettingsReturnFocus && document.contains(protocolSettingsReturnFocus)
+                ? protocolSettingsReturnFocus
+                : protocolSettingsBtn;
+            target?.focus?.();
+        }
+        protocolSettingsReturnFocus = null;
+    }
+
+    /** Moves focus to the inline connection summary, revealing it first. */
+    function focusConnectionSummary() {
+        if (isProtocolSettingsOpen()) {
+            activateProtocolSection('summary');
+            document.getElementById('protocol-settings-panel-summary')?.focus?.();
+            return;
+        }
+        if (connectionControls && connectionControls.classList.contains('hidden')) {
+            setToggleConnectionLineState(true);
+        }
+        renderConnectionSummary();
+        connectionSummaryCard?.focus?.();
+    }
+
+    /** Copies the summary text. Redacted secrets are all it ever contains. */
+    function copyConnectionSummary() {
+        const summary = renderConnectionSummary();
+        if (!summary || !connectionSummaryApi) return;
+        const text = connectionSummaryApi.formatConnectionSummaryText(summary);
+        if (window.electronAPI && typeof window.electronAPI.send === 'function') {
+            window.electronAPI.send('copy-to-clipboard', text);
+        } else if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            navigator.clipboard.writeText(text).catch(() => {});
+        }
+        setStatus('Connection summary copied; passwords are never included', { category: 'system' });
+    }
+
+    if (protocolSettingsBtn) {
+        protocolSettingsBtn.addEventListener('click', () => {
+            if (isProtocolSettingsOpen()) {
+                closeProtocolSettings();
+                return;
+            }
+            openProtocolSettings({ returnFocus: protocolSettingsBtn });
+        });
+    }
+    if (protocolSettingsCloseBtn) {
+        protocolSettingsCloseBtn.addEventListener('click', () => closeProtocolSettings());
+    }
+    if (protocolSettingsDoneBtn) {
+        protocolSettingsDoneBtn.addEventListener('click', () => closeProtocolSettings());
+    }
+    if (protocolSettingsRevertBtn) {
+        protocolSettingsRevertBtn.addEventListener('click', () => {
+            if (protocolSettingsRevertBtn.disabled) return;
+            restoreProtocolSettings(protocolSettingsOpenSnapshot);
+            if (protocolSettingsOpenPresetState) {
+                activePresetId = protocolSettingsOpenPresetState.activePresetId;
+                modifiedFromPresetId = protocolSettingsOpenPresetState.modifiedFromPresetId;
+                if (connectionPresetSelect) connectionPresetSelect.value = activePresetId;
+                updateConnectionPresetTooltip();
+            }
+            updateProtocolVisibility();
+            updateProtocolSettingsFooter();
+            setStatus('Protocol settings reverted to the values this dialog opened with', { category: 'connection' });
+        });
+    }
+    if (protocolSettingsResetBtn) {
+        protocolSettingsResetBtn.addEventListener('click', () => {
+            if (protocolSettingsResetBtn.disabled || !modifiedFromPresetId) return;
+            const presetId = modifiedFromPresetId;
+            if (connectionPresetSelect) connectionPresetSelect.value = presetId;
+            applyConnectionPreset(presetId);
+            updateProtocolSettingsFooter();
+        });
+    }
+    if (protocolSettingsTablist) {
+        protocolSettingsTablist.addEventListener('click', (event) => {
+            const tab = event.target.closest('[role="tab"]');
+            if (!tab) return;
+            activateProtocolSection(tab.dataset.section, { focus: true });
+        });
+        protocolSettingsTablist.addEventListener('keydown', (event) => {
+            const keys = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'Home', 'End'];
+            if (!keys.includes(event.key)) return;
+            const visible = protocolSettingsTabs.filter((tab) => !tab.hidden);
+            if (!visible.length) return;
+            const currentIndex = Math.max(0, visible.findIndex((tab) => tab.dataset.section === protocolSettingsActiveSection));
+            let nextIndex = currentIndex;
+            if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nextIndex = (currentIndex + 1) % visible.length;
+            else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nextIndex = (currentIndex - 1 + visible.length) % visible.length;
+            else if (event.key === 'Home') nextIndex = 0;
+            else if (event.key === 'End') nextIndex = visible.length - 1;
+            event.preventDefault();
+            activateProtocolSection(visible[nextIndex].dataset.section, { focus: true });
+        });
+    }
+    if (protocolSettingsDialog) {
+        protocolSettingsDialog.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') return;
+            // Esc keeps the edits, exactly like Done.
+            event.preventDefault();
+            closeProtocolSettings();
+        });
+        protocolSettingsDialog.addEventListener('cancel', (event) => {
+            event.preventDefault();
+            closeProtocolSettings();
+        });
+        protocolSettingsDialog.addEventListener('click', (event) => {
+            if (event.target === protocolSettingsDialog) closeProtocolSettings();
+        });
+        protocolSettingsDialog.addEventListener('input', () => updateProtocolSettingsFooter());
+        protocolSettingsDialog.addEventListener('change', () => {
+            updateProtocolSettingsFooter();
+            renderConnectionSummary();
+        });
+    }
+    if (connectionSummaryShowAllBtn) {
+        connectionSummaryShowAllBtn.addEventListener('click', () => {
+            openProtocolSettings({ section: 'summary', returnFocus: connectionSummaryShowAllBtn });
+        });
+    }
+    if (connectionSummaryCopyBtn) {
+        connectionSummaryCopyBtn.addEventListener('click', copyConnectionSummary);
+    }
+    if (connectionSummaryStatusBtn) {
+        connectionSummaryStatusBtn.addEventListener('click', () => {
+            openProtocolSettings({ section: 'summary', returnFocus: connectionSummaryStatusBtn });
+        });
+    }
+    [hostInput, portInput].forEach((control) => {
+        if (control) control.addEventListener('input', () => renderConnectionSummary());
+    });
+
+    /**
+     * Single entry point for the two connection shortcuts, shared by the
+     * in-page key handler and, in the sister application, the menu
+     * accelerator, so both surfaces always do the same thing.
+     *
+     * @param {'protocol-settings'|'connection-summary'} name
+     */
+    function handleConnectionShortcut(name) {
+        if (name === 'protocol-settings') {
+            if (isProtocolSettingsOpen()) closeProtocolSettings();
+            else openProtocolSettings({ returnFocus: protocolSettingsBtn });
+            return;
+        }
+        focusConnectionSummary();
+    }
+
+    // Apply the initial protocol state on load, in case a protocol other than
+    // TCP is pre-selected by the command line or a saved configuration.
+    updateProtocolVisibility();
+    updateProtocolSettingsMode();
 
     // Helper for toggling connection line button state
     function setToggleConnectionLineState(isEnabled) {
@@ -1199,6 +1710,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Update status emoji
         appStatusDot.textContent = stateEmojis[statusState] || '⭐'; // Default to a star if state is unknown
         appStatusDot.setAttribute('data-state', statusState);
+        renderConnectionSummary();
     }
 
     // Initialize app status on load
@@ -1209,93 +1721,116 @@ document.addEventListener('DOMContentLoaded', () => {
     const errorMessage = document.getElementById('error-message');
     const errorCloseBtn = document.getElementById('error-close-btn');
 
+    /**
+     * Locks or unlocks every connection control for a connection state.
+     *
+     * Protocol-specific controls are found by querying the Protocol Settings
+     * dialog, so a control added to the dialog is locked automatically instead
+     * of having to be listed here. The two XMPP server actions are the only
+     * exceptions: they stay usable exactly while an XMPP Server is connected.
+     */
     function setConnectionControls(state) {
+        const controlsLocked = state !== 'disconnected' && state !== 'error';
+        connectionLockState = controlsLocked ? state : 'disconnected';
         if (state === 'connected') {
             connectBtn.disabled = true;
             disconnectBtn.disabled = false;
-            connectionTypeSelect.disabled = true;
-            grpcSerializationSelect.disabled = true;
-            grpcSendMethodSelect.disabled = true;
-            grpcHeaderPathKeyInput.disabled = true;
-            grpcHeaderPathInput.disabled = true;
-            grpcTlsCheckbox.disabled = true;
-            grpcTlsCaInput.disabled = true;
-            grpcTlsCertInput.disabled = true;
-            grpcTlsKeyInput.disabled = true;
-            hostInput.disabled = true;
-            portInput.disabled = true;
         } else if (state === 'connecting') {
             connectBtn.disabled = true;
             disconnectBtn.disabled = false; // Allow user to cancel
-            connectionTypeSelect.disabled = true;
-            grpcSerializationSelect.disabled = true;
-            grpcSendMethodSelect.disabled = true;
-            grpcHeaderPathKeyInput.disabled = true;
-            grpcHeaderPathInput.disabled = true;
-            grpcTlsCheckbox.disabled = true;
-            grpcTlsCaInput.disabled = true;
-            grpcTlsCertInput.disabled = true;
-            grpcTlsKeyInput.disabled = true;
-            hostInput.disabled = true;
-            portInput.disabled = true;
         } else if (state === 'disconnecting') {
             connectBtn.disabled = true;
             disconnectBtn.disabled = true; // Prevent multiple disconnect attempts
-            connectionTypeSelect.disabled = true;
-            grpcSerializationSelect.disabled = true;
-            grpcSendMethodSelect.disabled = true;
-            grpcHeaderPathKeyInput.disabled = true;
-            grpcHeaderPathInput.disabled = true;
-            grpcTlsCheckbox.disabled = true;
-            grpcTlsCaInput.disabled = true;
-            grpcTlsCertInput.disabled = true;
-            grpcTlsKeyInput.disabled = true;
-            hostInput.disabled = true;
-            portInput.disabled = true;
         } else { // disconnected, error
             connectBtn.disabled = false;
             disconnectBtn.disabled = true;
-            connectionTypeSelect.disabled = false;
-            grpcSerializationSelect.disabled = false;
-            grpcSendMethodSelect.disabled = false;
-            grpcHeaderPathKeyInput.disabled = false;
-            grpcHeaderPathInput.disabled = false;
-            grpcTlsCheckbox.disabled = false;
-            grpcTlsCaInput.disabled = false;
-            grpcTlsCertInput.disabled = false;
-            grpcTlsKeyInput.disabled = false;
-            hostInput.disabled = false;
-            portInput.disabled = false;
         }
-        const controlsLocked = state !== 'disconnected' && state !== 'error';
-        if (xmppOptionsRow) {
-            xmppOptionsRow.querySelectorAll('input:not(#xmpp-copy-password), select, button:not(#xmpp-copy-settings)').forEach((control) => {
-                control.disabled = controlsLocked;
-            });
-        }
-        [connectionPresetSelect, grpcAllowUnverifiedCheckbox, httpAllowUnverifiedCheckbox, wsAllowUnverifiedCheckbox]
+        [connectionTypeSelect, hostInput, portInput, connectionPresetSelect]
             .forEach((control) => { if (control) control.disabled = controlsLocked; });
+        getProtocolSettingsControls().forEach((control) => {
+            if (control === xmppCopyPasswordCheckbox) return;
+            control.disabled = controlsLocked;
+        });
         const canCopyXmppSettings = state === 'connected' && connectionTypeSelect.value === 'xmpp-server';
         if (xmppCopySettingsBtn) xmppCopySettingsBtn.disabled = !canCopyXmppSettings;
         if (xmppCopyPasswordCheckbox) xmppCopyPasswordCheckbox.disabled = !canCopyXmppSettings;
+        updateProtocolSettingsMode();
+        renderConnectionSummary();
         updateConnectionStatusIndicator(state === 'connected');
     }
 
-    function clearXmppValidation() {
-        if (!xmppOptionsRow) return;
-        xmppOptionsRow.querySelectorAll('[aria-invalid="true"]').forEach((element) => {
+    /**
+     * Adds one token to `aria-describedby` without discarding the tokens
+     * already there, so a hover tooltip and a validation banner can describe
+     * the same control at the same time.
+     *
+     * @param {Element} element
+     * @param {string} token id of the describing element
+     */
+    function addAriaDescribedBy(element, token) {
+        if (!element || !token) return;
+        const tokens = (element.getAttribute('aria-describedby') || '')
+            .split(/\s+/)
+            .filter((entry) => entry && entry !== token);
+        element.setAttribute('aria-describedby', [...tokens, token].join(' '));
+    }
+
+    /** Removes one token from `aria-describedby`, keeping every other token. */
+    function removeAriaDescribedBy(element, token) {
+        if (!element || !token) return;
+        const tokens = (element.getAttribute('aria-describedby') || '')
+            .split(/\s+/)
+            .filter((entry) => entry && entry !== token);
+        if (tokens.length) element.setAttribute('aria-describedby', tokens.join(' '));
+        else element.removeAttribute('aria-describedby');
+    }
+
+    /** Clears the validation banner and every invalid marker it set. */
+    function clearConnectionValidation() {
+        document.querySelectorAll('[aria-invalid="true"]').forEach((element) => {
             element.setAttribute('aria-invalid', 'false');
+            // Only the banner's own token is dropped; a tooltip description
+            // added by tooltip-utils.js survives.
+            removeAriaDescribedBy(element, 'protocol-settings-alert');
         });
         hostInput.setAttribute('aria-invalid', 'false');
         portInput.setAttribute('aria-invalid', 'false');
-        if (xmppValidationMessage) {
-            xmppValidationMessage.hidden = true;
-            xmppValidationMessage.textContent = '';
+        if (protocolSettingsAlert) {
+            protocolSettingsAlert.hidden = true;
+            protocolSettingsAlert.textContent = '';
+        }
+    }
+
+    /**
+     * Reports a validation failure: fills the assertive banner, marks the
+     * control, opens the Protocol Settings dialog at the section that owns it,
+     * and moves focus there.
+     *
+     * @param {Element} element the first invalid control
+     * @param {string} message the message shown in the banner
+     */
+    function reportConnectionValidationError(element, message) {
+        if (protocolSettingsAlert) {
+            protocolSettingsAlert.textContent = message;
+            protocolSettingsAlert.hidden = false;
+        }
+        if (element) {
+            element.setAttribute('aria-invalid', 'true');
+            addAriaDescribedBy(element, 'protocol-settings-alert');
+            revealControl(element);
+        }
+        setStatus(`Connection validation error: ${message}`, { category: 'connection' });
+        // Focus the offending control, or the section that owns it when the
+        // control itself is not rendered in the current configuration.
+        if (element && (!protocolSettingsDialog?.contains(element) || isControlVisible(element))) {
+            element.focus?.();
+        } else if (element) {
+            document.getElementById(`protocol-settings-tab-${getSectionForControl(element)}`)?.focus?.();
         }
     }
 
     function validateXmppConnection(type, host, port) {
-        clearXmppValidation();
+        clearConnectionValidation();
         // Passwords are intentionally not required: an XMPP account may be
         // configured with a present-but-empty password for relaxed local
         // testing. Usernames and JIDs remain required.
@@ -1347,17 +1882,36 @@ document.addEventListener('DOMContentLoaded', () => {
             message ||= 'Enable Allow remote to bind the XMPP Server Host outside loopback.';
         }
         if (invalidElement) {
-            xmppOptionsRow.open = true;
-            revealControl(invalidElement);
-            if (xmppValidationMessage) {
-                xmppValidationMessage.textContent = message;
-                xmppValidationMessage.hidden = false;
-            }
-            setStatus(`XMPP validation error: ${message}`, { category: 'connection' });
-            invalidElement.focus();
+            reportConnectionValidationError(invalidElement, message);
             return false;
         }
         return true;
+    }
+
+    /**
+     * Validates the settings every TLS-capable transport shares. A certificate
+     * and its private key are only ever useful together, so a half-configured
+     * pair is reported before the transport fails at connect time.
+     *
+     * @param {string} protocol `grpc`, `http`, or `ws`
+     * @returns {boolean} true when the connection may proceed
+     */
+    function validateTlsCertificatePair(protocol) {
+        const tlsCheckbox = document.getElementById(`${protocol}-tls`);
+        // Certificate paths are unused while TLS is off, and their controls are
+        // hidden, so a leftover value must not block the connection.
+        if (tlsCheckbox && !tlsCheckbox.checked) return true;
+        const certInput = document.getElementById(`${protocol}-tls-cert-path`);
+        const keyInput = document.getElementById(`${protocol}-tls-key-path`);
+        const cert = certInput?.value || '';
+        const key = keyInput?.value || '';
+        if (Boolean(cert) === Boolean(key)) return true;
+        const label = connectionSummaryApi ? connectionSummaryApi.PROTOCOL_LABELS[protocol] : protocol.toUpperCase();
+        reportConnectionValidationError(
+            cert ? keyInput : certInput,
+            `Certificate and Private key must be provided together for ${label} TLS.`,
+        );
+        return false;
     }
 
     function updateConnectionStatusIndicator(isConnected) {
@@ -1388,6 +1942,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Escape' && errorDialog && errorDialog.style.display !== 'none') {
             hideErrorDialog();
         }
+    });
+
+    // Escape keeps Protocol Settings edits, whatever holds focus.
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape' || !isProtocolSettingsOpen()) return;
+        e.preventDefault();
+        closeProtocolSettings();
     });
 
     if (errorDialog) {
@@ -1529,7 +2090,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 element.checked = presets[key] === true || presets[key] === 'true';
             }
         });
-        updateGrpcRowVisibility();
+        updateProtocolVisibility();
     }
 
     connectBtn.addEventListener('click', () => {
@@ -1540,6 +2101,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (connectionType.startsWith('xmpp')) {
             const type = connectionType.split('-')[1];
             if (!validateXmppConnection(type, host, port)) return;
+        } else {
+            const protocol = connectionType.split('-')[0];
+            clearConnectionValidation();
+            if (['grpc', 'http', 'ws'].includes(protocol) && !validateTlsCertificatePair(protocol)) return;
         }
         setAppStatus(Status.CONNECTING);
         setConnectionControls('connecting');
@@ -1851,8 +2416,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const roomPassword = document.getElementById('xmpp-room-password');
             if (accountPassword) accountPassword.value = '';
             if (roomPassword) roomPassword.value = '';
-            updateGrpcRowVisibility();
-            if (xmppOptionsRow) xmppOptionsRow.open = true;
+            updateProtocolVisibility();
             const firstMissing = [
                 document.getElementById('xmpp-username'),
                 accountPassword,
@@ -1860,13 +2424,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     ? [document.getElementById('xmpp-room'), document.getElementById('xmpp-nickname')]
                     : []),
             ].find((element) => !element?.value);
+            openProtocolSettings({ section: 'basics', focus: false });
             if (firstMissing) {
                 firstMissing.setAttribute('aria-invalid', 'true');
+                addAriaDescribedBy(firstMissing, 'protocol-settings-alert');
                 firstMissing.focus();
             }
-            if (xmppValidationMessage) {
-                xmppValidationMessage.textContent = 'Enter the XMPP account credentials required by this output before connecting. Stored secrets cannot be recovered.';
-                xmppValidationMessage.hidden = false;
+            if (protocolSettingsAlert) {
+                protocolSettingsAlert.textContent = 'Enter the XMPP account credentials required by this output before connecting. Stored secrets cannot be recovered.';
+                protocolSettingsAlert.hidden = false;
             }
             setStatus('XMPP output applied; enter the required XMPP account credentials before connecting. Stored secrets cannot be recovered.', { category: 'auth' });
         }
@@ -2005,10 +2571,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }, { passive: true });
     }
 
-    // Keyboard shortcuts: Cmd/Ctrl+Shift+A (auto-scroll), Cmd/Ctrl+Shift+O (order)
+    // Keyboard shortcuts: Cmd/Ctrl+Shift+P (Protocol Settings),
+    // Cmd/Ctrl+Shift+I (Connection Summary), Cmd/Ctrl+Shift+A (auto-scroll),
+    // and Cmd/Ctrl+Shift+O (order).
     document.addEventListener('keydown', (e) => {
         const isMac = navigator.platform.toUpperCase().includes('MAC');
         const hasPrimary = isMac ? e.metaKey : e.ctrlKey;
+
+        // Protocol Settings and Connection Summary stay reachable while a
+        // connection field has focus, because that is where they are needed.
+        if (hasPrimary && e.shiftKey) {
+            const shortcutKey = e.key.toLowerCase();
+            if (shortcutKey === 'p') {
+                e.preventDefault();
+                handleConnectionShortcut('protocol-settings');
+                return;
+            }
+            if (shortcutKey === 'i') {
+                e.preventDefault();
+                handleConnectionShortcut('connection-summary');
+                return;
+            }
+        }
+
         const isEditable = ['INPUT', 'SELECT', 'TEXTAREA'].includes((e.target && e.target.tagName) || '');
         if (isEditable) return; // don't intercept typing in form fields
 
@@ -2118,10 +2703,13 @@ document.addEventListener('DOMContentLoaded', () => {
         setStatus(message, { category: 'connection' });
     });
     window.electronAPI.on('xmpp-server-settings', (settings) => {
-        if (!xmppReceivingJid) return;
-        xmppReceivingJid.textContent = settings?.receivingJid
-            ? `Receiving JID: ${settings.receivingJid}`
-            : 'Receiving JID: available after the server starts';
+        xmppReceivingJidValue = settings?.receivingJid || '';
+        if (xmppReceivingJid) {
+            xmppReceivingJid.textContent = settings?.receivingJid
+                ? `Receiving JID: ${settings.receivingJid}`
+                : 'Receiving JID: available after the server starts';
+        }
+        renderConnectionSummary();
     });
 
     window.electronAPI.on('udp-error', (message) => {

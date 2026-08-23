@@ -22,6 +22,7 @@ const fs = require('fs');
 const { ConfigManager } = require('./config.js');
 const { APP_DEFAULTS, DEFAULT_LOG_LEVEL, parseCommandLineArgs, getCommandLineReferenceData, formatCliStartupErrorOutput } = require('./cli-options.js');
 const { runHeadlessSession, EXIT_CODES } = require('./headless-runner.js');
+const { registerUdpClient } = require('./udp-utils.js');
 
 function requestGracefulCliExit(exitCode) {
   process.exitCode = exitCode;
@@ -2071,12 +2072,8 @@ ipcMain.on('connect-udp', (event, { type, port, host }) => {
                 mainWindow.webContents.send('udp-status', `UDP Client connected from ${localAddress.port} to ${validHost}:${validPort}`);
                 updateUdpButtonStates('connected');
 
-                // Send a connection message to the server
-                const connectMessage = Buffer.from('UDP Client connected');
-                udpSocket.send(connectMessage, (err) => {
-                    if (err) {
-                        mainWindow.webContents.send('udp-error', `Failed to send connection message: ${err.message}`);
-                    }
+                registerUdpClient(udpSocket).catch((err) => {
+                    mainWindow.webContents.send('udp-error', `Failed to send connection message: ${err.message}`);
                 });
             });
 
@@ -2166,7 +2163,7 @@ ipcMain.on('connect-grpc', (event, { type, port, host, grpcSerialization, grpcSe
     } else { // client
         const onClientMetadata = (line) => sendMetadataLine(line);
         const onClientStatus = (line) => sendMetadataLine(line);
-        grpcTransport = createGrpcClientTransport({ ip: host, port, grpcSerialization, grpcSendMethod, headerPathKey, headerPath, useTls, tlsCaPath, tlsCertPath, tlsKeyPath, allowUnverifiedTls, authToken: getVelocityAuthTokenForConnection(), onData, onMetadata: onClientMetadata, onStatus: onClientStatus });
+        grpcTransport = createGrpcClientTransport({ ip: host, port, grpcSerialization, grpcSendMethod, headerPathKey, headerPath, useTls, tlsCaPath, tlsCertPath, tlsKeyPath, allowUnverifiedTls, authToken: getVelocityAuthTokenForConnection(), onData, onMetadata: onClientMetadata, onStatus: onClientStatus, onLog: (level, message) => velocityLog(level, message) });
         grpcTransport.connect().then((result) => {
             mainWindow.webContents.send('grpc-status', `gRPC Client connected to ${result.address} [${ser}] ${headerPathKey}=${headerPath}\n  ${result.tlsInfo || 'tls=off'}`);
             updateGrpcButtonStates('connected');
@@ -2178,15 +2175,23 @@ ipcMain.on('connect-grpc', (event, { type, port, host, grpcSerialization, grpcSe
     }
 });
 
-ipcMain.on('disconnect-grpc', () => {
+// Teardown is total: the transport clears its own state before it reports a
+// problem, so a peer that disappeared first is a diagnostic and never a reason
+// to leave the user stuck in a connected state.
+ipcMain.on('disconnect-grpc', async () => {
     updateGrpcButtonStates('disconnecting');
     if (grpcTransport) {
-        grpcTransport.disconnect().then(() => {
+        const active = grpcTransport;
+        grpcTransport = null;
+        currentConnectionDetails = null;
+        try {
+            await active.disconnect();
             mainWindow.webContents.send('grpc-status', 'gRPC connection closed');
-            grpcTransport = null;
-            currentConnectionDetails = null;
-            updateGrpcButtonStates('disconnected');
-        });
+        } catch (err) {
+            velocityLog('warn', `[Transport] gRPC teardown reported: ${err.message}`);
+            mainWindow.webContents.send('grpc-status', `gRPC connection closed. Teardown reported: ${err.message}`);
+        }
+        updateGrpcButtonStates('disconnected');
     } else {
         mainWindow.webContents.send('grpc-status', 'No gRPC connection to disconnect');
         updateGrpcButtonStates('disconnected');
@@ -2230,7 +2235,7 @@ ipcMain.on('connect-http', (event, { type, port, host, httpFormat, httpTls, http
             updateHttpButtonStates('disconnected');
         });
     } else { // client
-        httpTransport = createHttpClientTransport({ ip: host, port, httpFormat, httpPath, httpTls, httpTlsCaPath, httpTlsCertPath, httpTlsKeyPath, httpAllowUnverifiedTls, authToken: getVelocityAuthTokenForConnection(), onData });
+        httpTransport = createHttpClientTransport({ ip: host, port, httpFormat, httpPath, httpTls, httpTlsCaPath, httpTlsCertPath, httpTlsKeyPath, httpAllowUnverifiedTls, authToken: getVelocityAuthTokenForConnection(), onData, onLog: (level, message) => velocityLog(level, message) });
         httpTransport.connect().then((result) => {
             mainWindow.webContents.send('http-status', `HTTP Client connected to ${result.address} [${httpFormat}] Content-Type: ${contentType}\n  ${result.tlsInfo || 'tls=off'}`);
             updateHttpButtonStates('connected');
@@ -2242,15 +2247,20 @@ ipcMain.on('connect-http', (event, { type, port, host, httpFormat, httpTls, http
     }
 });
 
-ipcMain.on('disconnect-http', () => {
+ipcMain.on('disconnect-http', async () => {
     updateHttpButtonStates('disconnecting');
     if (httpTransport) {
-        httpTransport.disconnect().then(() => {
+        const active = httpTransport;
+        httpTransport = null;
+        currentConnectionDetails = null;
+        try {
+            await active.disconnect();
             mainWindow.webContents.send('http-status', 'HTTP connection closed');
-            httpTransport = null;
-            currentConnectionDetails = null;
-            updateHttpButtonStates('disconnected');
-        });
+        } catch (err) {
+            velocityLog('warn', `[Transport] HTTP teardown reported: ${err.message}`);
+            mainWindow.webContents.send('http-status', `HTTP connection closed. Teardown reported: ${err.message}`);
+        }
+        updateHttpButtonStates('disconnected');
     } else {
         mainWindow.webContents.send('http-status', 'No HTTP connection to disconnect');
         updateHttpButtonStates('disconnected');
@@ -2281,9 +2291,28 @@ ipcMain.on('connect-ws', (event, { type, port, host, wsFormat, wsTls, wsTlsCaPat
         mainWindow.webContents.send('log-data', data);
     };
 
+    // A receive-only session has no other way to notice that the stream it is
+    // capturing went away, so the transport reports its own lifecycle here.
+    // Our own teardown clears `wsTransport` before it awaits, so the guard
+    // keeps a deliberate disconnect from reporting a lost connection.
+    let activeTransport = null;
+    const makeOnStateChange = (role) => (state, detail = {}) => {
+        if (state === 'error') {
+            velocityLog('warn', `[Transport] WebSocket ${role}: ${detail.message || 'transport error'}`);
+            return;
+        }
+        if (state !== 'closed') return;
+        if (!wsTransport || wsTransport !== activeTransport) return;
+        wsTransport = null;
+        currentConnectionDetails = null;
+        mainWindow.webContents.send('ws-status', detail.message || 'WebSocket connection closed');
+        updateWsButtonStates('disconnected');
+    };
+
     try {
         if (type === 'server') {
-            wsTransport = createWsServerTransport({ ip: host, port, wsFormat, wsPath, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, onData });
+            wsTransport = createWsServerTransport({ ip: host, port, wsFormat, wsPath, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, onData, onStateChange: makeOnStateChange('server') });
+            activeTransport = wsTransport;
             wsTransport.connect().then((result) => {
                 const scheme = wsTls ? 'wss' : 'ws';
                 mainWindow.webContents.send('ws-status', `WebSocket Server listening on ${scheme}://${result.address.address}:${result.address.port}${wsPath || '/'} [${wsFormat}] Content-Type: ${contentType}\n  ${result.tlsInfo || 'tls=off'}`);
@@ -2294,7 +2323,8 @@ ipcMain.on('connect-ws', (event, { type, port, host, wsFormat, wsTls, wsTlsCaPat
                 updateWsButtonStates('disconnected');
             });
         } else {
-            wsTransport = createWsClientTransport({ ip: host, port, wsFormat, wsPath, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsSubscriptionMsg, wsIgnoreFirstMsg, wsHeaders, wsAllowUnverifiedTls, authToken: getVelocityAuthTokenForConnection(), onData });
+            wsTransport = createWsClientTransport({ ip: host, port, wsFormat, wsPath, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsSubscriptionMsg, wsIgnoreFirstMsg, wsHeaders, wsAllowUnverifiedTls, authToken: getVelocityAuthTokenForConnection(), onData, onStateChange: makeOnStateChange('client') });
+            activeTransport = wsTransport;
             wsTransport.connect().then((result) => {
                 mainWindow.webContents.send('ws-status', `WebSocket Client connected to ${result.address} [${wsFormat}] Content-Type: ${contentType}\n  ${result.tlsInfo || 'tls=off'}`);
                 updateWsButtonStates('connected');
@@ -2310,13 +2340,22 @@ ipcMain.on('connect-ws', (event, { type, port, host, wsFormat, wsTls, wsTlsCaPat
     }
 });
 
-ipcMain.on('disconnect-ws', () => {
+// The WebSocket transport tears down asynchronously, so the handler awaits it
+// and reports 'disconnected' only once teardown has finished. That ordering is
+// what lets the user rebind the same port immediately after the status arrives.
+ipcMain.on('disconnect-ws', async () => {
     updateWsButtonStates('disconnecting');
     if (wsTransport) {
-        wsTransport.disconnect();
-        mainWindow.webContents.send('ws-status', 'WebSocket connection closed');
+        const active = wsTransport;
         wsTransport = null;
         currentConnectionDetails = null;
+        try {
+            await active.disconnect();
+            mainWindow.webContents.send('ws-status', 'WebSocket connection closed');
+        } catch (err) {
+            velocityLog('warn', `[Transport] WebSocket teardown reported: ${err.message}`);
+            mainWindow.webContents.send('ws-status', `WebSocket connection closed. Teardown reported: ${err.message}`);
+        }
         updateWsButtonStates('disconnected');
     } else {
         mainWindow.webContents.send('ws-status', 'No WebSocket connection to disconnect');

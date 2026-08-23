@@ -45,7 +45,7 @@ console.log('\n--- Test 3: Server connect and disconnect ---');
   assert(result.address.port === 19980, 'server bound to correct port');
   assert(result.contentType === 'text/plain', 'server contentType is text/plain');
   assert(srv.isConnected() === true, 'server is connected after connect');
-  srv.disconnect();
+  await srv.disconnect();
   assert(srv.isConnected() === false, 'server is disconnected after disconnect');
 
   console.log('\n--- Test 4: Server with xml format ---');
@@ -54,7 +54,7 @@ console.log('\n--- Test 3: Server connect and disconnect ---');
   assert(result2.success === true, 'xml server connect succeeds');
   assert(result2.wsFormat === 'xml', 'xml server wsFormat is xml');
   assert(result2.contentType === 'application/xml', 'xml server contentType is application/xml');
-  srv2.disconnect();
+  await srv2.disconnect();
 
   console.log('\n--- Test 5: Client→Server message delivery ---');
   let receivedData = null;
@@ -69,7 +69,7 @@ console.log('\n--- Test 3: Server connect and disconnect ---');
   await testClient.connect();
   assert(testClient.isConnected() === true, 'client connected to server');
 
-  testClient.send('{"hello":"world"}');
+  await testClient.send('{"hello":"world"}');
 
   // Wait for message delivery
   await new Promise(r => setTimeout(r, 200));
@@ -80,8 +80,8 @@ console.log('\n--- Test 3: Server connect and disconnect ---');
   assert(receivedMeta.contentType === 'application/json', 'metadata contentType is application/json');
   assert(receivedMeta.wsFormat === 'json', 'metadata wsFormat is json');
 
-  testClient.disconnect();
-  testServer.disconnect();
+  await testClient.disconnect();
+  await testServer.disconnect();
 
   console.log('\n--- Test 6: Server broadcast to multiple clients ---');
   const broadcastServer = createWsServerTransport({ ip: '127.0.0.1', port: 19983, wsFormat: 'delimited', wsTls: false });
@@ -99,9 +99,9 @@ console.log('\n--- Test 3: Server connect and disconnect ---');
   let c2Received = null;
   // Access internal ws for listening (hack for test)
   // Instead, use onData on client transports
-  c1.disconnect();
-  c2.disconnect();
-  broadcastServer.disconnect();
+  await c1.disconnect();
+  await c2.disconnect();
+  await broadcastServer.disconnect();
 
   console.log('\n--- Test 7: Subscription message and ignore first message ---');
   let serverReceived = [];
@@ -126,16 +126,134 @@ console.log('\n--- Test 3: Server connect and disconnect ---');
   assert(serverReceived[0] === '{"subscribe":"feed-1"}', 'subscription message content is correct');
 
   // Send two messages from server to client
-  subServer.send('ack-ignore-me');
-  subServer.send('real-data-1');
+  await subServer.send('ack-ignore-me');
+  await subServer.send('real-data-1');
   await new Promise(r => setTimeout(r, 200));
 
   // Client should have ignored the first message
   assert(clientReceived.length === 1, 'client received 1 message (first was ignored)');
   assert(clientReceived[0] === 'real-data-1', 'client received the real data');
 
-  subClient.disconnect();
-  subServer.disconnect();
+  await subClient.disconnect();
+  await subServer.disconnect();
+
+  console.log('\n--- Test 8: Disconnect with a connected client, then immediate rebind on the same port ---');
+  const rebindPort = 19985;
+  const rebindServer = createWsServerTransport({ ip: '127.0.0.1', port: rebindPort, wsFormat: 'delimited', wsTls: false });
+  await rebindServer.connect();
+  const rebindClient = createWsClientTransport({ ip: '127.0.0.1', port: rebindPort, wsTls: false });
+  await rebindClient.connect();
+  await new Promise(r => setTimeout(r, 100));
+  assert(rebindServer.getClientCount() === 1, 'server tracks the connected client before teardown');
+  assert(rebindServer.hasRecipients() === true, 'server reports a recipient before teardown');
+
+  const teardownStarted = Date.now();
+  await rebindServer.disconnect();
+  const teardownMs = Date.now() - teardownStarted;
+  assert(teardownMs < 1000, `server disconnect completes promptly with a client attached (${teardownMs}ms)`);
+
+  // The listening socket must already be released when disconnect resolves,
+  // which is what lets the UI reconnect the moment it reports 'disconnected'.
+  const reboundServer = createWsServerTransport({ ip: '127.0.0.1', port: rebindPort, wsFormat: 'delimited', wsTls: false });
+  let rebindError = null;
+  let reboundResult = null;
+  try {
+    reboundResult = await reboundServer.connect();
+  } catch (err) {
+    rebindError = err;
+  }
+  assert(rebindError === null, `immediate rebind on port ${rebindPort} succeeds (${rebindError ? rebindError.message : 'no error'})`);
+  assert(reboundResult !== null && reboundResult.address.port === rebindPort, 'the rebound server is listening on the same port');
+  await rebindClient.disconnect();
+  await reboundServer.disconnect();
+
+  console.log('\n--- Test 9: A port conflict rejects connect instead of raising an unhandled error ---');
+  // The ws server forwards the HTTP server's error events. Without a listener
+  // on both emitters, EADDRINUSE takes the whole process down; reaching the
+  // assertions below at all proves that it does not.
+  const busyServer = createWsServerTransport({ ip: '127.0.0.1', port: 19986, wsTls: false });
+  await busyServer.connect();
+  const conflictingServer = createWsServerTransport({ ip: '127.0.0.1', port: 19986, wsTls: false });
+  let conflictError = null;
+  try {
+    await conflictingServer.connect();
+  } catch (err) {
+    conflictError = err;
+  }
+  assert(conflictError !== null, 'a second server on a busy port rejects connect');
+  assert(/EADDRINUSE/.test(conflictError.message), `the rejection names the bind failure: ${conflictError && conflictError.message}`);
+  assert(/WebSocket server failed to bind on 127\.0\.0\.1:19986/.test(conflictError.message), 'the rejection names the address');
+  await conflictingServer.disconnect();
+  await busyServer.disconnect();
+
+  console.log('\n--- Test 10: Client disconnect completes after the peer disappears ---');
+  const goneServer = createWsServerTransport({ ip: '127.0.0.1', port: 19987, wsTls: false });
+  await goneServer.connect();
+  const strandedClient = createWsClientTransport({ ip: '127.0.0.1', port: 19987, wsTls: false });
+  await strandedClient.connect();
+  await goneServer.disconnect();
+  const strandedStarted = Date.now();
+  await strandedClient.disconnect();
+  const strandedMs = Date.now() - strandedStarted;
+  assert(strandedMs < 1000, `client disconnect completes promptly after the server is gone (${strandedMs}ms)`);
+  assert(strandedClient.isConnected() === false, 'client reports disconnected after the peer disappeared');
+
+  console.log('\n--- Test 11: A lost receive stream is reported through onStateChange ---');
+  // The Logger only ever receives here, so the lifecycle callback is the one
+  // signal that tells a capture session its source went away.
+  const lifecycleStates = [];
+  const lifecycleServer = createWsServerTransport({ ip: '127.0.0.1', port: 19988, wsTls: false });
+  await lifecycleServer.connect();
+  const lifecycleClient = createWsClientTransport({
+    ip: '127.0.0.1', port: 19988, wsTls: false,
+    onData: () => {},
+    onStateChange: (state, detail) => lifecycleStates.push({ state, message: detail && detail.message }),
+  });
+  await lifecycleClient.connect();
+  assert(lifecycleStates.some((entry) => entry.state === 'connected'), 'the client reports connected through onStateChange');
+  await lifecycleServer.disconnect();
+  const closeDeadline = Date.now() + 3000;
+  while (!lifecycleStates.some((entry) => entry.state === 'closed') && Date.now() < closeDeadline) {
+    await new Promise(r => setTimeout(r, 20));
+  }
+  assert(lifecycleStates.some((entry) => entry.state === 'closed'), 'a peer that goes away reports closed through onStateChange');
+  assert(lifecycleClient.isConnected() === false, 'the client no longer reports itself connected once the stream closed');
+  await lifecycleClient.disconnect();
+
+  console.log('\n--- Test 12: A subscription send failure is handled, not unhandled ---');
+  // The handshake listeners are removed once the socket opens, so a failure
+  // while sending the subscription message used to surface as an unhandled
+  // 'error' event and take the process down. Reaching the assertion proves it
+  // is handled: an unhandled 'error' event would abort this file.
+  const subFailureStates = [];
+  const subFailureServer = createWsServerTransport({ ip: '127.0.0.1', port: 19989, wsTls: false });
+  await subFailureServer.connect();
+  const subFailureClient = createWsClientTransport({
+    ip: '127.0.0.1', port: 19989, wsTls: false,
+    wsSubscriptionMsg: '{"subscribe":"feed-1"}',
+    onData: () => {},
+    onStateChange: (state, detail) => subFailureStates.push({ state, message: detail && detail.message }),
+  });
+  await subFailureClient.connect();
+  await new Promise(r => setTimeout(r, 100));
+  assert(subFailureStates.some((entry) => entry.state === 'connected'), 'the subscribing client reports connected');
+  assert(process.exitCode === undefined || process.exitCode === 0, 'sending the subscription message raised no unhandled error');
+  await subFailureClient.disconnect();
+  await subFailureServer.disconnect();
+
+  console.log('\n--- Test 13: Server send reports delivery and rejects rather than throwing ---');
+  const deliveryServer = createWsServerTransport({ ip: '127.0.0.1', port: 19990, wsFormat: 'delimited', wsTls: false });
+  await deliveryServer.connect();
+  const emptyBroadcast = await deliveryServer.send('nobody-listening');
+  assert(emptyBroadcast.delivered === false && emptyBroadcast.recipients === 0 && emptyBroadcast.reason === 'no-clients',
+    'a broadcast with no clients reports no-clients instead of silently succeeding');
+  const deliveryClient = createWsClientTransport({ ip: '127.0.0.1', port: 19990, wsTls: false, onData: () => {} });
+  await deliveryClient.connect();
+  await new Promise(r => setTimeout(r, 100));
+  const broadcast = await deliveryServer.send('one-line');
+  assert(broadcast.delivered === true && broadcast.recipients === 1, 'a broadcast to one client reports one recipient');
+  await deliveryClient.disconnect();
+  await deliveryServer.disconnect();
 
   console.log(`\n=== Test Results ===`);
   console.log(`✅ Passed: ${passed}`);

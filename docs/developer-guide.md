@@ -37,6 +37,8 @@ src/
 ├── http-transport.js       # HTTP and HTTPS receive transports
 ├── ws-transport.js         # WebSocket and secure WebSocket receive transports
 ├── xmpp-*.js               # XMPP server core, client core, SASL, MUC, accounts, utils
+├── connection-presets.js   # Shared Logger/Simulator connection preset definitions
+├── connection-summary.js   # Pure connection summary generator shared by all summary surfaces
 ├── tls-utils.js            # Shared certificate and trust-store helpers
 ├── format-utils.js         # Shared data-format constants and helpers
 ├── tooltip-utils.js        # Shared custom tooltip system
@@ -58,7 +60,12 @@ channel, so the renderer has no direct Node.js or system access.
 Shared logic belongs in a dedicated module rather than in each transport.
 `tls-utils.js`, `format-utils.js`, and `tooltip-utils.js` are the reference
 examples: gRPC, HTTP, WebSocket, and XMPP transports consume them instead of
-duplicating certificate, format, or tooltip behavior.
+duplicating certificate, format, or tooltip behavior. `connection-summary.js`
+follows the same rule for the user interface: it is a pure module with no DOM
+access, so the inline summary card, the status-bar button, and the read-only
+Summary section of the Protocol Settings dialog are all rendered from one
+generated summary and can never disagree. See
+[Connection summary and protocol settings](connection-summary.md).
 
 ## Local development
 
@@ -101,6 +108,10 @@ process and exits non-zero if any file fails.
 | `npm run test:help` | Help dialog and Command Line Interface dialog interactions |
 | `npm run test:headless-runner` | Output formats, stop conditions, filters, `doneFile`, exit codes |
 | `npm run test:grpc` | gRPC transport across all serialization formats and both directions |
+| `npm run test:summary` | Connection summary rows, URL composition, secret redaction, warnings, and the settings chip |
+| `npm run test:protocol-settings` | Protocol Settings dialog structure, sections, keyboard navigation, revert and reset, locking |
+| `npm run test:presets` | Connection preset contract and the renderer behavior that applies presets |
+| `npm run test:parity` | Shared transport lifecycle helpers, bounds, and diagnostics compared against the ArcGIS Velocity Simulator |
 | `npm run test:prereqs-check` | Build prerequisite detection |
 | `npm run test:prereqs-install` | Prerequisite installer planning |
 
@@ -121,6 +132,19 @@ node test/sign-lock.test.js
 Run the smallest suite that covers your change first, then `npm test` before
 committing.
 
+### Sister-application parity
+
+`npm run test:parity` compares the shared transport lifecycle surface with the
+ArcGIS Velocity Simulator: the bounded WebSocket close helpers, the WebSocket
+teardown bound and bind-failure message, the HTTP subscription pacing
+constants, the gRPC teardown diagnostics and their `{ warnings }` shape, the
+shared TLS helpers, and the connection preset identifiers and labels. It expects
+the Simulator checked out beside this repository as
+`../arcgis-velocity-simulator`, or at the path in `VELOCITY_SIMULATOR_ROOT`.
+Without a Simulator checkout the cross-application comparisons are skipped and
+only the local invariants run, so the suite still passes on a machine that has
+only one of the two applications.
+
 ### Browser fixtures
 
 Two fixtures exercise renderer behavior outside the packaged app. Open them
@@ -140,6 +164,11 @@ directly in a browser:
 - Command Line Interface dialog: press `F3`, then verify search, quick filter
   chips, active filter pills, sortable columns, copy and export, and dragging
   the bottom edge of the table to resize it.
+- Protocol Settings dialog: press `Cmd/Ctrl+Shift+P`, then verify the section
+  tabs, arrow-key navigation, **Revert changes**, **Reset to preset**, and that
+  `Escape` closes the dialog, keeps the edits, and returns focus to the trigger.
+- Connection summary: press `Cmd/Ctrl+Shift+I`, then verify the card rows, the
+  status-bar entry, **Copy**, and that a connected dialog opens read-only.
 - Transport receive path: connect the matching ArcGIS Velocity Simulator mode
   and confirm records and metadata arrive.
 
@@ -231,8 +260,12 @@ Packaged builds write diagnostics to:
 
 ### Adding a control
 
-1. Add the element in `src/index.html` (or the relevant dialog) with
-   `data-tooltip` and `aria-label`.
+1. Add the element in `src/index.html` with `data-tooltip` and `aria-label`.
+   Protocol-specific controls belong inside `#protocol-settings-dialog`, in the
+   `.protocol-settings-group` for their protocol and section; only fields that
+   every protocol shares stay in the connection row. A control added to the
+   dialog is locked automatically while a connection is live, because locking
+   queries the dialog instead of listing controls.
 2. Wire behavior and state in `src/renderer.js`; persist anything durable
    through `ConfigManager` and add any new IPC channel to the whitelist in
    `src/preload.js`.
@@ -267,8 +300,12 @@ functions.
 3. Add the protocol, its options, and validation to `src/cli-options.js` so
    terminal help, the `F3` dialog, and the documented option reference stay
    generated from the same metadata.
-4. Add UI controls, an options row, and tooltips in `src/index.html` and
-   `src/renderer.js`.
+4. Add UI controls and tooltips in `src/index.html` and `src/renderer.js`. The
+   protocol-specific controls belong in `#protocol-settings-dialog`, in a
+   `.protocol-settings-group` per section (`data-protocol`, `data-section`);
+   only fields every protocol shares stay in the connection row. Extend
+   `readConnectionState()` and `src/connection-summary.js` so the new protocol
+   reports its rows, warnings, and settings count.
 5. Update `src/help.html`: the Getting Started description, the Connection Types
    list, and a dedicated Options section for every new control.
 6. Add `docs/<name>.md` with UI controls, exact tooltip strings, and
@@ -309,6 +346,7 @@ functions.
 
 ## Related documentation
 
+- [Connection summary and protocol settings](connection-summary.md) — the settings dialog and summary surfaces
 - [Command-line reference](command-line.md) — every CLI parameter and its defaults
 - [Headless mode](headless.md) — no-UI capture workflows and automation
 - [Configuration](configuration.md) — persisted settings and launch configuration

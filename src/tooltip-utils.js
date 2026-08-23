@@ -337,11 +337,44 @@
     renderTooltipText(text);
     copyButtonEl.textContent = 'Copy';
     copyButtonEl.classList.remove('copied');
-    target.setAttribute('aria-describedby', 'custom-tooltip');
+    addTooltipDescription(target);
     tooltipEl.id = 'custom-tooltip';
   }
 
+  /**
+   * Adds the tooltip to a target's descriptions without discarding one it
+   * already has, so a validation banner association survives a hover.
+   */
+  function addTooltipDescription(target) {
+    const tokens = (target.getAttribute('aria-describedby') || '')
+      .split(/\s+/)
+      .filter((token) => token && token !== 'custom-tooltip');
+    target.setAttribute('aria-describedby', [...tokens, 'custom-tooltip'].join(' '));
+  }
+
+  /** Removes only the tooltip token, restoring any other description. */
+  function removeTooltipDescription(target) {
+    const tokens = (target.getAttribute('aria-describedby') || '')
+      .split(/\s+/)
+      .filter((token) => token && token !== 'custom-tooltip');
+    if (tokens.length) target.setAttribute('aria-describedby', tokens.join(' '));
+    else target.removeAttribute('aria-describedby');
+  }
+
+  /**
+   * Keeps the tooltip in the same layer as its target. A modal <dialog> paints
+   * in the browser top layer, above everything in the body, so a tooltip for a
+   * control inside one has to live inside that dialog to stay visible.
+   */
+  function attachTooltipToLayer(target) {
+    if (!tooltipEl || !target || typeof target.closest !== 'function') return;
+    const openDialog = target.closest('dialog[open]');
+    const host = openDialog || document.body;
+    if (tooltipEl.parentElement !== host) host.appendChild(tooltipEl);
+  }
+
   function positionTooltip(target) {
+    attachTooltipToLayer(target);
     const rect = target.getBoundingClientRect();
     const tipRect = tooltipEl.getBoundingClientRect();
     const margin = 10;
@@ -384,7 +417,7 @@
   function hideTooltip() {
     clearTimeout(showTimer);
     hideTimer = setTimeout(() => {
-      if (activeTarget) activeTarget.removeAttribute('aria-describedby');
+      if (activeTarget) removeTooltipDescription(activeTarget);
       activeTarget = null;
       activeTooltipText = '';
       activeTooltipMode = '';

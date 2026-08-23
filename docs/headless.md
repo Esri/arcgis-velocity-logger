@@ -2,7 +2,7 @@
 
 [← Documentation index](README.md) · [Repository overview](../README.md#documentation)
 
-This guide explains how to run the ArcGIS Velocity Logger with no UI at all — the mode used for servers, CI pipelines, remote hosts, and any environment without GUI or window-manager support. It covers launch patterns, output sinks and formats, TCP client retry/reconnection behavior, done-file artifacts, exit codes, and launch-config file structure.
+This guide explains how to run the ArcGIS Velocity Logger with no UI at all — the mode used for servers, CI pipelines, remote hosts, and any environment without GUI or window-manager support. It covers launch patterns, output sinks and formats, transport behavior, done-file artifacts, exit codes, and launch-config file structure.
 
 This guide is intended for users and developers who automate captures or integrate the logger into scripts and pipelines. It assumes familiarity with the CLI parameters documented in the [command-line reference](command-line.md).
 
@@ -14,6 +14,7 @@ This guide is intended for users and developers who automate captures or integra
 - [Required parameters](#required-parameters)
 - [Output sink](#output-sink)
 - [Output formats](#output-formats)
+- [HTTP and WebSocket capture](#http-and-websocket-capture)
 - [TCP client retry and reconnection (waiting for a server)](#tcp-client-retry-and-reconnection-waiting-for-a-server)
 - [Done file](#done-file)
 - [Exit codes](#exit-codes)
@@ -102,6 +103,27 @@ Formats apply to **both** the file sink and the stdout sink, so `outputFormat=js
 npm run start:headless -- outputFormat=jsonl | jq .
 ```
 
+## HTTP and WebSocket capture
+
+HTTP Server mode captures POST request bodies. HTTP Client mode opens a
+persistent Server-Sent Events watch on the configured path and captures each
+`data:` event. This client behavior is the receive-side counterpart of a
+Simulator HTTP Server preset; it does not poll. If the endpoint answers the
+subscription with anything other than HTTP 200 and a `text/event-stream`
+content type, the answer is definitive: the watch stops for the life of the
+connection and is logged once, rather than re-requesting the endpoint. A watch
+that was established and then drops does reconnect, so a restart of the sending
+side resumes capture; see
+[HTTP and HTTPS transport](http.md#connection-modes).
+
+WebSocket Server mode captures each incoming text frame. WebSocket Client mode
+captures each frame sent by the server. `wsSubscriptionMsg` is sent after the
+connection opens, and `wsIgnoreFirstMsg=true` discards the first received frame.
+
+The paired local presets use `127.0.0.1:8080`, path `/`, Delimited format, and
+TLS off. Their WebSocket presets leave the subscription empty and keep the
+first frame.
+
 ## TCP client retry and reconnection (waiting for a server)
 
 When `mode=client` and `protocol=tcp`, set `connectWaitForServer=true` to **retry the connection automatically** every `connectRetryIntervalMs` milliseconds. This covers two scenarios:
@@ -183,6 +205,13 @@ On failure, `success=false` and an `error` block with `message`/`stack` plus `fa
 | `1` | Configuration error (bad CLI parameters, unreadable config file, etc.). |
 | `2` | Runtime error (transport failure with `onError=exit`). |
 
+Teardown never changes the outcome of a run. A peer that disappeared before
+shutdown, or a socket that never answered its close handshake, is reported as
+`[Transport] Teardown after the run reported: <message>` at warning level; the
+capture that already collected its records still reports `success` and exits
+`0`. A connection attempt that fails part-way is torn down as well, so a channel
+or socket is never left open behind a failed run.
+
 ## Examples
 
 ### Zero-config headless capture to the console
@@ -202,6 +231,10 @@ npm run start:headless -- outputFile=./captured.log protocol=tcp mode=server ip=
 ```bash
 npm run start:headless -- outputFile=./captured.jsonl outputFormat=jsonl protocol=udp mode=client ip=192.168.1.25 port=6000 durationMs=60000
 ```
+
+On startup, a UDP client sends one `UDP Client connected` registration
+datagram. A paired Simulator UDP server uses that datagram to learn the
+client's reply endpoint before replaying records.
 
 ### Filter/exclude using regular expressions
 

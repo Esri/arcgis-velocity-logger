@@ -108,112 +108,191 @@
                 </select>
                 <input type="text" id="host" placeholder="Host (e.g., 127.0.0.1)" value="127.0.0.1">
                 <input type="number" id="port" placeholder="Port (e.g., 5565)" value="5565">
+                <button id="protocol-settings-btn" type="button" class="protocol-settings-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="protocol-settings-dialog" aria-label="Protocol Settings" data-tooltip="Protocol Settings (Cmd/Ctrl+Shift+P)&#10;---&#10;Open the settings for the selected protocol in a dialog with Basics, Security, and Advanced sections. Preset, connection type, host, and port stay in this row." data-tooltip-icon="⚙" data-tooltip-kind="info">
+                    <span class="protocol-settings-btn-label">Protocol Settings…</span>
+                    <span id="protocol-settings-count" class="protocol-settings-count">TCP · no protocol settings</span>
+                </button>
                 <button id="connect-btn" class="connect-btn" title="Connect to the configured endpoint and start receiving data">Connect</button>
                 <button id="disconnect-btn" class="disconnect-btn" disabled title="Disconnect from the current connection">Disconnect</button>
             </div>
-            <div class="grpc-options-row" aria-label="gRPC options">
-                <select id="grpc-serialization">
-                    <option value="protobuf" selected>Protobuf</option>
-                    <option value="kryo">Kryo</option>
-                    <option value="text">Text</option>
-                </select>
-                <select id="grpc-send-method" title="gRPC RPC type">
-                    <option value="stream" selected title="Client Streaming RPC - opens a persistent stream and sends all messages over a single long-lived connection. Higher throughput and lower per-message overhead.">Client Streaming</option>
-                    <option value="unary" title="Unary RPC - sends each message as an independent request/response call. Simpler to debug and reason about, but higher per-message overhead.">Unary</option>
-                </select>
-                <input type="text" id="grpc-header-path-key" value="grpc-path" title="gRPC endpoint header path key" style="display: none;">
-                <input type="text" id="grpc-header-path" value="replace.with.dedicated.uid" title="gRPC endpoint header path" style="display: none;">
-                <label id="grpc-tls-label"><input type="checkbox" id="grpc-tls" checked title="Use TLS (SSL) for the gRPC connection"> TLS</label>
-                <details class="advanced-options" id="grpc-advanced">
-                    <summary aria-label="Expand advanced gRPC TLS options" data-tooltip="Show or hide the advanced gRPC certificate and verification options. The essential gRPC settings stay visible above." data-tooltip-icon="⚙" data-tooltip-kind="info">Advanced</summary>
-                    <div class="advanced-options-row">
-                        <input type="text" id="grpc-tls-ca-path" placeholder="CA cert path" title="Path to CA certificate (PEM)" style="display: none;">
-                        <input type="text" id="grpc-tls-cert-path" placeholder="TLS cert path" title="Path to client/server certificate (PEM)" style="display: none;">
-                        <input type="text" id="grpc-tls-key-path" placeholder="TLS key path" title="Path to private key (PEM)" style="display: none;">
-                        <label id="grpc-allow-unverified-label" class="unverified-tls-check" style="display: none;" data-tooltip="Warning: accept any gRPC server certificate&#10;---&#10;Certificate verification is disabled for every host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Use only for local self-signed testing." data-tooltip-icon="⚠" data-tooltip-kind="warning" aria-label="Allow unverified gRPC TLS certificates"><input type="checkbox" id="grpc-allow-unverified" data-tooltip="Warning: accept any gRPC server certificate&#10;---&#10;Certificate verification is disabled for every host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Use only for local self-signed testing." data-tooltip-icon="⚠" data-tooltip-kind="warning" aria-label="Allow unverified gRPC TLS certificates"> Allow unverified</label>
+            <section id="connection-summary-card" class="connection-summary-card" tabindex="-1" aria-labelledby="connection-summary-card-title">
+                <div class="connection-summary-card-header">
+                    <h2 id="connection-summary-card-title" class="connection-summary-card-title">Connection summary</h2>
+                    <div class="connection-summary-card-actions">
+                        <button id="connection-summary-show-all" type="button" class="connection-summary-action" aria-label="Show all connection settings" data-tooltip="Show every connection setting, with warnings first, in a read-only summary." data-tooltip-icon="▤" data-tooltip-kind="info">Show all</button>
+                        <button id="connection-summary-copy" type="button" class="connection-summary-action" aria-label="Copy the connection summary" data-tooltip="Copy the connection summary as text. Passwords are never copied." data-tooltip-icon="⧉" data-tooltip-kind="info">Copy</button>
                     </div>
-                </details>
-            </div>
-            <div class="http-options-row" aria-label="HTTP options" style="display: none;">
-                <select id="http-format" title="HTTP data format - controls the Content-Type header used when sending/receiving data. Must match the format configured in the ArcGIS Velocity HTTP Receiver feed.">
-                    <option value="delimited" selected title="Delimited (CSV) - sends data as text/plain. Each line is a comma-separated row of field values. This is the default format for ArcGIS Velocity TCP and HTTP feeds. Best for simple tabular data without nested structures.">Delimited (CSV)</option>
-                    <option value="json" title="JSON - sends data as application/json. The standard format for most HTTP feeds. Each request body is a JSON object or array.">JSON</option>
-                    <option value="esri-json" title="Esri JSON - sends data as application/json using the Esri Feature JSON schema (with geometry and attributes objects). Use when the receiver expects ArcGIS-native feature format.">Esri JSON</option>
-                    <option value="geo-json" title="GeoJSON - sends data as application/geo+json per RFC 7946. Use when the receiver expects standard GeoJSON FeatureCollections.">GeoJSON</option>
-                    <option value="xml" title="XML - sends data as application/xml. Use when the receiver expects XML-formatted payloads.">XML</option>
-                </select>
-                <label id="http-tls-label"><input type="checkbox" id="http-tls" checked title="Enable TLS (HTTPS) for the HTTP connection. When checked, the connection uses HTTPS (port 8443 by default). When unchecked, uses plain HTTP (port 8080). In client mode, the OS certificate store is used automatically; in server mode, a certificate and key must be provided."> TLS</label>
-                <input type="text" id="http-path" value="/" placeholder="/" title="HTTP endpoint URL path appended after the host:port (e.g. /receiver/feed-id). In server mode, only POST requests matching this path are accepted; all others return 404. In client mode, this path is used in the outgoing POST request URL. Default is /." class="http-path-input">
-                <details class="advanced-options" id="http-advanced">
-                    <summary aria-label="Expand advanced HTTP TLS options" data-tooltip="Show or hide the advanced HTTP certificate and verification options. Format, path, and TLS stay visible above." data-tooltip-icon="⚙" data-tooltip-kind="info">Advanced</summary>
-                    <div class="advanced-options-row">
-                        <input type="text" id="http-tls-ca-path" placeholder="CA cert path" title="Path to a custom CA certificate file (PEM). Leave empty to use the OS certificate store automatically. Only needed for enterprise or self-signed CAs not in the system trust store." style="display: none;">
-                        <input type="text" id="http-tls-cert-path" placeholder="TLS cert path" title="Path to a client or server certificate file (PEM). Required for server-mode TLS. For client mode, only needed for mutual TLS (mTLS) authentication." style="display: none;">
-                        <input type="text" id="http-tls-key-path" placeholder="TLS key path" title="Path to the private key file (PEM) corresponding to the TLS certificate. Required for server-mode TLS and client-side mTLS." style="display: none;">
-                        <label id="http-allow-unverified-label" class="unverified-tls-check" style="display: none;" data-tooltip="Warning: accept any HTTPS server certificate&#10;---&#10;Certificate verification is disabled for every host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Use only for local self-signed testing." data-tooltip-icon="⚠" data-tooltip-kind="warning" aria-label="Allow unverified HTTPS certificates"><input type="checkbox" id="http-allow-unverified" data-tooltip="Warning: accept any HTTPS server certificate&#10;---&#10;Certificate verification is disabled for every host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Use only for local self-signed testing." data-tooltip-icon="⚠" data-tooltip-kind="warning" aria-label="Allow unverified HTTPS certificates"> Allow unverified</label>
-                    </div>
-                </details>
-            </div>
-            <div class="ws-options-row" aria-label="WebSocket options" style="display: none;">
-                <select id="ws-format" title="WebSocket data format - controls the Content-Type associated with each message. Must match the format configured in the ArcGIS Velocity WebSocket feed.">
-                    <option value="delimited" selected title="Delimited (CSV) - each message is a comma-separated row (text/plain). Default format for Velocity WebSocket feeds.">Delimited (CSV)</option>
-                    <option value="json" title="JSON - each message is a JSON object or array (application/json).">JSON</option>
-                    <option value="esri-json" title="Esri JSON - each message uses the Esri Feature JSON schema (application/json).">Esri JSON</option>
-                    <option value="geo-json" title="GeoJSON - each message is a GeoJSON FeatureCollection or Feature (application/geo+json).">GeoJSON</option>
-                    <option value="xml" title="XML - each message is an XML payload (application/xml).">XML</option>
-                </select>
-                <label id="ws-tls-label"><input type="checkbox" id="ws-tls" checked title="Enable TLS (WSS) for the WebSocket connection. When checked, uses the secure wss:// protocol (port 8443). When unchecked, uses plain ws:// (port 8080). In client mode, the OS certificate store is used automatically; in server mode, a certificate and key must be provided."> TLS</label>
-                <input type="text" id="ws-path" value="/" placeholder="/" title="WebSocket endpoint URL path (e.g. /feed/stream-id). In server mode, only upgrade requests matching this path are accepted. In client mode, this is used in the connection URL. Default is /." class="ws-path-input">
-                <details class="advanced-options" id="ws-advanced">
-                    <summary aria-label="Expand advanced WebSocket options" data-tooltip="Show or hide the advanced WebSocket certificate, verification, subscription, and header options. Format, path, and TLS stay visible above." data-tooltip-icon="⚙" data-tooltip-kind="info">Advanced</summary>
-                    <div class="advanced-options-row">
-                <input type="text" id="ws-tls-ca-path" placeholder="CA cert path" title="Path to a custom CA certificate file (PEM). Leave empty to use the OS certificate store." style="display: none;">
-                <input type="text" id="ws-tls-cert-path" placeholder="TLS cert path" title="Path to a client or server certificate file (PEM). Required for server-mode TLS." style="display: none;">
-                <input type="text" id="ws-tls-key-path" placeholder="TLS key path" title="Path to the private key file (PEM). Required for server-mode TLS." style="display: none;">
-                <label id="ws-allow-unverified-label" class="unverified-tls-check" style="display: none;" data-tooltip="Warning: accept any WSS server certificate&#10;---&#10;Certificate verification is disabled for every host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Use only for local self-signed testing." data-tooltip-icon="⚠" data-tooltip-kind="warning" aria-label="Allow unverified WebSocket TLS certificates"><input type="checkbox" id="ws-allow-unverified" data-tooltip="Warning: accept any WSS server certificate&#10;---&#10;Certificate verification is disabled for every host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Use only for local self-signed testing." data-tooltip-icon="⚠" data-tooltip-kind="warning" aria-label="Allow unverified WebSocket TLS certificates"> Allow unverified</label>
-                <input type="text" id="ws-subscription-msg" placeholder="Subscribe msg" title="Optional subscription message sent after connecting. Leave empty if not needed." style="display: none;">
-                <label id="ws-ignore-first-msg-label" style="display: none;"><input type="checkbox" id="ws-ignore-first-msg" title="Ignore the first message received. Enable to skip subscription acknowledgments or welcome messages."> Skip 1st</label>
-                <input type="text" id="ws-headers" placeholder="Headers (JSON)" title='Custom HTTP headers for the WebSocket upgrade handshake as JSON (e.g. {"Authorization":"Bearer token"}).' style="display: none;">
-                    </div>
-                </details>
-            </div>
-            <details class="xmpp-options-row" style="display: none;">
-                <summary aria-label="Expand XMPP options" data-tooltip="Show or hide XMPP connection, TLS, account, room, and timing options" data-tooltip-icon="💬" data-tooltip-kind="info">XMPP Options</summary>
-                <div class="xmpp-options-grid">
-                    <label class="xmpp-wide" data-tooltip="XMPP authentication domain; this remains separate from the network host override" aria-label="XMPP domain">Domain <input id="xmpp-domain" type="text" value="localhost" data-tooltip="XMPP authentication domain, for example example.com" aria-label="XMPP domain"></label>
-                    <label data-tooltip="STARTTLS policy for this connection" aria-label="XMPP TLS policy">TLS <select id="xmpp-tls-policy" data-tooltip="XMPP TLS policy: Require STARTTLS and fail if TLS is unavailable" aria-label="XMPP TLS policy: Require STARTTLS and fail if TLS is unavailable"><option value="required" selected title="XMPP TLS policy: Require STARTTLS and fail if TLS is unavailable">Required</option><option value="preferred" title="XMPP TLS policy: Prefer STARTTLS, but allow an unsecure connection when TLS is unavailable">Preferred</option><option value="disabled" title="XMPP TLS policy: Disable STARTTLS and use an unsecure connection">Disabled</option></select></label>
-                    <label data-tooltip="Choose direct chat or Multi-User Chat receiving" aria-label="XMPP conversation">Conversation <select id="xmpp-conversation" data-tooltip="XMPP conversation: Receive direct messages addressed to this Logger" aria-label="XMPP conversation: Receive direct messages addressed to this Logger"><option value="direct" selected title="XMPP conversation: Receive direct messages addressed to this Logger">Direct</option><option value="muc" title="XMPP conversation: Join and receive messages from a Multi-User Chat room">MUC</option></select></label>
-                    <label class="xmpp-client-only" data-tooltip="XMPP client username" aria-label="XMPP username">Username <input id="xmpp-username" type="text" autocomplete="username" data-tooltip="Account username used by XMPP client mode" aria-label="XMPP username"></label>
-                    <label class="xmpp-client-only" data-tooltip="XMPP client password; never logged" aria-label="XMPP password">Password <input id="xmpp-password" type="password" autocomplete="current-password" data-tooltip="Account password used by XMPP client mode; never logged" aria-label="XMPP password"></label>
-                    <label class="xmpp-client-only" data-tooltip="Resource appended to the authenticated JID" aria-label="XMPP resource">Resource <input id="xmpp-resource" type="text" value="velocity-logger" data-tooltip="Resource appended to the authenticated XMPP JID" aria-label="XMPP resource"></label>
-                    <label class="xmpp-client-only xmpp-wide" data-tooltip="Optional bare local JID used to filter direct messages" aria-label="XMPP local JID">Local JID <input id="xmpp-local-jid" type="text" placeholder="logger@example.com" data-tooltip="Optional bare local JID used to filter direct messages" aria-label="XMPP local JID"></label>
-                    <label class="xmpp-server-only" data-tooltip="Username for the one external account accepted by the server" aria-label="XMPP external username">External user <input id="xmpp-external-username" type="text" value="velocity-client" autocomplete="username" data-tooltip="Username for the one external account accepted by server mode" aria-label="XMPP external username"></label>
-                    <label class="xmpp-server-only" data-tooltip="Password for the external server account; never logged" aria-label="XMPP external password">External password <input id="xmpp-external-password" type="password" autocomplete="new-password" data-tooltip="Password for the external XMPP account; never logged or copied by default" aria-label="XMPP external password"></label>
-                    <label class="xmpp-muc-only xmpp-wide" data-tooltip="Bare room JID used in MUC mode" aria-label="XMPP room JID">Room <input id="xmpp-room" type="text" placeholder="events@conference.example.com" data-tooltip="Bare room JID used in Multi-User Chat mode" aria-label="XMPP room JID"></label>
-                    <label class="xmpp-muc-only" data-tooltip="Nickname used in the room; self-echoes are ignored" aria-label="XMPP room nickname">Nickname <input id="xmpp-nickname" type="text" value="logger" data-tooltip="Nickname used in the room; messages echoed from this nickname are ignored" aria-label="XMPP room nickname"></label>
-                    <label class="xmpp-muc-only" data-tooltip="Optional room password; never logged" aria-label="XMPP room password">Room password <input id="xmpp-room-password" type="password" data-tooltip="Optional Multi-User Chat room password; never logged" aria-label="XMPP room password"></label>
-                    <details class="advanced-options xmpp-advanced" id="xmpp-advanced">
-                        <summary aria-label="Expand advanced XMPP options" data-tooltip="Show or hide the advanced XMPP certificate, verification, remote-bind, and timing options. Domain, TLS policy, conversation, and account fields stay visible above." data-tooltip-icon="⚙" data-tooltip-kind="info">Advanced</summary>
-                        <div class="xmpp-options-grid xmpp-advanced-grid">
-                    <label class="xmpp-wide" data-tooltip="Custom CA certificate path; leave empty to use OS trust" aria-label="XMPP CA path">CA <input id="xmpp-tls-ca-path" type="text" placeholder="CA cert path" data-tooltip="Custom CA certificate path; leave empty to use the operating system trust store" aria-label="XMPP CA certificate path"></label>
-                    <label class="xmpp-server-only xmpp-wide" data-tooltip="Optional server certificate; an ephemeral self-signed certificate is automatic" aria-label="XMPP certificate path">Certificate <input id="xmpp-tls-cert-path" type="text" placeholder="TLS cert path" data-tooltip="Optional server certificate path; an ephemeral self-signed certificate is generated when omitted" aria-label="XMPP TLS certificate path"></label>
-                    <label class="xmpp-server-only xmpp-wide" data-tooltip="Private key corresponding to the server certificate" aria-label="XMPP key path">Key <input id="xmpp-tls-key-path" type="text" placeholder="TLS key path" data-tooltip="Private key path corresponding to the custom server certificate" aria-label="XMPP TLS key path"></label>
-                    <label class="xmpp-client-only xmpp-check unverified-tls-check" data-tooltip="Warning: accept any XMPP server certificate&#10;---&#10;Certificate verification is disabled for every host, not only localhost. STARTTLS still encrypts the stream, but the server identity is not checked. Use only for local self-signed testing." data-tooltip-icon="⚠" data-tooltip-kind="warning" aria-label="Allow unverified XMPP TLS certificates"><input id="xmpp-allow-unverified" type="checkbox" data-tooltip="Warning: accept any XMPP server certificate&#10;---&#10;Certificate verification is disabled for every host, not only localhost. STARTTLS still encrypts the stream, but the server identity is not checked. Use only for local self-signed testing." data-tooltip-icon="⚠" data-tooltip-kind="warning" aria-label="Allow unverified XMPP TLS certificates"> Allow unverified</label>
-                    <label class="xmpp-server-only xmpp-check" data-tooltip="Permit the configured Host to bind outside loopback; wildcard binds are copied as a connectable loopback host" aria-label="Allow remote XMPP clients"><input id="xmpp-allow-remote" type="checkbox" data-tooltip="Permit the configured Host to bind outside loopback; wildcard binds are copied as a connectable loopback host" aria-label="Allow remote XMPP clients"> Allow remote</label>
-                    <label data-tooltip="Connection timeout in milliseconds" aria-label="XMPP connection timeout">Connect ms <input id="xmpp-connect-timeout" type="number" min="1" value="30000" data-tooltip="Timeout for stream connection, authentication, and resource binding" aria-label="XMPP connection timeout milliseconds"></label>
-                    <label data-tooltip="Reply timeout in milliseconds" aria-label="XMPP reply timeout">Reply ms <input id="xmpp-reply-timeout" type="number" min="1" value="15000" data-tooltip="Timeout for stanza, IQ, room join, and ping replies" aria-label="XMPP reply timeout milliseconds"></label>
-                    <label class="xmpp-client-only" data-tooltip="Keepalive ping interval in milliseconds" aria-label="XMPP ping interval">Ping ms <input id="xmpp-ping-interval" type="number" min="1" value="60000" data-tooltip="Positive keepalive ping interval in milliseconds" aria-label="XMPP ping interval milliseconds"></label>
-                    <label class="xmpp-client-only" data-tooltip="Reconnect delay in milliseconds" aria-label="XMPP reconnect delay">Reconnect ms <input id="xmpp-reconnect-delay" type="number" min="1" value="60000" data-tooltip="Delay before reconnecting an interrupted session" aria-label="XMPP reconnect delay milliseconds"></label>
-                        </div>
-                    </details>
                 </div>
-                <div id="xmpp-validation-message" class="xmpp-validation-message" role="alert" aria-live="assertive" hidden></div>
+                <dl id="connection-summary-rows" class="connection-summary-rows" aria-live="polite"></dl>
+            </section>
+            <dialog id="protocol-settings-dialog" class="protocol-settings-dialog" aria-labelledby="protocol-settings-title">
+                <div class="protocol-settings-header">
+                    <div class="protocol-settings-heading">
+                        <h2 id="protocol-settings-title" class="protocol-settings-title">TCP Server settings</h2>
+                        <p id="protocol-settings-subtitle" class="protocol-settings-subtitle">Listening on 127.0.0.1:5565</p>
+                    </div>
+                    <button id="protocol-settings-close" type="button" class="protocol-settings-close" aria-label="Close Protocol Settings" data-tooltip="Close Protocol Settings and keep your edits (Esc)" data-tooltip-icon="✕" data-tooltip-kind="info">✕</button>
+                </div>
+                <p id="protocol-settings-readonly" class="protocol-settings-banner protocol-settings-banner-readonly" role="status" hidden>Disconnect to change these settings</p>
+                <div id="protocol-settings-alert" class="protocol-settings-banner protocol-settings-banner-error protocol-settings-alert" role="alert" aria-live="assertive" hidden></div>
+                <div class="protocol-settings-body">
+                    <div id="protocol-settings-tablist" class="protocol-settings-tablist" role="tablist" aria-orientation="vertical" aria-label="Protocol settings sections">
+                        <button id="protocol-settings-tab-basics" class="protocol-settings-tab" type="button" role="tab" data-section="basics" aria-controls="protocol-settings-panel-basics" aria-selected="true" tabindex="0" aria-label="Basics section" data-tooltip="Basics&#10;The settings this protocol needs before it can receive data." data-tooltip-icon="◉" data-tooltip-kind="info">Basics</button>
+                        <button id="protocol-settings-tab-security" class="protocol-settings-tab" type="button" role="tab" data-section="security" aria-controls="protocol-settings-panel-security" aria-selected="false" tabindex="-1" aria-label="Security section" data-tooltip="Security&#10;TLS, certificate verification, and certificate paths for this protocol." data-tooltip-icon="🔒" data-tooltip-kind="secure">Security</button>
+                        <button id="protocol-settings-tab-advanced" class="protocol-settings-tab" type="button" role="tab" data-section="advanced" aria-controls="protocol-settings-panel-advanced" aria-selected="false" tabindex="-1" aria-label="Advanced section" data-tooltip="Advanced&#10;Optional settings that most connections leave at their defaults." data-tooltip-icon="⚙" data-tooltip-kind="info">Advanced</button>
+                        <button id="protocol-settings-tab-summary" class="protocol-settings-tab" type="button" role="tab" data-section="summary" aria-controls="protocol-settings-panel-summary" aria-selected="false" tabindex="-1" aria-label="Summary section" data-tooltip="Summary&#10;Every connection setting in one read-only list, with warnings first. Passwords are never shown." data-tooltip-icon="▤" data-tooltip-kind="info">Summary</button>
+                    </div>
+                    <div class="protocol-settings-panels">
+                        <div id="protocol-settings-panel-basics" class="protocol-settings-panel" role="tabpanel" tabindex="0" aria-labelledby="protocol-settings-tab-basics">
+                            <div class="protocol-settings-group" data-protocol="grpc" data-section="basics">
+                                <label class="protocol-settings-field" data-tooltip="Feature serialization used by the gRPC connection" aria-label="gRPC serialization">Serialization
+                                    <select id="grpc-serialization">
+                                        <option value="protobuf" selected>Protobuf</option>
+                                        <option value="kryo">Kryo</option>
+                                        <option value="text">Text</option>
+                                    </select>
+                                </label>
+                                <label class="protocol-settings-field" data-tooltip="RPC pattern used for each message" aria-label="gRPC RPC type">RPC type
+                                    <select id="grpc-send-method" title="gRPC RPC type">
+                                        <option value="stream" selected title="Client Streaming RPC - opens a persistent stream and sends all messages over a single long-lived connection. Higher throughput and lower per-message overhead.">Client Streaming</option>
+                                        <option value="unary" title="Unary RPC - sends each message as an independent request/response call. Simpler to debug and reason about, but higher per-message overhead.">Unary</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <div class="protocol-settings-group" data-protocol="http" data-section="basics">
+                                <label class="protocol-settings-field" data-tooltip="Content type expected for each HTTP payload" aria-label="HTTP format">Format
+                                    <select id="http-format" title="HTTP data format - controls the Content-Type header used when sending/receiving data. Must match the format configured in the ArcGIS Velocity HTTP Receiver feed.">
+                                        <option value="delimited" selected title="Delimited (CSV) - sends data as text/plain. Each line is a comma-separated row of field values. This is the default format for ArcGIS Velocity TCP and HTTP feeds. Best for simple tabular data without nested structures.">Delimited (CSV)</option>
+                                        <option value="json" title="JSON - sends data as application/json. The standard format for most HTTP feeds. Each request body is a JSON object or array.">JSON</option>
+                                        <option value="esri-json" title="Esri JSON - sends data as application/json using the Esri Feature JSON schema (with geometry and attributes objects). Use when the receiver expects ArcGIS-native feature format.">Esri JSON</option>
+                                        <option value="geo-json" title="GeoJSON - sends data as application/geo+json per RFC 7946. Use when the receiver expects standard GeoJSON FeatureCollections.">GeoJSON</option>
+                                        <option value="xml" title="XML - sends data as application/xml. Use when the receiver expects XML-formatted payloads.">XML</option>
+                                    </select>
+                                </label>
+                                <label class="protocol-settings-field" data-tooltip="URL path used after host and port" aria-label="HTTP path">Path
+                                    <input type="text" id="http-path" value="/" placeholder="/" title="HTTP endpoint URL path appended after the host:port (e.g. /receiver/feed-id). In server mode, only POST requests matching this path are accepted; all others return 404. In client mode, this path is used in the outgoing POST request URL. Default is /." class="http-path-input">
+                                </label>
+                            </div>
+                            <div class="protocol-settings-group" data-protocol="ws" data-section="basics">
+                                <label class="protocol-settings-field" data-tooltip="Content type expected for each WebSocket frame" aria-label="WebSocket format">Format
+                                    <select id="ws-format" title="WebSocket data format - controls the Content-Type associated with each message. Must match the format configured in the ArcGIS Velocity WebSocket feed.">
+                                        <option value="delimited" selected title="Delimited (CSV) - each message is a comma-separated row (text/plain). Default format for Velocity WebSocket feeds.">Delimited (CSV)</option>
+                                        <option value="json" title="JSON - each message is a JSON object or array (application/json).">JSON</option>
+                                        <option value="esri-json" title="Esri JSON - each message uses the Esri Feature JSON schema (application/json).">Esri JSON</option>
+                                        <option value="geo-json" title="GeoJSON - each message is a GeoJSON FeatureCollection or Feature (application/geo+json).">GeoJSON</option>
+                                        <option value="xml" title="XML - each message is an XML payload (application/xml).">XML</option>
+                                    </select>
+                                </label>
+                                <label class="protocol-settings-field" data-tooltip="URL path used after host and port" aria-label="WebSocket path">Path
+                                    <input type="text" id="ws-path" value="/" placeholder="/" title="WebSocket endpoint URL path (e.g. /feed/stream-id). In server mode, only upgrade requests matching this path are accepted. In client mode, this is used in the connection URL. Default is /." class="ws-path-input">
+                                </label>
+                            </div>
+                            <div class="protocol-settings-group xmpp-options-grid" data-protocol="xmpp" data-section="basics">
+                                <label class="xmpp-wide" data-tooltip="XMPP authentication domain; this remains separate from the network host override" aria-label="XMPP domain">Domain <input id="xmpp-domain" type="text" value="localhost" data-tooltip="XMPP authentication domain, for example example.com" aria-label="XMPP domain"></label>
+                                <label data-tooltip="Choose direct chat or Multi-User Chat receiving" aria-label="XMPP conversation">Conversation <select id="xmpp-conversation" data-tooltip="XMPP conversation: Receive direct messages addressed to this Logger" aria-label="XMPP conversation: Receive direct messages addressed to this Logger"><option value="direct" selected title="XMPP conversation: Receive direct messages addressed to this Logger">Direct</option><option value="muc" title="XMPP conversation: Join and receive messages from a Multi-User Chat room">MUC</option></select></label>
+                                <label class="xmpp-client-only" data-tooltip="XMPP client username" aria-label="XMPP username">Username <input id="xmpp-username" type="text" autocomplete="username" data-tooltip="Account username used by XMPP client mode" aria-label="XMPP username"></label>
+                                <label class="xmpp-client-only" data-tooltip="XMPP client password; never logged" aria-label="XMPP password">Password <input id="xmpp-password" type="password" autocomplete="current-password" data-tooltip="Account password used by XMPP client mode; never logged" aria-label="XMPP password"></label>
+                                <label class="xmpp-client-only" data-tooltip="Resource appended to the authenticated JID" aria-label="XMPP resource">Resource <input id="xmpp-resource" type="text" value="velocity-logger" data-tooltip="Resource appended to the authenticated XMPP JID" aria-label="XMPP resource"></label>
+                                <label class="xmpp-client-only xmpp-wide" data-tooltip="Optional bare local JID used to filter direct messages" aria-label="XMPP local JID">Local JID <input id="xmpp-local-jid" type="text" placeholder="logger@example.com" data-tooltip="Optional bare local JID used to filter direct messages" aria-label="XMPP local JID"></label>
+                                <label class="xmpp-server-only" data-tooltip="Username for the one external account accepted by the server" aria-label="XMPP external username">External user <input id="xmpp-external-username" type="text" value="velocity-client" autocomplete="username" data-tooltip="Username for the one external account accepted by server mode" aria-label="XMPP external username"></label>
+                                <label class="xmpp-server-only" data-tooltip="Password for the external server account; never logged" aria-label="XMPP external password">External password <input id="xmpp-external-password" type="password" autocomplete="new-password" data-tooltip="Password for the external XMPP account; never logged or copied by default" aria-label="XMPP external password"></label>
+                                <label class="xmpp-muc-only xmpp-wide" data-tooltip="Bare room JID used in MUC mode" aria-label="XMPP room JID">Room <input id="xmpp-room" type="text" placeholder="events@conference.example.com" data-tooltip="Bare room JID used in Multi-User Chat mode" aria-label="XMPP room JID"></label>
+                                <label class="xmpp-muc-only" data-tooltip="Nickname used in the room; self-echoes are ignored" aria-label="XMPP room nickname">Nickname <input id="xmpp-nickname" type="text" value="logger" data-tooltip="Nickname used in the room; messages echoed from this nickname are ignored" aria-label="XMPP room nickname"></label>
+                                <label class="xmpp-muc-only" data-tooltip="Optional room password; never logged" aria-label="XMPP room password">Room password <input id="xmpp-room-password" type="password" data-tooltip="Optional Multi-User Chat room password; never logged" aria-label="XMPP room password"></label>
+                            </div>
+                        </div>
+                        <div id="protocol-settings-panel-security" class="protocol-settings-panel" role="tabpanel" tabindex="0" aria-labelledby="protocol-settings-tab-security" hidden>
+                            <div class="protocol-settings-group" data-protocol="grpc" data-section="security">
+                                <label id="grpc-tls-label" class="protocol-settings-check"><input type="checkbox" id="grpc-tls" checked title="Use TLS (SSL) for the gRPC connection"> TLS</label>
+                                <label class="protocol-settings-field" data-tooltip="Custom certificate authority used to verify the gRPC peer" aria-label="gRPC CA certificate path">CA certificate
+                                    <input type="text" id="grpc-tls-ca-path" placeholder="CA cert path" title="Path to CA certificate (PEM)" style="display: none;">
+                                </label>
+                                <label class="protocol-settings-field" data-tooltip="Certificate presented by this gRPC connection" aria-label="gRPC TLS certificate path">Certificate
+                                    <input type="text" id="grpc-tls-cert-path" placeholder="TLS cert path" title="Path to client/server certificate (PEM)" style="display: none;">
+                                </label>
+                                <label class="protocol-settings-field" data-tooltip="Private key that matches the gRPC certificate" aria-label="gRPC TLS key path">Private key
+                                    <input type="text" id="grpc-tls-key-path" placeholder="TLS key path" title="Path to private key (PEM)" style="display: none;">
+                                </label>
+                                <label id="grpc-allow-unverified-label" class="unverified-tls-check" style="display: none;" data-tooltip="Warning: accept any gRPC server certificate&#10;---&#10;Certificate verification is disabled for every host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Use only for local self-signed testing." data-tooltip-icon="⚠" data-tooltip-kind="warning" aria-label="Allow unverified gRPC TLS certificates"><input type="checkbox" id="grpc-allow-unverified" data-tooltip="Warning: accept any gRPC server certificate&#10;---&#10;Certificate verification is disabled for every host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Use only for local self-signed testing." data-tooltip-icon="⚠" data-tooltip-kind="warning" aria-label="Allow unverified gRPC TLS certificates"> Allow unverified</label>
+                            </div>
+                            <div class="protocol-settings-group" data-protocol="http" data-section="security">
+                                <label id="http-tls-label" class="protocol-settings-check"><input type="checkbox" id="http-tls" checked title="Enable TLS (HTTPS) for the HTTP connection. When checked, the connection uses HTTPS (port 8443 by default). When unchecked, uses plain HTTP (port 8080). In client mode, the OS certificate store is used automatically; in server mode, a certificate and key must be provided."> TLS</label>
+                                <label class="protocol-settings-field" data-tooltip="Custom certificate authority used to verify the HTTPS peer" aria-label="HTTP CA certificate path">CA certificate
+                                    <input type="text" id="http-tls-ca-path" placeholder="CA cert path" title="Path to a custom CA certificate file (PEM). Leave empty to use the OS certificate store automatically. Only needed for enterprise or self-signed CAs not in the system trust store." style="display: none;">
+                                </label>
+                                <label class="protocol-settings-field" data-tooltip="Certificate presented by this HTTP connection" aria-label="HTTP TLS certificate path">Certificate
+                                    <input type="text" id="http-tls-cert-path" placeholder="TLS cert path" title="Path to a client or server certificate file (PEM). Required for server-mode TLS. For client mode, only needed for mutual TLS (mTLS) authentication." style="display: none;">
+                                </label>
+                                <label class="protocol-settings-field" data-tooltip="Private key that matches the HTTP certificate" aria-label="HTTP TLS key path">Private key
+                                    <input type="text" id="http-tls-key-path" placeholder="TLS key path" title="Path to the private key file (PEM) corresponding to the TLS certificate. Required for server-mode TLS and client-side mTLS." style="display: none;">
+                                </label>
+                                <label id="http-allow-unverified-label" class="unverified-tls-check" style="display: none;" data-tooltip="Warning: accept any HTTPS server certificate&#10;---&#10;Certificate verification is disabled for every host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Use only for local self-signed testing." data-tooltip-icon="⚠" data-tooltip-kind="warning" aria-label="Allow unverified HTTPS certificates"><input type="checkbox" id="http-allow-unverified" data-tooltip="Warning: accept any HTTPS server certificate&#10;---&#10;Certificate verification is disabled for every host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Use only for local self-signed testing." data-tooltip-icon="⚠" data-tooltip-kind="warning" aria-label="Allow unverified HTTPS certificates"> Allow unverified</label>
+                            </div>
+                            <div class="protocol-settings-group" data-protocol="ws" data-section="security">
+                                <label id="ws-tls-label" class="protocol-settings-check"><input type="checkbox" id="ws-tls" checked title="Enable TLS (WSS) for the WebSocket connection. When checked, uses the secure wss:// protocol (port 8443). When unchecked, uses plain ws:// (port 8080). In client mode, the OS certificate store is used automatically; in server mode, a certificate and key must be provided."> TLS</label>
+                                <label class="protocol-settings-field" data-tooltip="Custom certificate authority used to verify the WSS peer" aria-label="WebSocket CA certificate path">CA certificate
+                                    <input type="text" id="ws-tls-ca-path" placeholder="CA cert path" title="Path to a custom CA certificate file (PEM). Leave empty to use the OS certificate store." style="display: none;">
+                                </label>
+                                <label class="protocol-settings-field" data-tooltip="Certificate presented by this WebSocket connection" aria-label="WebSocket TLS certificate path">Certificate
+                                    <input type="text" id="ws-tls-cert-path" placeholder="TLS cert path" title="Path to a client or server certificate file (PEM). Required for server-mode TLS." style="display: none;">
+                                </label>
+                                <label class="protocol-settings-field" data-tooltip="Private key that matches the WebSocket certificate" aria-label="WebSocket TLS key path">Private key
+                                    <input type="text" id="ws-tls-key-path" placeholder="TLS key path" title="Path to the private key file (PEM). Required for server-mode TLS." style="display: none;">
+                                </label>
+                                <label id="ws-allow-unverified-label" class="unverified-tls-check" style="display: none;" data-tooltip="Warning: accept any WSS server certificate&#10;---&#10;Certificate verification is disabled for every host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Use only for local self-signed testing." data-tooltip-icon="⚠" data-tooltip-kind="warning" aria-label="Allow unverified WebSocket TLS certificates"><input type="checkbox" id="ws-allow-unverified" data-tooltip="Warning: accept any WSS server certificate&#10;---&#10;Certificate verification is disabled for every host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Use only for local self-signed testing." data-tooltip-icon="⚠" data-tooltip-kind="warning" aria-label="Allow unverified WebSocket TLS certificates"> Allow unverified</label>
+                            </div>
+                            <div class="protocol-settings-group xmpp-options-grid" data-protocol="xmpp" data-section="security">
+                                <label data-tooltip="STARTTLS policy for this connection" aria-label="XMPP TLS policy">TLS <select id="xmpp-tls-policy" data-tooltip="XMPP TLS policy: Require STARTTLS and fail if TLS is unavailable" aria-label="XMPP TLS policy: Require STARTTLS and fail if TLS is unavailable"><option value="required" selected title="XMPP TLS policy: Require STARTTLS and fail if TLS is unavailable">Required</option><option value="preferred" title="XMPP TLS policy: Prefer STARTTLS, but allow an unsecure connection when TLS is unavailable">Preferred</option><option value="disabled" title="XMPP TLS policy: Disable STARTTLS and use an unsecure connection">Disabled</option></select></label>
+                                <label class="xmpp-wide" data-tooltip="Custom CA certificate path; leave empty to use OS trust" aria-label="XMPP CA path">CA <input id="xmpp-tls-ca-path" type="text" placeholder="CA cert path" data-tooltip="Custom CA certificate path; leave empty to use the operating system trust store" aria-label="XMPP CA certificate path"></label>
+                                <label class="xmpp-server-only xmpp-wide" data-tooltip="Optional server certificate; an ephemeral self-signed certificate is automatic" aria-label="XMPP certificate path">Certificate <input id="xmpp-tls-cert-path" type="text" placeholder="TLS cert path" data-tooltip="Optional server certificate path; an ephemeral self-signed certificate is generated when omitted" aria-label="XMPP TLS certificate path"></label>
+                                <label class="xmpp-server-only xmpp-wide" data-tooltip="Private key corresponding to the server certificate" aria-label="XMPP key path">Key <input id="xmpp-tls-key-path" type="text" placeholder="TLS key path" data-tooltip="Private key path corresponding to the custom server certificate" aria-label="XMPP TLS key path"></label>
+                                <label class="xmpp-client-only xmpp-check unverified-tls-check" data-tooltip="Warning: accept any XMPP server certificate&#10;---&#10;Certificate verification is disabled for every host, not only localhost. STARTTLS still encrypts the stream, but the server identity is not checked. Use only for local self-signed testing." data-tooltip-icon="⚠" data-tooltip-kind="warning" aria-label="Allow unverified XMPP TLS certificates"><input id="xmpp-allow-unverified" type="checkbox" data-tooltip="Warning: accept any XMPP server certificate&#10;---&#10;Certificate verification is disabled for every host, not only localhost. STARTTLS still encrypts the stream, but the server identity is not checked. Use only for local self-signed testing." data-tooltip-icon="⚠" data-tooltip-kind="warning" aria-label="Allow unverified XMPP TLS certificates"> Allow unverified</label>
+                                <label class="xmpp-server-only xmpp-check" data-tooltip="Permit the configured Host to bind outside loopback; wildcard binds are copied as a connectable loopback host" aria-label="Allow remote XMPP clients"><input id="xmpp-allow-remote" type="checkbox" data-tooltip="Permit the configured Host to bind outside loopback; wildcard binds are copied as a connectable loopback host" aria-label="Allow remote XMPP clients"> Allow remote</label>
+                            </div>
+                        </div>
+                        <div id="protocol-settings-panel-advanced" class="protocol-settings-panel" role="tabpanel" tabindex="0" aria-labelledby="protocol-settings-tab-advanced" hidden>
+                            <div class="protocol-settings-group" id="grpc-advanced" data-protocol="grpc" data-section="advanced">
+                                <label class="protocol-settings-field" data-tooltip="Metadata header key used to route the gRPC endpoint" aria-label="gRPC endpoint header key">Endpoint header key
+                                    <input type="text" id="grpc-header-path-key" value="grpc-path" title="gRPC endpoint header path key" style="display: none;">
+                                </label>
+                                <label class="protocol-settings-field" data-tooltip="Metadata header value that identifies the gRPC endpoint" aria-label="gRPC endpoint header path">Endpoint header path
+                                    <input type="text" id="grpc-header-path" value="replace.with.dedicated.uid" title="gRPC endpoint header path" style="display: none;">
+                                </label>
+                            </div>
+                            <div class="protocol-settings-group" id="http-advanced" data-protocol="http" data-section="advanced"></div>
+                            <div class="protocol-settings-group" id="ws-advanced" data-protocol="ws" data-section="advanced">
+                                <label class="protocol-settings-field" data-tooltip="Message sent once the WebSocket connection opens" aria-label="WebSocket subscription message">Subscription message
+                                    <input type="text" id="ws-subscription-msg" placeholder="Subscribe msg" title="Optional subscription message sent after connecting. Leave empty if not needed." style="display: none;">
+                                </label>
+                                <label id="ws-ignore-first-msg-label" class="protocol-settings-check" style="display: none;"><input type="checkbox" id="ws-ignore-first-msg" title="Ignore the first message received. Enable to skip subscription acknowledgments or welcome messages."> Skip 1st</label>
+                                <label class="protocol-settings-field" data-tooltip="Custom headers sent with the WebSocket upgrade request" aria-label="WebSocket upgrade headers">Upgrade headers
+                                    <input type="text" id="ws-headers" placeholder="Headers (JSON)" title='Custom HTTP headers for the WebSocket upgrade handshake as JSON (e.g. {"Authorization":"******"}).' style="display: none;">
+                                </label>
+                            </div>
+                            <div class="protocol-settings-group xmpp-options-grid" id="xmpp-advanced" data-protocol="xmpp" data-section="advanced">
+                                <label data-tooltip="Connection timeout in milliseconds" aria-label="XMPP connection timeout">Connect ms <input id="xmpp-connect-timeout" type="number" min="1" value="30000" data-tooltip="Timeout for stream connection, authentication, and resource binding" aria-label="XMPP connection timeout milliseconds"></label>
+                                <label data-tooltip="Reply timeout in milliseconds" aria-label="XMPP reply timeout">Reply ms <input id="xmpp-reply-timeout" type="number" min="1" value="15000" data-tooltip="Timeout for stanza, IQ, room join, and ping replies" aria-label="XMPP reply timeout milliseconds"></label>
+                                <label class="xmpp-client-only" data-tooltip="Keepalive ping interval in milliseconds" aria-label="XMPP ping interval">Ping ms <input id="xmpp-ping-interval" type="number" min="1" value="60000" data-tooltip="Positive keepalive ping interval in milliseconds" aria-label="XMPP ping interval milliseconds"></label>
+                                <label class="xmpp-client-only" data-tooltip="Reconnect delay in milliseconds" aria-label="XMPP reconnect delay">Reconnect ms <input id="xmpp-reconnect-delay" type="number" min="1" value="60000" data-tooltip="Delay before reconnecting an interrupted session" aria-label="XMPP reconnect delay milliseconds"></label>
+                            </div>
+                        </div>
+                        <div id="protocol-settings-panel-summary" class="protocol-settings-panel protocol-settings-summary" role="tabpanel" tabindex="0" aria-labelledby="protocol-settings-tab-summary" hidden>
+                            <p id="protocol-settings-empty" class="protocol-settings-empty" hidden>TCP has no protocol settings. Connection type, host, and port stay in the connection row.</p>
+                            <dl id="protocol-settings-summary-rows" class="connection-summary-rows"></dl>
+                        </div>
+                    </div>
+                </div>
                 <div class="xmpp-server-only xmpp-actions" role="group" aria-label="XMPP server client settings">
                     <output id="xmpp-receiving-jid" aria-live="polite">Receiving JID: available after the server starts</output>
                     <label class="xmpp-check" data-tooltip="Include the external password when copying settings; off by default" aria-label="Include XMPP password when copying"><input id="xmpp-copy-password" type="checkbox" disabled data-tooltip="Include the external account password when copying client settings; disabled by default" aria-label="Include XMPP password when copying"> Include password</label>
                     <button id="xmpp-copy-settings" type="button" disabled data-tooltip="Copy live Simulator client settings as JSON; password is excluded unless explicitly enabled" aria-label="Copy live XMPP client settings">Copy Client Settings</button>
                 </div>
-            </details>
+                <div class="protocol-settings-footer">
+                    <button id="protocol-settings-reset" type="button" class="protocol-settings-secondary" disabled aria-label="Reset to preset" data-tooltip="Restore every field of the preset these settings started from. Available only after a preset is applied and edited." data-tooltip-icon="↺" data-tooltip-kind="info">Reset to preset</button>
+                    <button id="protocol-settings-revert" type="button" class="protocol-settings-secondary" disabled aria-label="Revert changes" data-tooltip="Restore the values this dialog opened with. Fields outside the dialog are untouched." data-tooltip-icon="⟲" data-tooltip-kind="info">Revert changes</button>
+                    <button id="protocol-settings-done" type="button" class="protocol-settings-done" aria-label="Done" data-tooltip="Keep your edits and close Protocol Settings. Nothing connects until you select Connect." data-tooltip-icon="✓" data-tooltip-kind="success">Done</button>
+                </div>
+            </dialog>
         </div>
         <pre id="logs" role="log" aria-live="polite" aria-relevant="additions"></pre>
         <div id="activity-strip" class="activity-strip hidden pinned expanded" role="region" aria-label="Activity strip" aria-live="polite">
@@ -246,6 +325,9 @@
                     <span class="button-icon icon-status-toggle" aria-hidden="true"></span>
                 </button>
                 <div class="separator" aria-hidden="true"></div>
+                <button id="connection-summary-status-btn" class="connection-summary-status-btn" type="button" aria-haspopup="dialog" aria-controls="protocol-settings-dialog" aria-label="Connection summary" data-tooltip="Connection summary&#10;---&#10;Select or press Enter to open the full read-only summary. Hovering only previews this line." data-tooltip-icon="▤" data-tooltip-kind="info">
+                    <span id="connection-summary-status-label" class="connection-summary-status-label">TCP Server · 127.0.0.1:5565</span>
+                </button>
             </div>
             <div class="status-bar-center">
                 <div id="app-status">
@@ -276,6 +358,7 @@
 
     <script src="./velocity-auth-utils.js"></script>
     <script src="./connection-presets.js"></script>
+    <script src="./connection-summary.js"></script>
     <script src="./renderer.js"></script>
     <script>
     // Responsive UI: hide nonessential header text at small widths while keeping footer center locked.

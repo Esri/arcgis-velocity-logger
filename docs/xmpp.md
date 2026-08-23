@@ -125,11 +125,13 @@ place where **Allow unverified** is turned on automatically, because the paired
 Simulator presents an ephemeral self-signed certificate. See
 [Connection presets](connection-presets.md).
 
-The XMPP options are grouped by progressive disclosure. Domain, TLS policy,
-conversation, and the account and room fields are shown directly; certificate
-paths, **Allow unverified**, **Allow remote**, and the timing values are one
-click away under **Advanced**. Validation opens **Advanced** and focuses the
-offending control when a required field is missing.
+The XMPP options live in the **Protocol Settings** dialog (**Protocol
+Settings…** in the connection row, or `Cmd/Ctrl+Shift+P`). **Basics** holds the
+domain, conversation, and the account and room fields; **Security** holds the
+TLS policy, certificate paths, **Allow unverified**, and **Allow remote**;
+**Advanced** holds the timing values. A failed **Connect** opens the dialog,
+selects the section that owns the offending control, and focuses it. See
+[Connection summary and protocol settings](connection-summary.md).
 
 ## Empty passwords
 
@@ -194,7 +196,7 @@ When XMPP Server or XMPP Client is selected as the connection type, the XMPP Opt
 - **Room** / **Nickname** / **Room password** - MUC-only fields.
 - **CA** - Custom CA certificate path; leave empty to use OS trust.
 - **Certificate** / **Key** - server-only TLS certificate/key paths.
-- **Advanced** - disclosure holding the certificate paths, **Allow unverified**, **Allow remote**, and the timing values.
+- **Section** - **Basics** holds the domain, conversation, and the account and room fields; **Security** holds the TLS policy, certificate paths, **Allow unverified**, and **Allow remote**; **Advanced** holds the timing values.
 - **Allow unverified** - client-only warning checkbox; skips certificate verification for any host.
 - **Allow remote** - server-only checkbox; permits the configured Host to bind outside loopback.
 - **Connect ms** / **Reply ms** - connection and reply timeouts.
@@ -235,7 +237,9 @@ When XMPP Server or XMPP Client is selected as the connection type, the XMPP Opt
 | CA | Custom CA certificate path; leave empty to use the operating system trust store |
 | Certificate | Optional server certificate path; an ephemeral self-signed certificate is generated when omitted |
 | Key | Private key path corresponding to the custom server certificate |
-| Advanced | Show or hide the advanced XMPP certificate, verification, remote-bind, and timing options. Domain, TLS policy, conversation, and account fields stay visible above. |
+| Basics section | Basics<br>The settings this protocol needs before it can receive data. |
+| Security section | Security<br>TLS, certificate verification, and certificate paths for this protocol. |
+| Advanced section | Advanced<br>Optional settings that most connections leave at their defaults. |
 | Allow unverified | Warning: accept any XMPP server certificate<br>---<br>Certificate verification is disabled for every host, not only localhost. STARTTLS still encrypts the stream, but the server identity is not checked. Use only for local self-signed testing. |
 | Allow remote | Permit the configured Host to bind outside loopback; wildcard binds are copied as a connectable loopback host |
 | Connect ms | Timeout for stream connection, authentication, and resource binding |
@@ -361,6 +365,7 @@ Received message bodies are capped at 64 KB per stanza as a safety limit; oversi
 
 ## Related documentation
 
+- [Connection summary and protocol settings](connection-summary.md)
 - [Connection presets](connection-presets.md)
 - [TLS guide](tls.md)
 - [Command-line reference](command-line.md)

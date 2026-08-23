@@ -1366,6 +1366,15 @@ function validateHeadlessOptions(values, errors, warnings) {
     options.grpcHeaderPath = String(normalized.grpcHeaderPath).trim();
   }
 
+  if (normalized.grpcSerialization !== undefined) {
+    const serialization = String(normalized.grpcSerialization).trim().toLowerCase();
+    if (!VALID_SERIALIZATIONS.has(serialization)) {
+      errors.push(`Invalid grpcSerialization '${normalized.grpcSerialization}'. Use protobuf, kryo, or text.`);
+    } else {
+      options.grpcSerialization = serialization;
+    }
+  }
+
   if (normalized.grpcSendMethod !== undefined) {
     const method = String(normalized.grpcSendMethod).trim().toLowerCase();
     if (!VALID_GRPC_SEND_METHODS.has(method)) {

@@ -30,6 +30,21 @@ It is intended for users and developers connecting the Logger to a WebSocket end
 | WebSocket Client | Connects to a remote WebSocket server (`ws://` or `wss://`) and sends data as text frames. |
 | WebSocket Server | Starts a local WebSocket server that accepts incoming `ws://` or `wss://` connections and broadcasts data to all connected clients. |
 
+Disconnect closes every connected client, then the WebSocket server, then the
+underlying HTTP server, and only reports `disconnected` once the listening
+socket has been released. Reconnecting on the same port immediately after that
+message therefore succeeds. Each close is bounded by a short wait, so a client
+that never answers the close handshake is terminated instead of stalling the
+disconnect. When a port is already in use, connecting fails with a
+`WebSocket server failed to bind on <host>:<port>` message rather than an
+unhandled error.
+
+In client mode the Logger only reads, so a stream that ends is the event that
+matters: the transport reports the closed connection, the status log records it,
+and the connection controls return to their disconnected state instead of
+showing a connection that no longer exists. A socket error after the connection
+opened is reported the same way rather than raising an unhandled error.
+
 ## Format options
 
 The WebSocket Format dropdown controls the Content-Type associated with each message. These match the formats supported by ArcGIS Velocity TCP, HTTP, and WebSocket feeds. **Delimited (CSV) is the default**, matching ArcGIS Velocity's ordering:
@@ -91,19 +106,21 @@ Useful for authentication tokens or API keys required by the WebSocket endpoint.
 
 ## UI controls
 
-When WebSocket is selected as the connection type, the following controls appear:
+When WebSocket is selected as the connection type, its controls live in the **Protocol Settings** dialog (**Protocol Settings…** in the connection row, or `Cmd/Ctrl+Shift+P`), grouped into **Basics**, **Security**, and **Advanced**. See [Connection summary and protocol settings](connection-summary.md).
+
+The following controls appear:
 
 - **Format** - `Delimited (CSV)` (default), `JSON`, `Esri JSON`, `GeoJSON`, or `XML`.
 - **Use TLS** - Checkbox: checked = `wss://` (port 8443), unchecked = `ws://` (port 8080).
-- **Advanced** - Disclosure that holds the certificate paths, the verification option, the subscription message, **Skip 1st**, and the headers field. Format, TLS, and WS Path stay visible in the row.
+- **Section** - **Basics** holds Format and Path; **Security** holds TLS, the certificate paths, and the verification option; **Advanced** holds the subscription message, **Skip 1st**, and the upgrade headers.
 - **CA cert path** - Custom CA certificate (PEM).
 - **TLS cert path** - Client/server certificate (PEM).
 - **TLS key path** - Private key (PEM).
-- **Allow unverified** - Client-only warning checkbox inside **Advanced**, shown when TLS is enabled. Accepts an unverified server certificate for any host. Off by default; see [TLS and SSL security](tls.md#explicit-certificate-verification-bypass).
+- **Allow unverified** - Client-only warning checkbox in **Security**, shown when TLS is enabled. Accepts an unverified server certificate for any host. Off by default; see [TLS and SSL security](tls.md#explicit-certificate-verification-bypass).
 - **WS Path** - URL path (default `/`).
-- **Subscribe** - Optional subscription message sent after connecting.
+- **Subscribe** - Optional subscription message sent after connecting. The connection summary reports only whether it is set, because it may carry a token.
 - **Ignore 1st msg** - Checkbox to skip the first received message.
-- **Headers** - Custom HTTP headers as JSON for the upgrade handshake.
+- **Headers** - Custom HTTP headers as JSON for the upgrade handshake. The connection summary reports only whether they are set, because they commonly carry an `Authorization` value.
 
 ## Tooltip reference
 
@@ -132,7 +149,13 @@ When WebSocket is selected as the connection type, the following controls appear
 | CA cert path | Path to a custom CA certificate file (PEM). Leave empty to use the OS certificate store automatically. |
 | TLS cert path | Path to a client or server certificate file (PEM). Required for server-mode TLS. |
 | TLS key path | Path to the private key file (PEM). Required for server-mode TLS and client-side mTLS. |
-| Advanced | Show or hide the advanced WebSocket certificate, verification, subscription, and header options. Format, path, and TLS stay visible above. |
+| Format field label | Content type expected for each WebSocket frame |
+| Path field label | URL path used after host and port |
+| CA certificate field label | Custom certificate authority used to verify the WSS peer |
+| Certificate field label | Certificate presented by this WebSocket connection |
+| Private key field label | Private key that matches the WebSocket certificate |
+| Subscription message field label | Message sent once the WebSocket connection opens |
+| Upgrade headers field label | Custom headers sent with the WebSocket upgrade request |
 | Allow unverified | Warning: accept any WSS server certificate<br>---<br>Certificate verification is disabled for every host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Use only for local self-signed testing. |
 | WS path | WebSocket endpoint URL path appended after the host:port (e.g. /feed/stream-id). Default is /. |
 | Subscribe | Optional subscription message sent to the WebSocket server immediately after connecting. Leave empty if not needed. |
@@ -200,6 +223,7 @@ WebSocket parameters can be set in launch configuration JSON files:
 
 ## Related documentation
 
+- [Connection summary and protocol settings](connection-summary.md)
 - [TLS guide](tls.md)
 - [gRPC transport](grpc.md)
 - [HTTP transport](http.md)

@@ -300,7 +300,7 @@
       group: 'Local HTTP',
       protocol: 'http',
       role: 'simulator-server',
-      summary: 'The Simulator hosts an HTTP server on 127.0.0.1:8080 and the Logger polls path / with Delimited (CSV) payloads and TLS off.',
+      summary: 'The Simulator hosts an HTTP server on 127.0.0.1:8080 and the Logger opens a persistent SSE watch on path / for Delimited (CSV) payloads with TLS off.',
       fields: {
         connectionType: 'http-client',
         port: CONNECTION_PRESET_PORTS.http,

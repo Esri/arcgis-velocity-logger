@@ -11,7 +11,7 @@ between the ArcGIS Velocity Logger and the ArcGIS Velocity Simulator. The
 - [The twelve paired presets](#the-twelve-paired-presets)
 - [What each preset fills](#what-each-preset-fills)
 - [Custom and Custom (modified)](#custom-and-custom-modified)
-- [Progressive disclosure](#progressive-disclosure)
+- [Where each field lives](#where-each-field-lives)
 - [Minimal local test with the Simulator](#minimal-local-test-with-the-simulator)
 - [UI controls](#ui-controls)
 - [Tooltip reference](#tooltip-reference)
@@ -98,21 +98,28 @@ control stays off until you turn it on. See
 Command-line prepopulation (`npm start -- protocol=… mode=…`) fills the same
 fields without marking the state as modified, because it is not a manual edit.
 
-## Progressive disclosure
+## Where each field lives
 
-Each protocol row shows its essentials directly and keeps certificates,
-verification, timing, and metadata options one click away under an **Advanced**
-disclosure:
+A preset fills fields in two places. The connection row keeps the shared
+fields — preset, connection type, host, and port — and every protocol-specific
+field lives in the **Protocol Settings** dialog, grouped into sections:
 
-| Row | Essentials | Advanced |
-|---|---|---|
-| gRPC | Serialization, RPC type, endpoint header path, TLS | CA/cert/key paths, Allow unverified |
-| HTTP | Format, TLS, path | CA/cert/key paths, Allow unverified |
-| WebSocket | Format, TLS, path | CA/cert/key paths, Allow unverified, subscription message, Skip 1st, headers |
-| XMPP | Domain, TLS policy, conversation, account and room fields | CA/cert/key paths, Allow unverified, Allow remote, timing values |
+| Protocol | Basics | Security | Advanced |
+|---|---|---|---|
+| gRPC | Serialization, RPC type | TLS, CA/certificate/key paths, Allow unverified | Endpoint header key and path (client only) |
+| HTTP | Format, path | TLS, CA/certificate/key paths, Allow unverified | — |
+| WebSocket | Format, path | TLS, CA/certificate/key paths, Allow unverified | Subscription message, Skip 1st, headers |
+| XMPP | Domain, conversation, account and room fields | TLS policy, CA/certificate/key paths, Allow unverified, Allow remote | Timing values |
 
-No field required to connect is hidden: validation reveals and focuses the
-offending control, opening every collapsed disclosure above it.
+TCP and UDP have no protocol settings, so their dialog offers only the
+read-only **Summary** section.
+
+No field required to connect is hidden: a failed **Connect** opens the dialog,
+selects the section that owns the offending control, and focuses it. Applying a
+preset never opens the dialog; when a preset turns on an explicit certificate
+bypass, the dialog pre-selects **Security** so the warning-valued setting leads
+the next time it is opened. See
+[Connection summary and protocol settings](connection-summary.md).
 
 ## Minimal local test with the Simulator
 
@@ -146,7 +153,7 @@ self-signed certificate while STARTTLS still encrypts the stream.
 |---|---|
 | Preset | Pre-fills the connection fields for a paired local Logger and Simulator test. Defaults to Custom. |
 | Modified badge | Appears after a populated field is edited; names the preset the fields started from. |
-| Advanced (gRPC, HTTP, WebSocket, XMPP) | Shows or hides the advanced certificate, verification, subscription, and timing options for that protocol. |
+| Protocol Settings… | Opens the protocol-specific settings for the selected connection type, with a chip reporting how many of them differ from their defaults. |
 
 ## Tooltip reference
 
@@ -159,14 +166,16 @@ These strings are produced by `describeConnectionPreset()` in
 | Preset (applied) | `<label>` / `<preset summary>` / `Preset: pre-fills the connection fields for a paired local Logger and Simulator test. It only fills editable fields — it never connects, starts capture, or saves a secret.` |
 | Preset (modified) | `Custom (modified)` / `These fields started from "<label>" and were edited. Select the preset again to restore its values.` / `Preset: pre-fills the connection fields for a paired local Logger and Simulator test. It only fills editable fields — it never connects, starts capture, or saves a secret.` |
 | Modified badge | `Modified` / `These fields started from "<label>" and were edited. Select the preset again to restore its values.` |
-| Advanced (gRPC) | `Show or hide the advanced gRPC certificate and verification options. The essential gRPC settings stay visible above.` |
-| Advanced (HTTP) | `Show or hide the advanced HTTP certificate and verification options. Format, path, and TLS stay visible above.` |
-| Advanced (WebSocket) | `Show or hide the advanced WebSocket certificate, verification, subscription, and header options. Format, path, and TLS stay visible above.` |
-| Advanced (XMPP) | `Show or hide the advanced XMPP certificate, verification, remote-bind, and timing options. Domain, TLS policy, conversation, and account fields stay visible above.` |
+| Reset to preset (available) | `Restore every field of "<label>", the preset these settings started from.` |
+| Reset to preset (unavailable) | `Restore every field of the preset these settings started from. Available only after a preset is applied and edited.` |
+
+The Protocol Settings and section tooltips are documented in
+[Connection summary and protocol settings](connection-summary.md#tooltip-reference).
 
 ## Related documentation
 
 - [Documentation index](README.md)
+- [Connection summary and protocol settings](connection-summary.md)
 - [XMPP transport](xmpp.md)
 - [TLS and SSL security](tls.md)
 - [Command-line reference](command-line.md)

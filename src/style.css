@@ -543,23 +543,13 @@ h1 {
     text-align-last: left;
 }
 
-/* HTTP options row control sizing */
+/* Protocol settings control sizing */
 #http-format,
 #ws-format,
 #xmpp-tls-policy,
 #xmpp-conversation {
     text-align: left;
     text-align-last: left;
-}
-
-#grpc-header-path-key {
-    width: 90px;
-    min-width: 70px;
-}
-
-#grpc-header-path {
-    flex: 1;
-    min-width: 140px;
 }
 
 select,
@@ -677,50 +667,392 @@ button:disabled {
     display: none;
 }
 
-/* Progressive disclosure: advanced protocol options stay one click away
-   instead of crowding the essentials row. */
-.advanced-options {
-    flex: 0 1 auto;
-    min-width: 0;
-}
+/* ------------------------------------------------------------------
+   Protocol Settings dialog and connection summary
+   ------------------------------------------------------------------ */
 
-.advanced-options > summary {
-    cursor: pointer;
+/* Trigger button: a label plus a persistent configured-state chip. */
+.protocol-settings-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: 0 0 auto;
     white-space: nowrap;
-    padding: 2px 6px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    font-size: 0.85em;
-    list-style: none;
-    transition: background-color 0.15s ease, border-color 0.15s ease;
+    background-color: var(--button-info-bg, var(--button-bg-color));
+    color: var(--button-info-text-color, var(--button-text-color));
 }
 
-.advanced-options > summary::-webkit-details-marker {
-    display: none;
+.protocol-settings-btn-label {
+    font-weight: 500;
 }
 
-.advanced-options > summary::before {
-    content: '⚙ ';
-    opacity: 0.8;
+.protocol-settings-count {
+    padding: 1px 6px;
+    border: 1px solid color-mix(in srgb, currentColor 45%, transparent);
+    border-radius: 10px;
+    font-size: 0.72em;
+    line-height: 1.6;
+    white-space: nowrap;
+    opacity: 0.9;
 }
 
-.advanced-options > summary:hover,
-.advanced-options > summary:focus-visible {
-    border-color: var(--text-color);
-    background-color: color-mix(in srgb, var(--text-color) 8%, transparent);
+.protocol-settings-count[data-warning="true"] {
+    border-color: var(--button-danger-bg, #dc3545);
+    background: color-mix(in srgb, var(--button-danger-bg, #dc3545) 18%, transparent);
+    opacity: 1;
 }
 
-.advanced-options-row {
+/* Inline summary card: three rows, warnings first, plus explicit actions. */
+.connection-summary-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 6px;
+    padding: 6px 8px;
+    border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
+    border-left: 3px solid color-mix(in srgb, var(--button-info-bg, var(--border-color)) 70%, var(--border-color));
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--surface-color, var(--bg-color)) 88%, transparent);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.connection-summary-card:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--button-bg-color) 45%, transparent);
+}
+
+.connection-summary-card[data-warning="true"] {
+    border-left-color: var(--button-danger-bg, #dc3545);
+}
+
+.connection-summary-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.connection-summary-card-title {
+    margin: 0;
+    font-size: 0.8em;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    opacity: 0.75;
+}
+
+.connection-summary-card-actions {
     display: flex;
     align-items: center;
     gap: 6px;
-    flex-wrap: wrap;
-    padding: 6px 0 2px;
-    width: 100%;
 }
 
-.advanced-options[open] {
-    flex: 1 1 100%;
+.connection-summary-action {
+    padding: 2px 8px;
+    font-size: 0.8em;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+}
+
+.connection-summary-action:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--text-color) 8%, transparent);
+}
+
+.connection-summary-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+}
+
+.connection-summary-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 200px) 1fr;
+    gap: 8px;
+    align-items: baseline;
+    padding: 1px 0;
+}
+
+.connection-summary-label {
+    margin: 0;
+    font-size: 0.85em;
+    opacity: 0.75;
+}
+
+.connection-summary-value {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.connection-summary-row[data-kind="warning"] .connection-summary-label::before {
+    content: '⚠ ';
+    color: var(--button-danger-bg, #dc3545);
+}
+
+.connection-summary-row[data-severity="warning"] .connection-summary-value {
+    color: var(--button-danger-bg, #dc3545);
+    font-weight: 600;
+}
+
+.connection-summary-row[data-kind="secret"] .connection-summary-value {
+    font-family: monospace;
+    opacity: 0.9;
+}
+
+/* Status-bar summary button: always clickable, never hover-only. */
+.connection-summary-status-btn {
+    max-width: 40vw;
+    padding: 2px 8px;
+    font-size: 0.85em;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-color);
+    overflow: hidden;
+}
+
+.connection-summary-status-btn:hover:not(:disabled) {
+    border-color: var(--border-color);
+    background: color-mix(in srgb, var(--text-color) 8%, transparent);
+    transform: none;
+}
+
+.connection-summary-status-btn[data-warning="true"] {
+    color: var(--button-danger-bg, #dc3545);
+}
+
+.connection-summary-status-label {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The dialog renders in the top layer, so it is never clipped by the row. */
+.protocol-settings-dialog {
+    width: min(860px, 94vw);
+    max-height: 86vh;
+    padding: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--surface-color, var(--bg-color));
+    color: var(--text-color);
+    overflow: hidden;
+}
+
+.protocol-settings-dialog::backdrop {
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.protocol-settings-dialog[open] {
+    display: flex;
+    flex-direction: column;
+}
+
+.protocol-settings-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--surface-color, var(--bg-color));
+}
+
+.protocol-settings-title {
+    margin: 0;
+    font-size: 1.05em;
+    color: var(--header-color, var(--text-color));
+}
+
+.protocol-settings-subtitle {
+    margin: 2px 0 0;
+    font-size: 0.85em;
+    opacity: 0.8;
+    overflow-wrap: anywhere;
+}
+
+.protocol-settings-close {
+    flex: 0 0 auto;
+    padding: 2px 8px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-color);
+    font-size: 1em;
+    line-height: 1.4;
+}
+
+.protocol-settings-close:hover:not(:disabled) {
+    border-color: var(--border-color);
+    background: color-mix(in srgb, var(--text-color) 10%, transparent);
+}
+
+.protocol-settings-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 10px 16px 0;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border-left: 3px solid var(--border-color);
+    background: color-mix(in srgb, var(--text-color) 6%, transparent);
+    font-size: 0.9em;
+}
+
+.protocol-settings-banner-readonly::before {
+    content: '🔒';
+}
+
+.protocol-settings-banner-error {
+    border-left-color: var(--button-danger-bg, #dc3545);
+    background: color-mix(in srgb, var(--button-danger-bg, #dc3545) 12%, transparent);
+}
+
+.protocol-settings-banner-error::before {
+    content: '⚠';
+}
+
+.protocol-settings-body {
+    display: flex;
+    gap: 16px;
+    min-height: 0;
+    padding: 12px 16px;
+    overflow: auto;
+}
+
+/* Wide layout: a left rail of sections. */
+.protocol-settings-tablist {
+    display: flex;
+    flex: 0 0 148px;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.protocol-settings-tab {
+    padding: 6px 10px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-color);
+    text-align: left;
+    font-weight: 500;
+}
+
+.protocol-settings-tab:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--text-color) 8%, transparent);
+    transform: none;
+}
+
+.protocol-settings-tab[aria-selected="true"] {
+    border-color: color-mix(in srgb, var(--button-bg-color) 60%, var(--border-color));
+    background: color-mix(in srgb, var(--button-bg-color) 18%, transparent);
+}
+
+.protocol-settings-tab:focus-visible {
+    outline: 2px solid var(--button-bg-color);
+    outline-offset: 1px;
+}
+
+.protocol-settings-panels {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.protocol-settings-panel:focus-visible {
+    outline: 2px solid var(--button-bg-color);
+    outline-offset: 2px;
+}
+
+.protocol-settings-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 12px;
+    align-items: flex-end;
+}
+
+.protocol-settings-group.xmpp-options-grid {
+    display: grid;
+    align-items: center;
+}
+
+/* Hiding always wins over a display modifier, whatever the source order. */
+.protocol-settings-group[hidden],
+.protocol-settings-field[hidden],
+.protocol-settings-panel[hidden],
+.protocol-settings-tab[hidden],
+.protocol-settings-empty[hidden],
+.protocol-settings-banner[hidden] {
+    display: none !important;
+}
+
+.protocol-settings-field {
+    display: flex;
+    flex: 1 1 220px;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    font-size: 0.85em;
+    opacity: 0.95;
+}
+
+.protocol-settings-field > input,
+.protocol-settings-field > select {
+    width: 100%;
+    min-width: 0;
+    font-size: 14px;
+    text-align: left;
+    text-align-last: left;
+}
+
+.protocol-settings-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    padding-bottom: 5px;
+}
+
+.protocol-settings-empty {
+    margin: 0 0 10px;
+    padding: 10px;
+    border: 1px dashed var(--border-color);
+    border-radius: 6px;
+    font-size: 0.9em;
+    opacity: 0.85;
+}
+
+.protocol-settings-summary .connection-summary-rows {
+    gap: 3px;
+}
+
+.protocol-settings-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border-color);
+    background: var(--surface-color, var(--bg-color));
+}
+
+.protocol-settings-secondary {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+}
+
+.protocol-settings-secondary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--text-color) 8%, transparent);
+}
+
+.protocol-settings-done {
+    min-width: 92px;
 }
 
 /* Explicit certificate-verification bypass is a warning-level control. */
@@ -739,133 +1071,10 @@ button:disabled {
     content: '⚠';
 }
 
-/* gRPC options second row — slides in/out with a max-height transition */
-.grpc-options-row {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    flex-wrap: wrap;
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.25s ease, padding-top 0.25s ease, opacity 0.25s ease, border-top-color 0.25s ease;
-    padding-top: 0;
-    opacity: 0;
-    border-top: 1px solid transparent;
-}
-
-.grpc-options-row.visible {
-    max-height: 320px; /* generous ceiling; the Advanced disclosure expands within this row */
-    padding-top: 6px;
-    opacity: 1;
-    border-top-color: var(--border-color);
-}
-
-/* Auto-hide: collapse back even when .visible is set */
-.grpc-options-row.visible.auto-hidden {
-    max-height: 0;
-    padding-top: 0;
-    opacity: 0;
-    border-top-color: transparent;
-}
-
-/* Hint strip: shown at the bottom of the connection-controls area when the
-   gRPC row is active but auto-hidden. Gives the user a subtle cue to hover. */
-.connection-controls.grpc-active::after {
-    content: '';
-    display: block;
-    height: 2px;
-    border-radius: 1px;
-    background: var(--border-color);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    pointer-events: none;
-}
-
-.connection-controls.grpc-active.grpc-row-hidden::after {
-    opacity: 0.55;
-    animation: grpc-hint-pulse 2.5s ease-in-out infinite;
-}
-
-@keyframes grpc-hint-pulse {
-    0%, 100% { opacity: 0.3; }
-    50%       { opacity: 0.65; }
-}
-
-/* TLS cert path inputs stretch to fill available space */
-#grpc-tls-ca-path,
-#grpc-tls-cert-path,
-#grpc-tls-key-path,
-#http-tls-ca-path,
-#http-tls-cert-path,
-#http-tls-key-path,
-#http-path,
-#ws-tls-ca-path,
-#ws-tls-cert-path,
-#ws-tls-key-path,
-#ws-path,
-#ws-subscription-msg,
-#ws-headers {
-    flex: 1;
-    min-width: 110px;
-    text-align: left;
-}
-
-/* HTTP options row mirrors gRPC options row layout */
-.http-options-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 2px 8px;
-    flex-wrap: wrap;
-}
-
-.http-options-row select,
-.http-options-row input[type="text"] {
-    text-align: left;
-}
-
-.http-path-input {
-    max-width: 80px;
-}
-
-/* WebSocket options row mirrors HTTP options row layout */
-.ws-options-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 2px 8px;
-    flex-wrap: wrap;
-}
-
-.ws-options-row select,
-.ws-options-row input[type="text"] {
-    text-align: left;
-}
-
-.ws-options-row select {
-    text-align-last: left;
-}
-
-.ws-path-input {
-    max-width: 80px;
-}
-
-.xmpp-options-row {
-    margin: 4px 8px 2px;
-    border-top: 1px solid var(--border-color);
-    padding-top: 4px;
-}
-
-.xmpp-options-row summary {
-    cursor: pointer;
-    font-weight: 600;
-}
-
 .xmpp-options-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 6px 8px;
-    padding-top: 6px;
 }
 
 .xmpp-options-grid label {
@@ -873,6 +1082,7 @@ button:disabled {
     align-items: center;
     gap: 5px;
     min-width: 0;
+    font-size: 0.9em;
 }
 
 .xmpp-options-grid input[type="text"],
@@ -898,23 +1108,13 @@ button:disabled {
     justify-content: flex-start;
 }
 
-/* The XMPP Advanced disclosure spans the full options grid so its own grid
-   keeps the same column rhythm as the essentials above it. */
-.xmpp-options-grid > .xmpp-advanced {
-    grid-column: 1 / -1;
-}
-
-.xmpp-advanced-grid {
-    padding-top: 6px;
-}
-
 .xmpp-actions {
     display: flex;
     align-items: center;
     justify-content: flex-end;
     gap: 10px;
-    margin-top: 8px;
-    padding-top: 8px;
+    margin: 0 16px;
+    padding-top: 10px;
     border-top: 1px solid var(--border-color);
 }
 
@@ -923,6 +1123,7 @@ button:disabled {
     margin-right: auto;
     overflow-wrap: anywhere;
     font-family: monospace;
+    font-size: 0.85em;
 }
 
 .xmpp-actions .xmpp-check {
@@ -932,18 +1133,37 @@ button:disabled {
     white-space: nowrap;
 }
 
-.xmpp-validation-message {
-    margin-top: 8px;
-    padding: 6px 8px;
-    border-left: 3px solid var(--button-danger-bg, #dc3545);
-    background: color-mix(in srgb, var(--button-danger-bg, #dc3545) 10%, transparent);
-}
-
-.xmpp-options-row [aria-invalid="true"] {
+.protocol-settings-dialog [aria-invalid="true"] {
     border-color: var(--button-danger-bg, #dc3545);
 }
 
+/* Compact layout: the rail becomes a segmented tab strip above the panels. */
 @media (max-width: 760px) {
+    .protocol-settings-body {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .protocol-settings-tablist {
+        flex: 0 0 auto;
+        flex-direction: row;
+        gap: 0;
+        padding: 2px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+    }
+
+    .protocol-settings-tab {
+        flex: 1 1 0;
+        border-radius: 6px;
+        text-align: center;
+        font-size: 0.85em;
+    }
+
+    .protocol-settings-field {
+        flex-basis: 100%;
+    }
+
     .xmpp-options-grid .xmpp-wide {
         grid-column: span 1;
     }
@@ -951,6 +1171,15 @@ button:disabled {
     .xmpp-actions {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    .connection-summary-row {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+
+    .connection-summary-status-btn {
+        max-width: 30vw;
     }
 }
 

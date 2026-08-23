@@ -10,6 +10,7 @@ app.
 ## Table of contents
 
 - [Global shortcuts](#global-shortcuts)
+- [Protocol Settings dialog](#protocol-settings-dialog)
 - [CLI reference dialog (`F3`) shortcuts](#cli-reference-dialog-f3-shortcuts)
 - [Context menu (right-click)](#context-menu-right-click)
 - [Tab navigation](#tab-navigation)
@@ -29,11 +30,27 @@ app.
 | Toggle developer tools | `F12` | `F12` |
 | Toggle inspect element mode | `F11` | `F11` |
 | Configuration dialog | `Cmd+I` | `Ctrl+I` |
+| Protocol Settings dialog | `Cmd+Shift+P` | `Ctrl+Shift+P` |
+| Connection summary | `Cmd+Shift+I` | `Ctrl+Shift+I` |
 | Close open dialog | `Escape` | `Escape` |
 | Quit | `Cmd+Q` | `Ctrl+Q` |
 | Minimize window | `Cmd+M` | `Ctrl+M` |
 | Select all text | `Cmd+A` | `Ctrl+A` |
 | Copy | `Cmd+C` | `Ctrl+C` |
+
+## Protocol Settings dialog
+
+| Action | macOS | Windows / Linux |
+|--------|-------|-----------------|
+| Open or close the dialog | `Cmd+Shift+P` | `Ctrl+Shift+P` |
+| Move between sections | `←` `→` `↑` `↓` | `←` `→` `↑` `↓` |
+| First or last section | `Home` / `End` | `Home` / `End` |
+| Close and keep edits | `Escape` | `Escape` |
+
+`Cmd/Ctrl+Shift+P` and `Cmd/Ctrl+Shift+I` work while a connection field has
+focus, and both reveal the connection row first when it is hidden. Closing the
+dialog always returns focus to the control that opened it. See
+[Connection summary and protocol settings](connection-summary.md).
 
 ## CLI reference dialog (`F3`) shortcuts
 
@@ -69,5 +86,6 @@ Available actions:
 ## Related documentation
 
 - [Repository overview](../README.md)
+- [Connection summary and protocol settings](connection-summary.md)
 - [Command-line reference](command-line.md)
 - [Configuration](configuration.md)
