@@ -24,14 +24,14 @@ app.
 | Clear all logs | `Cmd+Delete` | `Ctrl+Delete` |
 | Toggle auto-scroll | `Cmd+Shift+A` | `Ctrl+Shift+A` |
 | Toggle order (asc/desc) | `Cmd+Shift+O` | `Ctrl+Shift+O` |
-| Help dialog | `F1` | `F1` |
+| Help workspace | `F1` | `F1` |
 | About dialog | `F2` | `F2` |
-| CLI reference dialog | `F3` | `F3` |
+| CLI reference workspace | `F3` | `F3` |
 | Toggle developer tools | `F12` | `F12` |
 | Toggle inspect element mode | `F11` | `F11` |
 | Configuration dialog | `Cmd+I` | `Ctrl+I` |
 | Protocol Settings dialog | `Cmd+Shift+P` | `Ctrl+Shift+P` |
-| Close open dialog | `Escape` | `Escape` |
+| Close the active secondary window | `Escape` | `Escape` |
 | Quit | `Cmd+Q` | `Ctrl+Q` |
 | Minimize window | `Cmd+M` | `Ctrl+M` |
 | Select all text | `Cmd+A` | `Ctrl+A` |

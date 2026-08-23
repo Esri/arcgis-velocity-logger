@@ -24,6 +24,7 @@ const { APP_DEFAULTS, DEFAULT_LOG_LEVEL, parseCommandLineArgs, getCommandLineRef
 const { runHeadlessSession, EXIT_CODES } = require('./headless-runner.js');
 const { registerUdpClient } = require('./udp-utils.js');
 const { createProtocolSettingsWindowManager } = require('./protocol-settings-window-manager.js');
+const { createReferenceWindowManager } = require('./reference-window-manager.js');
 
 function requestGracefulCliExit(exitCode) {
   process.exitCode = exitCode;
@@ -138,7 +139,6 @@ let splashWindow;
 let configWindow;
 let errorWindow;
 let aboutWindow = null;
-let commandLineWindow = null;
 let velocityLoginWindow = null;
 let server;
 let clientSocket;
@@ -192,6 +192,20 @@ const protocolSettingsWindowManager = createProtocolSettingsWindowManager({
   saveAppConfig: (config) => {
     if (configManager) configManager.saveConfig(config);
   },
+  shell,
+});
+const referenceWindowManager = createReferenceWindowManager({
+  BrowserWindow,
+  ipcMain,
+  screen,
+  path,
+  basePath: __dirname,
+  getMainWindow: () => mainWindow,
+  getAppConfig: () => appConfig,
+  saveAppConfig: (config) => {
+    if (configManager) configManager.saveConfig(config);
+  },
+  shell,
 });
 let connectionLineVisible = true; // Track connection line visibility state
 let showMetadataEnabled = false; // Track "Show Metadata" state — logs connection/call metadata for all protocols
@@ -420,6 +434,7 @@ function createWindow() {
 
     mainWindow.on('closed', () => {
       protocolSettingsWindowManager.close({ restoreFocus: false });
+      referenceWindowManager.closeAll();
       mainWindow = null;
     });
 
@@ -488,8 +503,7 @@ async function showAboutDialog() {
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
-    frame: false,
-    alwaysOnTop: true,
+    title: 'About ArcGIS Velocity Logger',
     icon: path.join(__dirname, 'assets', 'icon.png'),
     modal: true,
     parent: mainWindow,
@@ -652,11 +666,7 @@ async function showErrorDialog(error) {
  * Creates and displays the 'Help' dialog window.
  */
 async function showHelpDialog() {
-  let helpWindow = BrowserWindow.getAllWindows().find(w => w.getTitle() === 'Help - ArcGIS Velocity Logger');
-  if (helpWindow) {
-    helpWindow.focus();
-    return;
-  }
+  if (referenceWindowManager.focus('help')) return;
   let theme = 'dark'; // Default theme
   if (mainWindow) {
     try {
@@ -667,35 +677,20 @@ async function showHelpDialog() {
     }
   }
 
-  helpWindow = new BrowserWindow({
-    width: 600,
-    height: 500,
-    resizable: true,
-    minimizable: false,
-    maximizable: false,
-    fullscreenable: false,
-    frame: false,
-    alwaysOnTop: true,
-    icon: path.join(__dirname, 'assets', 'icon.png'),
-    modal: true,
-    parent: mainWindow,
-    show: false, // Initially hide the window
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false
-    }
+  referenceWindowManager.open({
+    key: 'help',
+    title: 'Help - ArcGIS Velocity Logger',
+    file: 'help.html',
+    readyChannel: 'help-dialog-ready',
+    query: { theme },
+    allowedExternalUrlPrefix: 'https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/',
+    defaults: {
+      width: 1080,
+      height: 760,
+      minWidth: 720,
+      minHeight: 500,
+    },
   });
-
-  helpWindow.setMenuBarVisibility(false);
-
-  ipcMain.once('help-dialog-ready', () => {
-    if (helpWindow && !helpWindow.isDestroyed()) {
-      helpWindow.show();
-    }
-  });
-
-  helpWindow.loadFile(path.join(__dirname, 'help.html'), { query: { theme } });
 }
 
 /**
@@ -704,10 +699,7 @@ async function showHelpDialog() {
  * and the markdown command-line guide, keeping docs and in-app help aligned.
  */
 async function showCommandLineDialog() {
-  if (commandLineWindow) {
-    commandLineWindow.focus();
-    return;
-  }
+  if (referenceWindowManager.focus('commandLine')) return;
 
   let theme = 'dark';
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -719,41 +711,19 @@ async function showCommandLineDialog() {
     }
   }
 
-  commandLineWindow = new BrowserWindow({
-    width: 1200,
-    height: 760,
-    resizable: true,
-    minimizable: false,
-    maximizable: false,
-    fullscreenable: false,
-    frame: true,
-    alwaysOnTop: true,
-    icon: path.join(__dirname, 'assets', 'icon.png'),
-    modal: true,
-    parent: mainWindow,
-    show: false,
+  referenceWindowManager.open({
+    key: 'commandLine',
     title: 'Command Line Interface - ArcGIS Velocity Logger',
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
+    file: 'cli.html',
+    readyChannel: 'cli-dialog-ready',
+    query: { theme },
+    defaults: {
+      width: 1200,
+      height: 760,
+      minWidth: 820,
+      minHeight: 520,
     },
   });
-
-  commandLineWindow.setMenuBarVisibility(false);
-  commandLineWindow.setMenu(null);
-
-  ipcMain.once('cli-dialog-ready', () => {
-    if (commandLineWindow && !commandLineWindow.isDestroyed()) {
-      commandLineWindow.show();
-    }
-  });
-
-  commandLineWindow.on('closed', () => {
-    commandLineWindow = null;
-  });
-
-  commandLineWindow.loadFile(path.join(__dirname, 'cli.html'), { query: { theme } });
 }
 
 /**

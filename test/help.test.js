@@ -151,7 +151,35 @@ async function runHelpTests() {
   await new Promise((resolve) => setTimeout(resolve, 50));
 
   console.log('\n--- Test 1: Help dialog content ---');
-  runTest('Help dialog title is rendered', () => document.querySelector('.help-title')?.textContent.includes('ArcGIS Velocity Logger Help'));
+  runTest('Help workspace title is rendered', () => document.querySelector('.help-title')?.textContent.includes('ArcGIS Velocity Logger Help'));
+  runTest('Help workspace renders accessible navigation and search controls', () =>
+    document.querySelector('main#help-content') !== null
+    && document.querySelector('nav[aria-label="Help sections"]') !== null
+    && document.getElementById('help-search')?.getAttribute('type') === 'search');
+  runTest('Help workspace builds a table of contents from task sections', () =>
+    document.querySelectorAll('#help-toc a').length >= 8
+    && document.querySelector('#help-toc a[href="#help-receive-from-xmpp"]') !== null);
+  runTest('Help content opens only scoped documentation links instead of local Markdown', () =>
+    document.querySelector('a[href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/xmpp.md"][target="_blank"][rel="noreferrer"]') !== null
+    && document.querySelector('a[href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/command-line.md"][target="_blank"][rel="noreferrer"]') !== null
+    && !helpHtml.includes('href="../docs/')
+    && !document.body.textContent.includes('Output Type Reference'));
+  runTest('Help search filters sections and its clear control restores them', () => {
+    const search = document.getElementById('help-search');
+    const clear = document.getElementById('help-search-clear');
+    search.value = 'XMPP';
+    search.dispatchEvent(new helpDom.window.Event('input', { bubbles: true }));
+    const xmppSection = document.getElementById('help-receive-from-xmpp').closest('.help-section');
+    const hiddenSections = Array.from(document.querySelectorAll('.help-section')).filter((section) => section.hidden);
+    if (xmppSection.hidden || hiddenSections.length === 0 || clear.disabled) return false;
+    clear.click();
+    return !xmppSection.hidden && clear.disabled === true;
+  });
+  runTest('Ctrl/Cmd+F focuses the Help search', () => {
+    const search = document.getElementById('help-search');
+    document.dispatchEvent(new helpDom.window.KeyboardEvent('keydown', { key: 'f', ctrlKey: true, bubbles: true }));
+    return document.activeElement === search;
+  });
   runTest('Help dialog points users to the dedicated Command Line Interface dialog', () => document.body.textContent.includes('Command Line Interface') && document.body.textContent.includes('F3'));
   runTest('Help dialog close button exists', () => document.getElementById('close-button') !== null);
   runTest('Help dialog signals ready to the main process', () => Array.isArray(global.window._sentMessages) && global.window._sentMessages.some((entry) => entry.channel === 'help-dialog-ready'));
@@ -281,4 +309,3 @@ if (require.main === module) {
 }
 
 module.exports = { runHelpTests };
-

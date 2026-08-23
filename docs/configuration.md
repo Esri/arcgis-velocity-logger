@@ -87,10 +87,15 @@ App Config controls how the application *looks*. Launch Config controls what the
 ### Dialog sizes
 
 - **dialogSizes.appConfig**: Remembered width, height, and position (x, y) of the App Config dialog
+- **dialogSizes.help**: Remembered width, height, and position (x, y) of the Help workspace (default: 1080 x 760)
+- **dialogSizes.commandLine**: Remembered width, height, and position (x, y) of the Command Line Interface workspace (default: 1200 x 760)
 - **dialogSizes.launchConfig**: Remembered width, height, and position (x, y) of the Launch Config dialog
 - **dialogSizes.velocityLogin**: Remembered width, height, and position (x, y) of the ArcGIS Velocity Login & Output Picker dialog (default: 590 x 840)
 
-Size and position are saved automatically when the user resizes or moves either dialog, and restored on next open. When `x` and `y` are `null` (the default), the dialog is centered by the OS.
+Size and position are saved automatically when the user resizes or moves a
+secondary window, and restored on next open. Help and the Command Line
+Interface clamp restored bounds to the available display work area. When `x`
+and `y` are `null` (the default), the window is centered by the OS.
 
 ## Available themes
 
@@ -149,6 +154,7 @@ Configuration is automatically saved when:
 - Font size or family is changed
 - Menu bar visibility is toggled
 - App Config or Launch Config dialog is resized or moved
+- Help or Command Line Interface workspace is resized or moved
 - Application exits
 
 ## Manual editing

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=500, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Help - ArcGIS Velocity Logger</title>
     <link rel="stylesheet" href="./themes.css">
     <link rel="stylesheet" href="./help.css">
@@ -11,502 +11,238 @@
 </head>
 <body>
     <div class="help-container">
-        <div class="help-header">
-            <div class="help-title">ArcGIS Velocity Logger Help</div>
+        <header class="help-header">
+            <div class="help-heading">
+                <p class="help-eyebrow">Reference workspace</p>
+                <h1 class="help-title">ArcGIS Velocity Logger Help</h1>
+                <p class="help-subtitle">Find connection guidance, workflow details, and keyboard shortcuts without leaving the app.</p>
+            </div>
+            <div class="help-search-controls">
+                <label class="sr-only" for="help-search">Search Help</label>
+                <input type="search" id="help-search" class="help-search" placeholder="Search Help" autocomplete="off"
+                    aria-describedby="help-search-status" data-tooltip="Search Help topics and reference content (Cmd/Ctrl+F)" aria-label="Search Help topics and reference content">
+                <button type="button" id="help-search-clear" class="help-search-clear" disabled
+                    data-tooltip="Clear the Help search" aria-label="Clear Help search">Clear</button>
+                <p id="help-search-status" class="sr-only" aria-live="polite"></p>
+            </div>
+        </header>
+
+        <div class="help-workspace">
+            <aside class="help-sidebar" aria-label="Help navigation">
+                <nav class="help-nav" aria-label="Help sections">
+                    <p class="help-nav-title">On this page</p>
+                    <ol id="help-toc" class="help-toc"></ol>
+                </nav>
+            </aside>
+
+            <main class="help-content" id="help-content" tabindex="-1">
+                <section class="help-section">
+                    <h3>Start receiving data</h3>
+                    <p>ArcGIS Velocity Logger captures network data from TCP, UDP, HTTP/HTTPS, WebSocket, gRPC, and XMPP connections. Use it to inspect ArcGIS Velocity outputs, ArcGIS GeoEvent Server integrations, and compatible custom services.</p>
+                    <ol>
+                        <li>Select a <strong>Preset</strong> for a paired local Logger and ArcGIS Velocity Simulator test, or select a connection type.</li>
+                        <li>Confirm the host and port, then select <strong>Settings</strong> for protocol-specific values.</li>
+                        <li>Select <strong>Connect</strong>. Captured data appears in the log area until you disconnect or apply a configured stop condition.</li>
+                    </ol>
+                    <p>A preset only fills editable fields. It never connects, starts capture, saves a password, or changes startup defaults. Selecting <strong>Custom</strong> preserves current values; editing a populated preset changes its label to <strong>Custom (modified)</strong>.</p>
+                </section>
+
+                <section class="help-section">
+                    <h3>Use Protocol Settings</h3>
+                    <p>Select <strong>Settings</strong>, or press <kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd>, to open the resizable Protocol Settings window. The compact connection row holds only preset, connection type, host, port, and connection actions.</p>
+                    <ul>
+                        <li><strong>Basics</strong> contains values needed for the selected protocol, such as format, path, serialization, RPC type, or XMPP conversation and account fields.</li>
+                        <li><strong>Security</strong> contains TLS or STARTTLS policy, certificate paths, certificate verification, and remote binding where applicable.</li>
+                        <li><strong>Advanced</strong> contains optional headers, subscription messages, first-message handling, and XMPP timing values.</li>
+                        <li><strong>Summary</strong> provides the read-only effective connection and warnings. Secrets are shown only as <code>Set (hidden)</code>, <code>Empty</code>, or <code>Not set</code>.</li>
+                    </ul>
+                    <p>Edits apply to the next connection. <strong>Done</strong> and <kbd>Escape</kbd> keep them; <strong>Revert changes</strong> restores the values present when the window opened; <strong>Reset to preset</strong> reapplies a modified preset. While connected, Settings opens read-only in Summary mode.</p>
+                    <p>See the <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/connection-summary.md" target="_blank" rel="noreferrer">connection summary and Protocol Settings guide</a> for the complete behavior.</p>
+                </section>
+
+                <section class="help-section">
+                    <h3>Choose a transport</h3>
+                    <table class="help-table">
+                        <thead>
+                            <tr><th>Transport</th><th>Use it when</th><th>Details</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>TCP / UDP</td><td>You need a direct stream or datagrams.</td><td>Server listens; client receives from a remote server.</td></tr>
+                            <tr><td>HTTP</td><td>A sender POSTs data or a remote endpoint exposes a stream.</td><td>Configure format, path, and optional TLS in Settings.</td></tr>
+                            <tr><td>WebSocket</td><td>You receive a persistent WS or WSS stream.</td><td>Configure path, format, optional subscription message, first-message handling, and headers.</td></tr>
+                            <tr><td>gRPC</td><td>You receive a gRPC stream or host a gRPC endpoint.</td><td>Configure serialization, RPC type, and optional endpoint metadata header.</td></tr>
+                            <tr><td>XMPP</td><td>You receive direct or Multi-User Chat message bodies.</td><td>Configure the account, conversation, STARTTLS, and receiving JID or room.</td></tr>
+                        </tbody>
+                    </table>
+                    <p>For detailed setup, use the owning guides: <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/http.md" target="_blank" rel="noreferrer">HTTP</a>, <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/websocket.md" target="_blank" rel="noreferrer">WebSocket</a>, <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/grpc.md" target="_blank" rel="noreferrer">gRPC</a>, <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/xmpp.md" target="_blank" rel="noreferrer">XMPP</a>, and <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/tls.md" target="_blank" rel="noreferrer">TLS</a>.</p>
+                </section>
+
+                <section class="help-section">
+                    <h3>Configure TLS safely</h3>
+                    <p>Client certificate verification is enabled by default whenever TLS or STARTTLS applies. The explicit <strong>Allow unverified</strong> option accepts an unverified server certificate for any host; traffic remains encrypted, but the server identity is not checked. Keep it off except for a deliberate test such as a local automatic self-signed certificate.</p>
+                    <p>For HTTP, WebSocket, and gRPC, client mode uses the OS certificate store unless a custom CA certificate is supplied. Server-mode TLS requires a certificate and key. An XMPP server uses an automatic self-signed pair only when both certificate and key are empty; configuring only one is an error.</p>
+                    <p>See the <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/tls.md" target="_blank" rel="noreferrer">TLS guide</a> for certificate, trust-store, and mutual TLS guidance.</p>
+                </section>
+
+                <section class="help-section">
+                    <h3>Receive from XMPP</h3>
+                    <p>XMPP uses port <code>5222</code>, Direct conversation, and Required STARTTLS by default. The Logger defaults to server role when XMPP is selected. In client mode, configure the XMPP domain, account, and optional receiving JID filter. In server mode, the live <strong>Receiving JID</strong> is shown after the server starts.</p>
+                    <ul>
+                        <li><strong>Direct</strong> receives one-to-one message bodies. <strong>Room (MUC)</strong> receives groupchat message bodies and requires a room and nickname.</li>
+                        <li>Client passwords and server external-account passwords may be intentionally empty for a local test, but the associated username remains required.</li>
+                        <li>Connect and reply timeouts default to 30000 ms and 15000 ms. Client ping and reconnect intervals default to 60000 ms. Each must be a positive whole number.</li>
+                        <li>For an XMPP Server, <strong>Copy Client Settings</strong> is available only while listening and excludes the password unless you explicitly include it.</li>
+                    </ul>
+                    <p>For a paired local test, select <strong>Local XMPP — Logger Server / Simulator Client</strong> in both applications. Connect the Logger first, then connect and start playback in ArcGIS Velocity Simulator.</p>
+                    <p>Use the <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/xmpp.md" target="_blank" rel="noreferrer">XMPP guide</a> for the full setup, conversation semantics, and troubleshooting steps.</p>
+                </section>
+
+                <section class="help-section">
+                    <h3>Connect to ArcGIS Velocity</h3>
+                    <p>Select the ArcGIS Velocity sign-in control to browse outputs and apply supported connection settings. Applying an output fills the connection mode, host, port, path, TLS, and format when those values are available. Stored passwords and output secrets are never recovered.</p>
+                    <p>After you apply a supported output, the Logger can attach its token to supported gRPC metadata, HTTP headers, and WebSocket upgrade headers. The token is refreshed before it expires and is never displayed in the interface.</p>
+                    <p>See the <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/velocity-login.md" target="_blank" rel="noreferrer">ArcGIS Velocity sign-in guide</a> for output selection and authentication details.</p>
+                </section>
+
+                <section class="help-section">
+                    <h3>Manage captured logs</h3>
+                    <p>Use <strong>Save Logs</strong> to export the captured data and <strong>Clear Logs</strong> to remove entries from the current view. Auto-scroll keeps the newest lines visible; list order switches between oldest-first and newest-first views. Enable <strong>Show Metadata</strong> to add connection or call context before received records.</p>
+                    <p>For automated capture without the user interface, use headless mode. It supports output formats, filters, stop conditions, an output file, and a completion file. See the <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/headless.md" target="_blank" rel="noreferrer">headless capture guide</a>.</p>
+                </section>
+
+                <section class="help-section">
+                    <h3>Use the command-line reference</h3>
+                    <p>Press <kbd>F3</kbd>, select <strong>Help → Command Line Interface</strong>, or use the toolbar action to open the dedicated command-line workspace. It supports text search, quick filters, sortable columns, visible-row copy/export, and example commands.</p>
+                    <p>The terminal equivalents are <code>npm run help:cli</code>, <code>npm run help:cli:wide</code>, and <code>npm run help:cli:narrow</code>. See the <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/command-line.md" target="_blank" rel="noreferrer">command-line reference</a> for every option and the <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/configuration.md" target="_blank" rel="noreferrer">configuration guide</a> for saved settings.</p>
+                </section>
+
+                <section class="help-section">
+                    <h3>Keyboard shortcuts</h3>
+                    <table class="shortcuts-table">
+                        <thead>
+                            <tr><th>Action</th><th>Shortcut</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Open Help</td><td><kbd>F1</kbd></td></tr>
+                            <tr><td>Open About</td><td><kbd>F2</kbd></td></tr>
+                            <tr><td>Open Command Line Interface</td><td><kbd>F3</kbd></td></tr>
+                            <tr><td>Open Protocol Settings</td><td><kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd></td></tr>
+                            <tr><td>Toggle developer tools</td><td><kbd>F12</kbd></td></tr>
+                            <tr><td>Save logs</td><td><kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + <kbd>S</kbd></td></tr>
+                            <tr><td>Clear logs</td><td><kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + <kbd>Delete</kbd></td></tr>
+                            <tr><td>Search this Help workspace</td><td><kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + <kbd>F</kbd> or <kbd>/</kbd></td></tr>
+                            <tr><td>Close the active secondary window</td><td><kbd>Escape</kbd></td></tr>
+                        </tbody>
+                    </table>
+                    <p>See the <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/keyboard-shortcuts.md" target="_blank" rel="noreferrer">keyboard shortcuts guide</a> for the complete list.</p>
+                </section>
+            </main>
         </div>
-        
-        <div class="help-content">
-            <div class="help-section">
-                <h3>Getting Started</h3>
-                <p>Capture and log network data from TCP, UDP, HTTP/HTTPS, WebSocket, gRPC, and XMPP connections. Useful for debugging and monitoring ArcGIS Velocity outputs, ArcGIS GeoEvent Server integrations, and other data sources.</p>
-                <p>The connection row starts with a <strong>Preset</strong> dropdown. Pick a paired Logger and Simulator preset to pre-fill every field for a local test, then review the values and select <strong>Connect</strong>. The row keeps only the fields every protocol shares — preset, connection type, host, and port — and every protocol-specific control lives in the <strong>Protocol Settings</strong> dialog (<kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd>), grouped into <strong>Basics</strong>, <strong>Security</strong>, <strong>Advanced</strong>, and a read-only <strong>Summary</strong>.</p>
-            </div>
 
-            <div class="help-section">
-                <h3>Connection Types</h3>
-                <ul>
-                    <li><strong>TCP Server:</strong> Listen for incoming TCP connections from clients</li>
-                    <li><strong>TCP Client:</strong> Connect to a remote TCP server to receive data</li>
-                    <li><strong>UDP Server:</strong> Listen for incoming UDP datagrams</li>
-                    <li><strong>UDP Client:</strong> Send UDP datagrams to a remote server</li>
-                    <li><strong>HTTP Client:</strong> Send data via HTTP/HTTPS POST requests to a remote endpoint (e.g. an ArcGIS Velocity HTTP Receiver feed). Supports JSON, Delimited (CSV), Esri JSON, GeoJSON, and XML formats.</li>
-                    <li><strong>HTTP Server:</strong> Start a local HTTP/HTTPS server that accepts POST requests from clients. Use for receiving data from the Velocity Simulator or other HTTP senders.</li>
-                    <li><strong>gRPC Server:</strong> Start a local gRPC server that accepts incoming RPC calls. Supports Protobuf, Kryo, and Text serialization.</li>
-                    <li><strong>gRPC Client:</strong> Connect to a remote gRPC server using HTTP/2. Supports Protobuf, Kryo, and Text serialization with client-streaming or unary RPCs.</li>
-                    <li><strong>WebSocket Client:</strong> Connect to a remote WebSocket server (ws:// or wss://) to receive streaming data. Supports JSON, Delimited (CSV), Esri JSON, GeoJSON, and XML formats. Can send a subscription message on connect and optionally ignore the first message.</li>
-                    <li><strong>WebSocket Server:</strong> Start a local WebSocket server (ws:// or wss://) that accepts incoming client connections and receives data. Supports the same 5 formats as the WebSocket client.</li>
-                    <li><strong>XMPP Server:</strong> Start a focused in-process C2S service with one automatic Logger identity and one external account. Receives direct or Multi-User Chat message bodies.</li>
-                    <li><strong>XMPP Client:</strong> Connect to an XMPP service and receive direct or Multi-User Chat message bodies.</li>
-                </ul>
-                <h4>Connection Presets</h4>
-                <p>A preset only pre-fills editable connection fields. It never connects, never starts capture, never saves a password, and never changes the startup defaults. Every field stays editable, and each preset resets the fields it does not use so results are repeatable.</p>
-                <p><strong>Custom</strong> is the default and keeps your current values. Editing any populated field after applying a preset shows <strong>Custom (modified)</strong> with a small <strong>Modified</strong> badge; your edit is kept and re-selecting the preset restores its values.</p>
-                <p>The same twelve identifiers and labels exist in the ArcGIS Velocity Simulator with the roles inverted, so both applications are configured by picking the entry with the same name. Labels naming <em>Logger Server</em> select a Logger server connection type; labels naming <em>Simulator Server</em> select a Logger client connection type.</p>
-                <ul>
-                    <li><strong>Local TCP / Local UDP:</strong> 127.0.0.1:5565.</li>
-                    <li><strong>Local gRPC:</strong> 127.0.0.1:5565, Text serialization, Client Streaming, TLS off.</li>
-                    <li><strong>Local HTTP:</strong> 127.0.0.1:8080, Delimited (CSV), path <code>/</code>, TLS off.</li>
-                    <li><strong>Local WebSocket:</strong> 127.0.0.1:8080, Delimited (CSV), path <code>/</code>, TLS off, no subscription message, first message kept.</li>
-                    <li><strong>Local XMPP:</strong> 127.0.0.1:5222, domain <code>localhost</code>, Direct, Required STARTTLS. The server variant uses external user <code>simulator</code> with an intentionally empty password and Allow remote off; the client variant uses <code>velocity-logger</code> with an intentionally empty password, local JID <code>velocity-logger@localhost</code>, and Allow unverified on.</li>
-                </ul>
-                <h4>Minimal local UX test with Simulator</h4>
-                <p>Select the preset <strong>Local XMPP — Logger Server / Simulator Client</strong> in the Logger and the entry with the same name in the Simulator, then select <strong>Connect</strong> in the Logger and <strong>Connect</strong> and <strong>Play</strong> in the Simulator.</p>
-                <p>The equivalent command line keeps the XMPP defaults for port 5222, domain <code>localhost</code>, Direct conversation, and Required STARTTLS, and leaves both passwords empty. Start the Logger first.</p>
-                <p><strong>Terminal 1 — Logger:</strong></p>
-                <pre><code>npm start -- protocol=xmpp mode=server ip=127.0.0.1 xmppExternalUsername=simulator xmppExternalPassword=</code></pre>
-                <p><strong>Terminal 2 — Simulator:</strong></p>
-                <pre><code>npm start -- filename=/Users/hano4470/Backup/data/faa.csv protocol=xmpp mode=client ip=127.0.0.1 xmppUsername=simulator xmppPassword= xmppDestination=velocity-logger@localhost xmppAllowUnverifiedTls=true</code></pre>
-                <p>Select <strong>Connect</strong> in the Logger, then <strong>Connect</strong> and <strong>Play</strong> in the Simulator. <code>xmppAllowUnverifiedTls=true</code> is an explicit opt-in that accepts the Logger's automatic self-signed certificate while STARTTLS still encrypts the stream. It applies to any host, so leave it off outside local testing.</p>
-            </div>
-
-            <div class="help-section">
-                <h3>XMPP Options</h3>
-                <ul>
-                    <li><strong>Domain / Host:</strong> Domain is the XMPP authentication domain. The primary Host field is the optional network address override.</li>
-                    <li><strong>TLS:</strong> Required (default), Preferred, or Disabled STARTTLS. Preferred is opportunistic and uses a warning badge because it may continue unsecure. Client mode uses OS trust or a custom CA. Server mode accepts a custom certificate/key or generates an ephemeral self-signed certificate.</li>
-                    <li><strong>Client account:</strong> Username, password, resource, and optional local bare JID. Passwords are never logged, and a password may be present but empty for a local test with no shared secret. Usernames and JIDs remain required.</li>
-                    <li><strong>Server account:</strong> The Logger identity is automatic and its live Receiving JID appears after the server starts. Configure one external username/password. Copy Client Settings is available only while listening, includes the Receiving JID as <code>xmppDestination</code>, and excludes the password unless explicitly enabled.</li>
-                    <li><strong>Conversation:</strong> Direct (default) or MUC. MUC requires a bare room JID and nickname; room password is optional. Room history, bodyless stanzas, and self-echoes are ignored.</li>
-                    <li><strong>ArcGIS Velocity outputs:</strong> Applying an XMPP output selects XMPP Client and maps the service endpoint, <code>chat</code> or <code>room</code> connection type, static destination, and timeouts. Dynamic Arcade destinations and receiving credentials must be completed in Protocol Settings; stored secrets are never recovered.</li>
-                    <li><strong>Timing:</strong> Positive values with 30-second connection timeout, 15-second reply timeout, 60-second ping interval, and 60-second reconnect delay by default.</li>
-                    <li><strong>Sections:</strong> Basics holds the domain, conversation, and account and room fields; Security holds the TLS policy, certificate paths, and Allow unverified; Advanced holds Allow remote and the timing values. A failed Connect opens the dialog, selects the owning section, and focuses the offending field.</li>
-                    <li><strong>Safety:</strong> The certificate verification bypass is explicit, off by default, and applies to any host — not only localhost. STARTTLS still encrypts the stream, but the server identity is not checked. Remote server binding is opt-in; wildcard binds are copied as a connectable loopback host.</li>
-                    <li><strong>SASL:</strong> A secure stream uses the server's preferred mechanism, normally SCRAM-SHA-1. An unsecure stream uses a non-PLAIN mechanism, and falls back to PLAIN only when the TLS policy is deliberately set to Disabled. Both PLAIN and SCRAM-SHA-1 accept an empty password.</li>
-                </ul>
-            </div>
-
-            <div class="help-section">
-                <h3>HTTP Options</h3>
-                <ul>
-                    <li><strong>Format:</strong> Controls the Content-Type header — JSON (<code>application/json</code>), Delimited/CSV (<code>text/plain</code>), Esri JSON (<code>application/json</code>), GeoJSON (<code>application/geo+json</code>), or XML (<code>application/xml</code>). Must match the format configured in the ArcGIS Velocity HTTP Receiver feed.</li>
-                    <li><strong>TLS:</strong> Enable HTTPS (port 8443 by default). Uses the OS certificate store automatically in client mode. Server mode requires a certificate and key.</li>
-                    <li><strong>CA cert path:</strong> Custom CA certificate file (PEM). Leave empty to use the OS certificate store. Only needed for enterprise or self-signed CAs.</li>
-                    <li><strong>TLS cert path:</strong> Client or server certificate file (PEM). Required for server-mode TLS; only needed in client mode for mutual TLS (mTLS).</li>
-                    <li><strong>TLS key path:</strong> Private key file (PEM). Required for server-mode TLS and client-side mTLS.</li>
-                    <li><strong>Sections:</strong> Basics holds Format and HTTP Path; Security holds TLS, the CA, certificate, and key paths, and Allow unverified. HTTP has no Advanced section.</li>
-                    <li><strong>Allow unverified:</strong> Client-only warning checkbox shown when TLS is enabled. Accepts an unverified HTTPS server certificate for any host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Off by default.</li>
-                    <li><strong>HTTP Path:</strong> URL path appended after host:port (default <code>/</code>). In server mode, only POST requests matching this path are accepted. In client mode, this path is used in outgoing POST URLs. Set to the Velocity feed's system-generated path (e.g. <code>/receiver/feed-id</code>) when connecting to a real endpoint.</li>
-                </ul>
-            </div>
-
-            <div class="help-section">
-                <h3>WebSocket Options</h3>
-                <ul>
-                    <li><strong>Format:</strong> Controls the expected data format — JSON (<code>application/json</code>), Delimited/CSV (<code>text/plain</code>), Esri JSON (<code>application/json</code>), GeoJSON (<code>application/geo+json</code>), or XML (<code>application/xml</code>).</li>
-                    <li><strong>TLS:</strong> Enable WSS (WebSocket Secure, port 8443 by default). Uses the OS certificate store automatically in client mode. Server mode requires a certificate and key.</li>
-                    <li><strong>CA cert path:</strong> Custom CA certificate file (PEM). Leave empty to use the OS certificate store. Only needed for enterprise or self-signed CAs.</li>
-                    <li><strong>TLS cert path:</strong> Client or server certificate file (PEM). Required for server-mode TLS; only needed in client mode for mutual TLS (mTLS).</li>
-                    <li><strong>TLS key path:</strong> Private key file (PEM). Required for server-mode TLS and client-side mTLS.</li>
-                    <li><strong>Sections:</strong> Basics holds Format and Path; Security holds TLS, the CA, certificate, and key paths, and Allow unverified; Advanced holds the subscription message, Skip 1st, and the custom headers.</li>
-                    <li><strong>Allow unverified:</strong> Client-only warning checkbox shown when TLS is enabled. Accepts an unverified WSS server certificate for any host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Off by default.</li>
-                    <li><strong>Path:</strong> URL path appended after host:port (default <code>/</code>). In server mode, only WebSocket upgrade requests matching this path are accepted. In client mode, this path is used in the outgoing connection URL.</li>
-                    <li><strong>Subscription Message:</strong> Optional text message sent to the server immediately after the WebSocket connection is established. Useful for subscribing to a specific data feed or channel.</li>
-                    <li><strong>Ignore First Message:</strong> When enabled, the first message received after connecting is silently discarded. Useful when the server sends an initial handshake, welcome, or acknowledgement message that is not actual data.</li>
-                    <li><strong>Custom Headers:</strong> Optional JSON object of custom HTTP headers to include in the WebSocket upgrade request (client mode only). Example: <code>{"Authorization": "Bearer token123"}</code>.</li>
-                </ul>
-            </div>
-
-            <div class="help-section">
-                <h3>gRPC Options</h3>
-                <ul>
-                    <li><strong>Serialization:</strong> Protobuf (default, external GrpcFeed protocol), Kryo (internal GrpcFeatureService, binary), or Text (internal GrpcFeatureService, UTF-8 CSV).</li>
-                    <li><strong>RPC Type:</strong> Client Streaming (persistent stream, higher throughput) or Unary (individual request/response per message).</li>
-                    <li><strong>TLS:</strong> Enable TLS for the gRPC connection. Uses the OS certificate store automatically.</li>
-                    <li><strong>Header Path Key / Path:</strong> Custom gRPC metadata header for endpoint routing (client mode only).</li>
-                    <li><strong>Sections:</strong> Basics holds Serialization and RPC Type; Security holds TLS, the CA, certificate, and key paths, and Allow unverified; Advanced holds the client-only endpoint header key and path.</li>
-                    <li><strong>Allow unverified:</strong> Client-only warning checkbox shown when TLS is enabled. Accepts an unverified gRPC server certificate for any host, not only localhost. Traffic stays encrypted, but the server identity is not checked. Off by default.</li>
-                </ul>
-
-                <h3>Velocity Login &amp; Output Picker (🔑)</h3>
-                <p>Click the <strong>🔑</strong> button in the toolbar to sign in to your ArcGIS Velocity organization and browse available outputs. This allows you to auto-populate connection settings without manual configuration.</p>
-                <ul>
-                    <li><strong>Portal URL:</strong> Your ArcGIS Online or Enterprise portal URL (default: <code>https://velocitydemo.maps.arcgis.com</code>).</li>
-                    <li><strong>Username / Password:</strong> ArcGIS account credentials. A token is generated and automatically refreshed before expiry.</li>
-                    <li><strong>OAuth 2.0:</strong> Alternative tab for OAuth client credentials. Currently supported only for HTTP Poller outputs.</li>
-                    <li><strong>My Outputs / ORG Outputs:</strong> Segmented toggle to switch scope. "ORG Outputs" is the default and adds <code>view=admin</code> to fetch all org outputs (requires admin privileges). "My Outputs" returns only your outputs.</li>
-                    <li><strong>Refresh ⟳:</strong> Re-fetches the output list for the current scope without re-authenticating.</li>
-                    <li><strong>Supported / All:</strong> Client-side filter toggle that shows only supported output types by default, or all output types including unsupported ones.</li>
-                    <li><strong>Output Type dropdown:</strong> Filters outputs by type. Each type has a unique icon prefix and colour (see Output Type Reference below).</li>
-                    <li><strong>Output dropdown:</strong> Select a specific output to view its details. Unsupported types shown with ⚠ prefix and muted styling.</li>
-                    <li><strong>Info panel:</strong> Displays the output's label, ID, type (with coloured icon badge), URL, auth type, format, and schema fields.</li>
-                    <li><strong>Apply:</strong> Auto-populates the main window's connection mode, host, port, path, TLS, and format from the selected output. Disabled for unsupported types.</li>
-                    <li><strong>Remember me:</strong> Persists portal URL and username (not password) across sessions.</li>
-                </ul>
-                <p><strong>Authentication:</strong> After applying an output, the Logger automatically attaches a Bearer token to gRPC metadata, HTTP headers, and WebSocket upgrade headers. Token is proactively refreshed at 80% of its lifetime.</p>
-
-                <h4>Output Type Reference</h4>
-                <p>Each output type is shown with a Unicode icon prefix and colour in the dropdowns and info panel:</p>
-                <table class="help-table">
-                    <thead><tr><th>Icon</th><th>Type</th><th>Colour</th><th>Supported</th></tr></thead>
-                    <tbody>
-                        <tr><td style="color:#7c4dff;font-size:1.2em">⬡</td><td><code>grpc</code> — gRPC</td><td><code>#7c4dff</code> purple</td><td>✅</td></tr>
-                        <tr><td style="color:#0097a7;font-size:1.2em">■</td><td><code>http</code> — HTTP</td><td><code>#0097a7</code> teal</td><td>✅</td></tr>
-                        <tr><td style="color:#00897b;font-size:1.2em">◆</td><td><code>websocket</code> — WebSocket</td><td><code>#00897b</code> green</td><td>✅</td></tr>
-                        <tr><td style="color:#546e7a;font-size:1.2em">◗</td><td><code>tcp</code> — TCP</td><td><code>#546e7a</code> slate</td><td>✅</td></tr>
-                        <tr><td style="color:#5e35b1;font-size:1.2em">●</td><td><code>xmpp</code> — XMPP</td><td><code>#5e35b1</code> violet</td><td>✅</td></tr>
-                        <tr><td style="color:#e53935;font-size:1.2em">▲</td><td><code>kafka</code> — Kafka</td><td><code>#e53935</code> red</td><td>❌</td></tr>
-                        <tr><td style="color:#f57c00;font-size:1.2em">◎</td><td><code>mqtt</code> — MQTT</td><td><code>#f57c00</code> orange</td><td>❌</td></tr>
-                        <tr><td style="color:#8d6e63;font-size:1.2em">▣</td><td><code>file</code> — File</td><td><code>#8d6e63</code> brown</td><td>❌</td></tr>
-                        <tr><td style="color:#0078d4;font-size:1.2em">❖</td><td><code>azure-event-hub</code></td><td><code>#0078d4</code> MS blue</td><td>❌</td></tr>
-                        <tr><td style="color:#0062ad;font-size:1.2em">❖</td><td><code>azure-service-bus</code></td><td><code>#0062ad</code> dark blue</td><td>❌</td></tr>
-                    </tbody>
-                </table>
-
-                <h4>Show Metadata - gRPC Client Fields</h4>
-                <p>When <strong>Show Metadata</strong> is enabled, each received data line is preceded by a <code>[metadata]</code> line. In gRPC Client mode the following fields appear:</p>
-                <table class="shortcuts-table">
-                    <thead>
-                        <tr><th>Field</th><th>Values</th><th>Meaning</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><code>protocol</code></td>
-                            <td><code>gRPC</code></td>
-                            <td>Always <code>gRPC</code> for gRPC connections.</td>
-                        </tr>
-                        <tr>
-                            <td><code>mode</code></td>
-                            <td><code>client</code></td>
-                            <td>Always <code>client</code> when the logger is connecting out to a server.</td>
-                        </tr>
-                        <tr>
-                            <td><code>serialization</code></td>
-                            <td><code>protobuf</code>, <code>text</code>, <code>kryo</code></td>
-                            <td>The active serialization format selected in the UI.</td>
-                        </tr>
-                        <tr>
-                            <td><code>method</code></td>
-                            <td><code>stream</code>, <code>unary</code></td>
-                            <td>The configured <strong>RPC Type</strong>. <code>stream</code> = Client Streaming (persistent HTTP/2 stream); <code>unary</code> = discrete request/response per message.</td>
-                        </tr>
-                        <tr>
-                            <td><code>rpc</code></td>
-                            <td><code>Watch</code>, <code>watch</code></td>
-                            <td>
-                                The <strong>server-streaming RPC method</strong> the logger called to subscribe to incoming data — the logger sends one request and the server pushes a continuous stream back.<br>
-                                <code>Watch</code> (capital W) — used with <strong>Protobuf</strong> serialization (<code>GrpcFeed.Watch</code> in <code>velocity-grpc.proto</code>).<br>
-                                <code>watch</code> (lowercase) — used with <strong>Text</strong> and <strong>Kryo</strong> serialization (<code>GrpcFeatureService.watch</code> in <code>feature-service.proto</code>).
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><code>remote</code></td>
-                            <td><em>HOST:PORT</em></td>
-                            <td>The address of the gRPC server the logger connected to.</td>
-                        </tr>
-                        <tr>
-                            <td><code>feature</code></td>
-                            <td><em>N/TOTAL</em></td>
-                            <td>Protobuf only. Which feature within the received batch this data line represents (e.g. <code>feature=1/3</code> = first of three features in one message).</td>
-                        </tr>
-                        <tr>
-                            <td><code>size</code></td>
-                            <td><em>bytes</em></td>
-                            <td>Text / Kryo only. Byte length of the raw payload received.</td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <p>Example metadata line (Protobuf client, one feature in the batch):</p>
-                <pre><code>[metadata] protocol=gRPC mode=client serialization=protobuf method=stream rpc=Watch remote=127.0.0.1:5565 feature=1/1</code></pre>
-
-                <h4>Show Metadata — gRPC Server Fields</h4>
-                <p>In gRPC Server mode one metadata line is emitted per incoming RPC call, showing the call headers sent by the remote client:</p>
-                <table class="shortcuts-table">
-                    <thead>
-                        <tr><th>Field</th><th>Values</th><th>Meaning</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><code>rpc</code></td>
-                            <td><code>Send</code>, <code>Stream</code>, <code>execute</code>, <code>executeMulti</code></td>
-                            <td>
-                                The RPC method the remote client invoked.<br>
-                                <code>Send</code> / <code>Stream</code> — Protobuf (<code>GrpcFeed</code>): unary and client-streaming respectively.<br>
-                                <code>execute</code> / <code>executeMulti</code> — Text / Kryo (<code>GrpcFeatureService</code>): unary and bidirectional-streaming respectively.
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><code>remote</code></td>
-                            <td><em>ipv4:HOST:PORT</em></td>
-                            <td>Remote client address as reported by the gRPC call (e.g. <code>ipv4:127.0.0.1:54321</code>).</td>
-                        </tr>
-                        <tr>
-                            <td><code>local</code></td>
-                            <td><em>HOST:PORT</em></td>
-                            <td>The local bind address and port the server is listening on.</td>
-                        </tr>
-                        <tr>
-                            <td><code>deadline</code></td>
-                            <td><code>none</code> or ISO-8601 timestamp</td>
-                            <td>The call deadline set by the remote client. <code>none</code> if no deadline was specified.</td>
-                        </tr>
-                        <tr>
-                            <td><em>call headers</em></td>
-                            <td><em>key=value …</em></td>
-                            <td>All gRPC call metadata key-value pairs sent by the client (HTTP/2 request headers, e.g. <code>content-type=application/grpc</code>, <code>grpc-path=my.feed.uid</code>).</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="help-section">
-                <h3>Protocol Settings &amp; Connection Summary</h3>
-                <p>Select <strong>Settings</strong> in the connection row, or press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd>, to open the single dialog for the selected protocol. The button carries a numeric chip counting the settings that differ from their defaults. The full configured-state sentence — for example <code>HTTP · 2 changed</code> or <code>TCP · no protocol settings</code> — stays available as the Settings button&rsquo;s tooltip and accessible name. On a narrow window the button drops its label and keeps its icon and badge.</p>
-                <ul>
-                    <li><strong>Basics:</strong> The settings this protocol needs before it can receive data.</li>
-                    <li><strong>Security:</strong> TLS or the STARTTLS policy, certificate verification, and the CA, certificate, and key paths.</li>
-                    <li><strong>Advanced:</strong> Optional settings most connections leave at their defaults — the gRPC endpoint header, the WebSocket subscription message, Skip 1st, headers, and the XMPP Allow remote and timing values.</li>
-                    <li><strong>Summary:</strong> Every connection setting in one read-only list, warnings first. Passwords are never shown.</li>
-                    <li><strong>Sections shown:</strong> Only sections with content for the selected protocol and mode are offered. TCP and UDP have no protocol settings, HTTP has no Advanced section, and a gRPC Server has none either.</li>
-                    <li><strong>Editing:</strong> Edits apply live. <strong>Done</strong> and <kbd>Escape</kbd> keep them, <strong>Revert changes</strong> restores the values the dialog opened with, and <strong>Reset to preset</strong> re-applies the preset the fields started from.</li>
-                    <li><strong>While connected:</strong> The dialog opens read-only in Summary mode with <em>Disconnect to change these settings</em>. Copy Client Settings and Include password stay available for a connected XMPP Server.</li>
-                    <li><strong>Validation:</strong> A failed Connect opens the dialog, selects the section that owns the offending control, focuses it, and explains the problem in an assertive banner.</li>
-                    <li><strong>Keyboard:</strong> Arrow keys move between sections, <kbd>Home</kbd> and <kbd>End</kbd> jump to the first and last, and closing returns focus to the control that opened the dialog.</li>
-                </ul>
-                <p>The full summary is disclosed on demand rather than kept on screen: open Protocol Settings and select its <strong>Summary</strong> tab, where <strong>Copy summary</strong> also lives. Warnings are the exception: whenever one applies, a one-line warning alert appears under the connection row and stays visible even when the connection row is hidden. Secrets are reported only as <code>Set (hidden)</code>, <code>Empty</code>, or <code>Not set</code>, and <strong>Copy summary</strong> never includes a password.</p>
-                <p>Tooltips are shown on deliberate hover only. Resting the pointer on a control for about a second opens its tooltip; moving, typing, scrolling, or selecting anything dismisses it, and it stays suppressed briefly afterwards. Keyboard focus never opens a tooltip visually — the same text is attached to the focused control as an accessible description instead — and hover tooltips stay suppressed while a dialog is open.</p>
-            </div>
-
-            <div class="help-section">
-                <h3>Log Management</h3>
-                <ul>
-                    <li><strong>Save Logs:</strong> Export captured data to text file</li>
-                    <li><strong>Clear Logs:</strong> Remove all log entries</li>
-                    <li><strong>Auto‑Scroll:</strong> Toggle automatic scrolling to newest lines from the header</li>
-                    <li><strong>List Order:</strong> Toggle between ascending (oldest first) and descending (newest first) order</li>
-                    <li><strong>Line Counter:</strong> Track total messages received</li>
-                    <li><strong>Command Line Interface:</strong> <code>&gt;_</code> opens the CLI reference and option builder dialog (F3)</li>
-                </ul>
-            </div>
-
-            <div class="help-section">
-                <h3>Status Bar and Indicators</h3>
-                <p>The footer keeps connection state, TLS, and auth centered. Longer status messages appear in the <strong>Activity Strip</strong>.</p>
-
-                <h4>Activity Strip</h4>
-                <p>Appears after the first activity update. It is in the main layout, pinned by default, filters to connection activity by default, and stores newest-first history. Hover the status text for quick details, or click it to keep the details open while logs update.</p>
-                <table class="shortcuts-table">
-                    <thead><tr><th>Control</th><th>Meaning</th></tr></thead>
-                    <tbody>
-                        <tr><td>▤</td><td>Show or hide the strip.</td></tr>
-                        <tr><td>⌃ / ⌄</td><td>Collapse or expand details.</td></tr>
-                        <tr><td>⇱ / ↑ / ↓ / ⇲</td><td>Navigate newest-first history.</td></tr>
-                        <tr><td>Connection filter</td><td>Switch between connection-only and all activity.</td></tr>
-                        <tr><td>Pin</td><td>Keep visible or auto-hide future updates.</td></tr>
-                    </tbody>
-                </table>
-
-                <h4>TLS Trust Badge</h4>
-                <p>For HTTP, WebSocket, and gRPC, the footer lock mirrors the selected protocol's TLS setting while disconnected. Connected tooltips describe encryption and certificate trust.</p>
-                <table class="shortcuts-table">
-                    <thead><tr><th>Icon</th><th>Colour</th><th>Meaning</th></tr></thead>
-                    <tbody>
-                        <tr><td>🔓</td><td>Grey / dimmed</td><td>No TLS — plaintext, unsecure connection</td></tr>
-                        <tr><td>🔒…</td><td>Blue</td><td>TLS enabled in the UI; certificate trust will be checked after connection</td></tr>
-                        <tr><td>🔒⚠</td><td>Amber / orange</td><td>TLS on, self-signed or cert-chain not verified</td></tr>
-                        <tr><td>🔒</td><td>Amber / orange</td><td>TLS on, OS certificate store (trust level not fully determined)</td></tr>
-                        <tr><td>🔒✓</td><td>Green</td><td>TLS on, CA-verified certificate chain</td></tr>
-                        <tr><td>🔐</td><td>Blue / cyan</td><td>Mutual TLS (mTLS) — both sides present certificates</td></tr>
-                    </tbody>
-                </table>
-
-                <h4>Velocity Auth Badge</h4>
-                <p>The key badge is separate from TLS. It shows token availability and whether new supported client connections send the token. Raw bearer tokens are never displayed.</p>
-                <table class="shortcuts-table">
-                    <thead><tr><th>Badge</th><th>Meaning</th></tr></thead>
-                    <tbody>
-                        <tr><td>🔑 Token On</td><td>A Velocity token is available and will be sent with new supported client connections.</td></tr>
-                        <tr><td>◇ Token Off</td><td>A Velocity token is available, but it will not be sent with new client connections.</td></tr>
-                        <tr><td>⚠ Token Error</td><td>Token refresh failed; sign in again if reconnecting fails.</td></tr>
-                    </tbody>
-                </table>
-
-                <h4>Application States</h4>
-                <table class="shortcuts-table">
-                    <thead>
-                        <tr>
-                            <th>Status</th>
-                            <th>Indicator</th>
-                            <th>Color</th>
-                            <th>Description</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Connected</td>
-                            <td><span class="status-indicator connected">●</span></td>
-                            <td>Green</td>
-                            <td>A successful connection is established, and the application is ready to send or receive data.</td>
-                        </tr>
-                        <tr>
-                            <td>Connecting</td>
-                            <td><span class="status-indicator connecting">●</span></td>
-                            <td>Orange</td>
-                            <td>The application is attempting to establish a connection to the specified host and port.</td>
-                        </tr>
-                        <tr>
-                            <td>Disconnecting</td>
-                            <td><span class="status-indicator disconnecting">●</span></td>
-                            <td>Orange</td>
-                            <td>The application is in the process of closing the current connection.</td>
-                        </tr>
-                        <tr>
-                            <td>Disconnected</td>
-                            <td><span class="status-indicator disconnected">●</span></td>
-                            <td>Grey</td>
-                            <td>The application is not connected. This is the default state before a connection is initiated or after a connection is successfully closed.</td>
-                        </tr>
-                        <tr>
-                            <td>Error</td>
-                            <td><span class="status-indicator error">●</span></td>
-                            <td>Red</td>
-                            <td>An error has occurred, such as a connection failure or configuration issue. Check the status message for more details.</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="help-section">
-                <h3>Customization</h3>
-                <h4>Themes</h4>
-                <p>15 built-in themes: 🔵 Blue, 🟡 Color Blind, 🌙 Dark, 🌫️ Dark Gray, 🟢 Green, ⚫ High Contrast, ☀️ Light, ☁️ Light Gray, 🌌 Midnight, ☕ Mocha, 🌊 Ocean, 🌸 Rose, 🌺 Rose Dark, 🌅 Sunset, 💻 System. Access via theme dropdown or right-click context menu.</p>
-                <p>Themes are loaded dynamically from per‑theme CSS files. If loading fails, a minimal dark fallback ensures a usable UI.</p>
-
-                <h4>Font Settings</h4>
-                <ul>
-                    <li><strong>Font Size:</strong> 6px to 25px (default: 13px)</li>
-                    <li><strong>Font Family:</strong> monospace, Arial, Helvetica, Georgia, and others</li>
-                </ul>
-                <p>All settings are automatically saved and restored.</p>
-            </div>
-
-            <div class="help-section shortcuts-section">
-                <h3>Keyboard Shortcuts</h3>
-                <p>The following keyboard shortcuts are available for quick access to common actions:</p>
-                <h4>File Operations</h4>
-                <table class="shortcuts-table">
-                    <thead>
-                        <tr>
-                            <th>Action</th>
-                            <th>Windows/Linux</th>
-                            <th>macOS</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Save Logs</td>
-                            <td><kbd>Ctrl</kbd> + <kbd>S</kbd></td>
-                            <td><kbd>Cmd</kbd> + <kbd>S</kbd></td>
-                        </tr>
-                        <tr>
-                            <td>Clear Logs</td>
-                            <td><kbd>Ctrl</kbd> + <kbd>C</kbd></td>
-                            <td><kbd>Cmd</kbd> + <kbd>C</kbd></td>
-                        </tr>
-
-                        <tr>
-                            <td>Save Config As...</td>
-                            <td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd></td>
-                            <td><kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd></td>
-                        </tr>
-                        <tr>
-                            <td>Load Config</td>
-                            <td><kbd>Ctrl</kbd> + <kbd>O</kbd></td>
-                            <td><kbd>Cmd</kbd> + <kbd>O</kbd></td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <h4>Interface & Navigation</h4>
-                <table class="shortcuts-table">
-                    <thead>
-                        <tr>
-                            <th>Action</th>
-                            <th>Shortcut</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Open Help Dialog</td>
-                            <td><kbd>F1</kbd></td>
-                        </tr>
-                        <tr>
-                            <td>Open About Dialog</td>
-                            <td><kbd>F2</kbd></td>
-                        </tr>
-                        <tr>
-                            <td>Open Command Line Interface Dialog</td>
-                            <td><kbd>F3</kbd></td>
-                        </tr>
-                        <tr>
-                            <td>Toggle Developer Tools</td>
-                            <td><kbd>F12</kbd></td>
-                        </tr>
-                        <tr>
-                            <td>Toggle Auto‑Scroll</td>
-                            <td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd> (macOS: <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd>)</td>
-                        </tr>
-                        <tr>
-                            <td>Toggle Order (Asc/Desc)</td>
-                            <td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>O</kbd> (macOS: <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>O</kbd>)</td>
-                        </tr>
-                        <tr>
-                            <td>Show Config Dialog</td>
-                            <td><kbd>Ctrl</kbd> + <kbd>I</kbd> or <kbd>Cmd</kbd> + <kbd>I</kbd></td>
-                        </tr>
-                        <tr>
-                            <td>Open Protocol Settings Dialog</td>
-                            <td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd> (macOS: <kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd>)</td>
-                        </tr>
-                        <tr>
-                            <td>Close Any Dialog</td>
-                            <td><kbd>Escape</kbd></td>
-                        </tr>
-                        <tr>
-                            <td>Open Context Menu</td>
-                            <td><kbd>Right-click</kbd></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="help-section">
-                <h3>Command Line Interface</h3>
-                <p>The logger can run from the command line in normal UI mode or in a truly headless mode with no GUI. Press <kbd>F3</kbd>, or choose <strong>Help → Command Line Interface</strong>, or use the toolbar button (<code>&gt;_</code>), or the context menu, to open a dedicated searchable dialog listing every command-line parameter, its default, whether it is required in headless mode, and an example.</p>
-                <ul>
-                    <li><strong>Search + quick filters:</strong> filter by parameter text and switch among All, Required, Optional, Headless-only, and Help-related parameters.</li>
-                    <li><strong>Active filter pills:</strong> see the current search, category, and sort state at a glance and clear search/category filters directly from the pill row.</li>
-                    <li><strong>Copy / export tools:</strong> copy example commands, copy visible rows, or export visible rows as <code>TSV</code>, <code>CSV</code>, <code>Markdown</code>, or <code>JSON</code>.</li>
-                    <li><strong>Collapsible panels:</strong> the <strong>Behavior &amp; Help Layouts</strong> and <strong>Notes</strong> sections start collapsed so the main table and examples stay in view.</li>
-                    <li><strong>Resizable table area:</strong> drag the parameter table taller or shorter inside the dialog as needed.</li>
-                    <li><strong>Wider first-open layout:</strong> the dialog opens wider by default so the built-in example commands are easier to read immediately.</li>
-                </ul>
-                <p>For terminal help use <code>npm run help:cli</code>, <code>npm run help:cli:wide</code>, or <code>npm run help:cli:narrow</code>. See <code>docs/command-line.md</code> and <code>docs/headless.md</code> for full details.</p>
-            </div>
-
-            <div class="help-section">
-                <h3>Window Opacity</h3>
-                <p>Adjust window transparency from 50% to 100% via right-click context menu. Settings are automatically saved.</p>
-            </div>
-        </div>
-        
-        <div class="help-footer">
-            <button class="help-close" id="close-button">Close</button>
-        </div>
+        <footer class="help-footer">
+            <span class="help-footer-hint"><kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + <kbd>F</kbd> searches · <kbd>Escape</kbd> closes</span>
+            <button class="help-close" id="close-button" data-tooltip="Close Help (Escape)" aria-label="Close Help">Close</button>
+        </footer>
     </div>
-    
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const params = new URLSearchParams(window.location.search);
             const theme = params.get('theme') || 'theme-dark';
-            if (window.themeLoader) {
-              window.themeLoader.loadTheme(theme);
-            } else {
-              // Fallback to old method if theme loader is not available
-              document.body.className = theme;
+            if (window.themeLoader) window.themeLoader.loadTheme(theme);
+            else document.body.className = theme;
+
+            const searchInput = document.getElementById('help-search');
+            const clearSearchButton = document.getElementById('help-search-clear');
+            const searchStatus = document.getElementById('help-search-status');
+            const toc = document.getElementById('help-toc');
+            const sections = Array.from(document.querySelectorAll('.help-section'));
+            const headings = sections.flatMap((section) =>
+                Array.from(section.querySelectorAll('h3')).filter((heading) => heading.parentElement === section));
+            const tocLinks = new Map();
+
+            const makeHeadingId = (heading, index) => {
+                if (heading.id) return heading.id;
+                const slug = heading.textContent.trim().toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                return `help-${slug || index + 1}`;
+            };
+            const setActiveSection = (id) => {
+                tocLinks.forEach((link, headingId) => {
+                    const isActive = headingId === id;
+                    link.classList.toggle('is-active', isActive);
+                    if (isActive) link.setAttribute('aria-current', 'location');
+                    else link.removeAttribute('aria-current');
+                });
+            };
+
+            headings.forEach((heading, index) => {
+                const id = makeHeadingId(heading, index);
+                heading.id = id;
+                const item = document.createElement('li');
+                const link = document.createElement('a');
+                link.href = `#${id}`;
+                link.textContent = heading.textContent.trim();
+                link.addEventListener('click', () => setActiveSection(id));
+                item.appendChild(link);
+                toc.appendChild(item);
+                tocLinks.set(id, link);
+            });
+
+            const filterSections = () => {
+                const query = searchInput.value.trim().toLocaleLowerCase();
+                let visible = 0;
+                sections.forEach((section) => {
+                    const matches = !query || section.textContent.toLocaleLowerCase().includes(query);
+                    section.hidden = !matches;
+                    const heading = Array.from(section.querySelectorAll('h3'))
+                        .find((candidate) => candidate.parentElement === section);
+                    if (heading) tocLinks.get(heading.id).parentElement.hidden = !matches;
+                    if (matches) visible += 1;
+                });
+                clearSearchButton.disabled = !query;
+                searchStatus.textContent = query
+                    ? `${visible} of ${sections.length} Help sections match "${searchInput.value.trim()}".`
+                    : `${sections.length} Help sections available.`;
+                const firstVisibleHeading = headings.find((heading) => !heading.closest('.help-section').hidden);
+                if (firstVisibleHeading) setActiveSection(firstVisibleHeading.id);
+            };
+
+            searchInput.addEventListener('input', filterSections);
+            clearSearchButton.addEventListener('click', () => {
+                searchInput.value = '';
+                filterSections();
+                searchInput.focus();
+            });
+            filterSections();
+            if (window.location.hash) setActiveSection(window.location.hash.slice(1));
+            else if (headings[0]) setActiveSection(headings[0].id);
+
+            if ('IntersectionObserver' in window) {
+                const observer = new IntersectionObserver((entries) => {
+                    const visibleEntry = entries.filter((entry) => entry.isIntersecting)
+                        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+                    if (visibleEntry) setActiveSection(visibleEntry.target.id);
+                }, {
+                    root: document.getElementById('help-content'),
+                    rootMargin: '-12% 0px -72% 0px',
+                    threshold: [0, 0.25, 0.75],
+                });
+                headings.forEach((heading) => observer.observe(heading));
             }
 
-            // Signal that the dialog is ready to be shown
+            document.addEventListener('keydown', (event) => {
+                const target = event.target;
+                const isEditing = target instanceof HTMLInputElement
+                    || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
+                if ((event.key === 'f' && (event.metaKey || event.ctrlKey))
+                    || (event.key === '/' && !isEditing)) {
+                    event.preventDefault();
+                    searchInput.focus();
+                    searchInput.select();
+                }
+            });
+
             window.electronAPI.send('help-dialog-ready');
         });
 
@@ -514,7 +250,6 @@
             window.electronAPI.send('close-dialog');
         });
 
-        // Allow closing with the Escape key
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') {
                 event.preventDefault();
@@ -523,6 +258,6 @@
             }
         });
     </script>
-  <script src="tooltip-utils.js"></script>
+    <script src="tooltip-utils.js"></script>
 </body>
 </html>

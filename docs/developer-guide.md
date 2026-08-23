@@ -15,6 +15,7 @@ assumes Node.js 18 or later with dependencies installed via `npm install`.
 - [Testing](#testing)
 - [Documentation checks](#documentation-checks)
 - [Debugging](#debugging)
+- [Secondary window policy](#secondary-window-policy)
 - [Logging](#logging)
 - [Common failures](#common-failures)
 - [Extending the app](#extending-the-app)
@@ -112,7 +113,7 @@ process and exits non-zero if any file fails.
 |---|---|
 | `npm test` | Every suite |
 | `npm run test:cli` | CLI parsing, mode resolution, aliases, config-file merge, validation |
-| `npm run test:help` | Help dialog and Command Line Interface dialog interactions |
+| `npm run test:help` | Help workspace and Command Line Interface interactions |
 | `npm run test:headless-runner` | Output formats, stop conditions, filters, `doneFile`, exit codes |
 | `npm run test:grpc` | gRPC transport across all serialization formats and both directions |
 | `npm run test:summary` | Connection summary rows, URL composition, secret redaction, warnings, and the settings chip |
@@ -135,6 +136,7 @@ node test/format-utils.test.js
 node test/external-sign.test.js
 node test/sign-lock.test.js
 node test/protocol-settings-window.test.js
+node test/reference-window-manager.test.js
 ```
 
 `protocol-settings-window.test.js` covers the detached window: secure
@@ -143,6 +145,13 @@ persistence, sanitized IPC payloads for state, commands, and events, the
 dedicated preload's narrow allowlist, the DOM mirror's property, attribute,
 text, and structural replay, and the detached renderer's edit, tab, button,
 focus, and Escape reporting.
+
+`reference-window-manager.test.js` covers the Help and Command Line Interface
+workspace policy: framed non-modal options, secure web preferences, bounds
+clamping and persistence, focus-on-reopen, ready lifecycle, and closing both
+workspaces when the main window closes. Help documentation links use one
+allowlisted GitHub documentation prefix and open externally through the
+manager; every other new-window request is denied.
 
 Run the smallest suite that covers your change first, then `npm test` before
 committing.
@@ -179,6 +188,9 @@ directly in a browser:
 - Command Line Interface dialog: press `F3`, then verify search, quick filter
   chips, active filter pills, sortable columns, copy and export, and dragging
   the bottom edge of the table to resize it.
+- Help workspace: press `F1`, confirm its table of contents follows the active
+  section, search with `Cmd/Ctrl+F` or `/`, resize or maximize it, then reopen
+  it and confirm the existing window receives focus.
 - Protocol Settings: press `Cmd/Ctrl+Shift+P`, then verify the section
   tabs, arrow-key navigation, **Revert changes**, **Reset to preset**, and that
   `Escape` closes the window, keeps the edits, and returns focus to the
@@ -236,6 +248,28 @@ Headless mode never creates a window, so attach to the main process only:
 electron --inspect-brk=9229 . runMode=headless \
   protocol=tcp mode=server ip=0.0.0.0 port=9000 logLevel=debug
 ```
+
+## Secondary window policy
+
+The application assigns each secondary surface a role before choosing its
+window behavior. Reference workspaces are independent of a single task:
+**Help** (`F1`), **Command Line Interface** (`F3`), and Protocol Settings are
+framed, non-modal, resizable windows with native close, minimize, and maximize
+controls. Help and the Command Line Interface use
+`reference-window-manager.js` to clamp and persist bounds under
+`dialogSizes.help` and `dialogSizes.commandLine`; reopening either restores and
+focuses its existing window. Closing the main window closes both workspaces.
+
+Task and alert surfaces remain child dialogs where blocking the main workflow is
+appropriate: App Config, Launch Config, ArcGIS Velocity sign-in, unexpected
+errors, and About. They retain normal native close affordances and their
+existing platform-specific modality and focus behavior. The sign-in window
+deliberately hides on close so an in-progress authentication and output
+selection remain available on reopen.
+The startup splash is intentionally frameless, non-resizable, and always on
+top only while the main window is loading. The in-document Protocol Settings
+dialog and error overlay remain fallbacks for non-Electron test environments;
+the running application uses their dedicated window or inline status treatment.
 
 Useful bounds while debugging a headless session: `logLevel=debug`,
 `logFile=./runner.log`, `doneFile=./cap.done.json`, `idleTimeoutMs=5000`, and

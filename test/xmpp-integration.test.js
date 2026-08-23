@@ -261,12 +261,11 @@ test('UI and help expose XMPP controls, accessibility, lifecycle and TLS', () =>
   assert.ok(renderer.includes("accountPassword.value = ''"));
   assert.ok(renderer.includes("roomPassword.value = ''"));
   assert.ok(help.includes('XMPP'));
-  assert.ok(help.includes('/Users/hano4470/Backup/data/faa.csv'));
-  assert.ok(help.includes('xmppExternalUsername=simulator xmppExternalPassword='));
-  assert.ok(help.includes('xmppUsername=simulator xmppPassword='));
-  assert.ok(help.includes('xmppDestination=velocity-logger@localhost xmppAllowUnverifiedTls=true'));
+  assert.ok(help.includes('<code>5222</code>'));
   assert.ok(help.includes('Local XMPP — Logger Server / Simulator Client'));
-  assert.ok(help.includes('a password may be present but empty'));
+  assert.ok(help.includes('passwords may be intentionally empty'));
+  assert.ok(help.includes('Copy Client Settings'));
+  assert.doesNotMatch(help, /\/Users\/[^<\s]+/);
   assert.doesNotMatch(help, /loopback-only certificate bypass/);
 });
 
