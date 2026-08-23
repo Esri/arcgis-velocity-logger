@@ -19,11 +19,12 @@ let passed = 0;
 const SOURCE_DIR = path.join(__dirname, '..', 'src');
 const indexHtml = fs.readFileSync(path.join(SOURCE_DIR, 'index.html'), 'utf8');
 const rendererSource = fs.readFileSync(path.join(SOURCE_DIR, 'renderer.js'), 'utf8');
+const mainSource = fs.readFileSync(path.join(SOURCE_DIR, 'main.js'), 'utf8');
 const styleCss = fs.readFileSync(path.join(SOURCE_DIR, 'style.css'), 'utf8');
 const presetsSource = fs.readFileSync(path.join(SOURCE_DIR, 'connection-presets.js'), 'utf8');
 const summarySource = fs.readFileSync(path.join(SOURCE_DIR, 'connection-summary.js'), 'utf8');
 
-async function withRenderer(run) {
+async function withRenderer(run, options = {}) {
   const html = indexHtml.replace(/<script[\s\S]*?<\/script>/g, '');
   const listeners = new Map();
   const sent = [];
@@ -35,12 +36,26 @@ async function withRenderer(run) {
     invoke: async () => ({ success: true }),
     openVelocityLogin() {},
   };
+  if (options.detached) {
+    window.protocolSettingsHost = {
+      open(payload) { sent.push({ channel: 'protocol-window-open', payload }); },
+      close() { sent.push({ channel: 'protocol-window-close' }); },
+      sync(payload) { sent.push({ channel: 'protocol-window-sync', payload }); },
+      command(payload) { sent.push({ channel: 'protocol-window-command', payload }); },
+      onReady(callback) { listeners.set('protocol-window-ready', callback); },
+      onClosed(callback) { listeners.set('protocol-window-closed', callback); },
+      onEvent(callback) { listeners.set('protocol-window-event', callback); },
+    };
+  }
   window.VelocityAuthUtils = {
     shouldSendVelocityTokenByDefault: () => false,
     describeVelocityAuthType: (value) => value || 'not specified',
   };
   window.eval(presetsSource);
   window.eval(summarySource);
+  if (options.detached) {
+    window.eval(fs.readFileSync(path.join(SOURCE_DIR, 'protocol-settings-mirror.js'), 'utf8'));
+  }
   window.eval(rendererSource);
   await new Promise((resolve) => window.addEventListener('DOMContentLoaded', resolve, { once: true }));
   const helpers = {
@@ -91,9 +106,9 @@ async function withRenderer(run) {
   }
 }
 
-async function uiTest(name, fn) {
+async function uiTest(name, fn, options) {
   try {
-    await withRenderer(fn);
+    await withRenderer(fn, options);
     passed += 1;
     console.log(`  ✓ ${name}`);
   } catch (error) {
@@ -119,7 +134,7 @@ console.log('protocol-settings-dialog.test.js');
 // Source structure
 // ---------------------------------------------------------------------------
 
-test('the dialog is a native in-window dialog nested inside the connection controls', () => {
+test('the authoritative native dialog remains nested as the non-Electron fallback', () => {
   const { document } = new JSDOM(indexHtml).window;
   const dialog = document.getElementById('protocol-settings-dialog');
   assert.ok(dialog, 'protocol-settings-dialog must exist');
@@ -127,7 +142,9 @@ test('the dialog is a native in-window dialog nested inside the connection contr
   assert.ok(document.querySelector('.connection-controls > #protocol-settings-dialog'),
     'the dialog must be a child of .connection-controls so delegated preset events still fire');
   assert.strictEqual(dialog.getAttribute('aria-labelledby'), 'protocol-settings-title');
-  assert.doesNotMatch(rendererSource, /BrowserWindow/, 'the dialog must not be an Electron window');
+  assert.doesNotMatch(rendererSource, /new BrowserWindow/, 'the renderer must not construct Electron windows');
+  assert.match(mainSource, /createProtocolSettingsWindowManager/,
+    'production must delegate the dedicated window to the main-process manager');
 });
 
 test('every protocol-specific control lives in the dialog exactly once', () => {
@@ -232,6 +249,45 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
     assert.strictEqual(document.getElementById('http-format').value, 'json', 'Done keeps the edit');
     assert.strictEqual(document.activeElement.id, 'protocol-settings-btn', 'focus returns to the opener');
   });
+
+  await uiTest('the dedicated window mirrors authoritative state and replays immediate edits', async ({
+    document, select, listeners, sent,
+  }) => {
+    select('connection-type', 'http-client');
+    document.getElementById('protocol-settings-btn').click();
+    assert.strictEqual(document.getElementById('protocol-settings-dialog').open, false,
+      'production keeps the in-document fallback closed');
+    assert.strictEqual(sent.filter(({ channel }) => channel === 'protocol-window-open').length, 1);
+    assert.strictEqual(document.getElementById('protocol-settings-btn').getAttribute('aria-expanded'), 'true');
+
+    listeners.get('protocol-window-ready')();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const sync = sent.find(({ channel }) => channel === 'protocol-window-sync');
+    assert.ok(sync, 'the ready window receives authoritative DOM state');
+    assert.ok(sync.payload.patches.length > 0, 'the first sync contains the full structure');
+    assert.ok(sent.some(({ channel }) => channel === 'protocol-window-command'),
+      'initial focus is sent to the detached window');
+
+    const event = listeners.get('protocol-window-event');
+    event({ type: 'input', id: 'http-path', value: '/detached' });
+    event({ type: 'change', id: 'http-path', value: '/detached' });
+    assert.strictEqual(document.getElementById('http-path').value, '/detached');
+    assert.strictEqual(document.getElementById('protocol-settings-revert').disabled, false);
+    event({ type: 'click', id: 'protocol-settings-tab-summary' });
+    assert.strictEqual(
+      document.getElementById('protocol-settings-tab-summary').getAttribute('aria-selected'),
+      'true',
+    );
+    event({ type: 'click', id: 'protocol-settings-revert' });
+    assert.strictEqual(document.getElementById('http-path').value, '/');
+
+    document.getElementById('protocol-settings-btn').click();
+    assert.strictEqual(sent.filter(({ channel }) => channel === 'protocol-window-open').length, 2,
+      'reopening asks main to focus the existing window');
+    event({ type: 'close' });
+    assert.strictEqual(sent.filter(({ channel }) => channel === 'protocol-window-close').length, 1);
+    assert.strictEqual(document.getElementById('protocol-settings-btn').getAttribute('aria-expanded'), 'false');
+  }, { detached: true });
 
   await uiTest('Escape closes the dialog and keeps the edits', async ({ document, select, key, window }) => {
     select('connection-type', 'ws-client');
@@ -456,6 +512,8 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
     key(document.body, 'P', { ctrlKey: true, shiftKey: true });
     assert.strictEqual(dialog.open, true);
     key(document.body, 'P', { ctrlKey: true, shiftKey: true });
+    assert.strictEqual(dialog.open, true, 'reopening focuses the existing settings surface');
+    key(document.body, 'Escape');
     assert.strictEqual(dialog.open, false);
 
     key(document.body, 'I', { ctrlKey: true, shiftKey: true });

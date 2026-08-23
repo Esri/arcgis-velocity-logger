@@ -102,7 +102,7 @@ fields without marking the state as modified, because it is not a manual edit.
 
 A preset fills fields in two places. The connection row keeps the shared
 fields — preset, connection type, host, and port — and every protocol-specific
-field lives in the **Protocol Settings** dialog, grouped into sections:
+field lives in **Protocol Settings**, grouped into sections:
 
 | Protocol | Basics | Security | Advanced |
 |---|---|---|---|
@@ -111,14 +111,14 @@ field lives in the **Protocol Settings** dialog, grouped into sections:
 | WebSocket | Format, path | TLS, CA/certificate/key paths, Allow unverified | Subscription message, Skip 1st, headers |
 | XMPP | Domain, conversation, account and room fields | TLS policy, CA/certificate/key paths, Allow unverified, Allow remote | Timing values |
 
-TCP and UDP have no protocol settings, so their dialog offers only the
-read-only **Summary** section.
+TCP and UDP have no protocol settings, so their Protocol Settings offers only
+the read-only **Summary** section.
 
-No field required to connect is hidden: a failed **Connect** opens the dialog,
-selects the section that owns the offending control, and focuses it. Applying a
-preset never opens the dialog; when a preset turns on an explicit certificate
-bypass, the dialog pre-selects **Security** so the warning-valued setting leads
-the next time it is opened. See
+No field required to connect is hidden: a failed **Connect** opens Protocol
+Settings, selects the section that owns the offending control, and focuses it.
+Applying a preset never opens Protocol Settings; when a preset turns on an
+explicit certificate bypass, Protocol Settings pre-selects **Security** so the
+warning-valued setting leads the next time it is opened. See
 [Connection summary and protocol settings](connection-summary.md).
 
 ## Minimal local test with the Simulator

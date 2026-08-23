@@ -626,10 +626,74 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastConnectionSummary = null;
     let lastRenderedProtocol = '';
     let xmppReceivingJidValue = '';
+    // The running app mirrors this authoritative dialog into a dedicated
+    // BrowserWindow. jsdom and other non-Electron environments keep using the
+    // native dialog directly, so all existing behavior has one fallback path.
+    const protocolSettingsHost = window.protocolSettingsHost || null;
+    const protocolSettingsMirrorApi = window.ProtocolSettingsMirror || null;
+    const useProtocolSettingsWindow = Boolean(protocolSettingsHost
+        && protocolSettingsMirrorApi && protocolSettingsDialog);
+    const protocolSettingsSource = useProtocolSettingsWindow
+        ? protocolSettingsMirrorApi.createProtocolSettingsSource(protocolSettingsDialog)
+        : null;
+    let protocolSettingsWindowOpen = false;
+    let protocolSettingsWindowReady = false;
+    let protocolSettingsSyncQueued = false;
+    let pendingProtocolSettingsFocus = null;
+    let protocolSettingsAcknowledgedRevision = 0;
 
     /** @returns {boolean} true while the dialog is showing */
     function isProtocolSettingsOpen() {
+        if (useProtocolSettingsWindow) return protocolSettingsWindowOpen;
         return Boolean(protocolSettingsDialog && protocolSettingsDialog.open);
+    }
+
+    /** @returns {object} the theme and title applied by the mirrored window */
+    function buildProtocolSettingsMeta() {
+        const themeLink = document.getElementById('current-theme-stylesheet');
+        const heading = lastConnectionSummary ? lastConnectionSummary.title : 'Protocol Settings';
+        return {
+            title: `${heading} — ${document.title}`,
+            bodyClass: document.body.className,
+            themeHref: themeLink ? themeLink.getAttribute('href') : '',
+        };
+    }
+
+    /** Pushes changed authoritative DOM state to the window once per frame. */
+    function scheduleProtocolSettingsSync() {
+        if (!useProtocolSettingsWindow || !protocolSettingsWindowOpen
+            || !protocolSettingsWindowReady || protocolSettingsSyncQueued) return;
+        protocolSettingsSyncQueued = true;
+        const flush = () => {
+            protocolSettingsSyncQueued = false;
+            if (!protocolSettingsWindowOpen || !protocolSettingsWindowReady) return;
+            const captured = protocolSettingsSource.capture();
+            protocolSettingsHost.sync({
+                meta: buildProtocolSettingsMeta(),
+                patches: captured.patches,
+                entries: captured.entries,
+                ackRevision: protocolSettingsAcknowledgedRevision,
+            });
+            if (pendingProtocolSettingsFocus !== null) {
+                protocolSettingsHost.command({ type: 'focus', path: pendingProtocolSettingsFocus });
+                pendingProtocolSettingsFocus = null;
+            }
+        };
+        if (typeof requestAnimationFrame === 'function') requestAnimationFrame(flush);
+        else setTimeout(flush, 0);
+    }
+
+    /** Moves focus to an authoritative control or its mirrored counterpart. */
+    function focusProtocolSettingsControl(element) {
+        if (!element) return;
+        if (useProtocolSettingsWindow && protocolSettingsWindowOpen
+            && protocolSettingsDialog.contains(element)) {
+            pendingProtocolSettingsFocus = protocolSettingsMirrorApi
+                .describePath(protocolSettingsDialog, element);
+            scheduleProtocolSettingsSync();
+            return;
+        }
+        element.focus?.();
     }
 
     /** @returns {Array<Element>} every editable control the dialog owns */
@@ -687,7 +751,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tab.classList.toggle('active', selected);
             const panel = document.getElementById(tab.getAttribute('aria-controls'));
             if (panel) panel.hidden = !selected;
-            if (selected && options.focus) tab.focus();
+            if (selected && options.focus) focusProtocolSettingsControl(tab);
         });
     }
 
@@ -846,6 +910,7 @@ document.addEventListener('DOMContentLoaded', () => {
             protocolSettingsBtn.dataset.tooltip = tooltip;
             protocolSettingsBtn.setAttribute('aria-label', `Protocol Settings for ${summary.connectionTypeLabel}: ${summary.settings.label}`);
         }
+        scheduleProtocolSettingsSync();
         return summary;
     }
 
@@ -909,6 +974,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         updateProtocolSectionAvailability();
         updateProtocolSettingsFooter();
+        scheduleProtocolSettingsSync();
     }
 
     /** Enables Revert and Reset only when they have something to restore. */
@@ -926,6 +992,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? `Restore every field of "${presetLabel}", the preset these settings started from.`
                 : 'Restore every field of the preset these settings started from. Available only after a preset is applied and edited.';
         }
+        scheduleProtocolSettingsSync();
     }
 
     /** Moves focus to the first control a reader should act on. */
@@ -939,17 +1006,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const target = control
             || protocolSettingsTabs.find((tab) => !tab.hidden && tab.getAttribute('aria-selected') === 'true')
             || protocolSettingsDoneBtn;
-        target?.focus?.();
+        focusProtocolSettingsControl(target);
     }
 
     /**
-     * Opens the dialog. The first open of a session records the snapshot that
-     * Revert changes restores.
+     * Opens or focuses Protocol Settings. The first open records the snapshot
+     * that Revert changes restores.
      *
      * @param {{section?: string, focus?: boolean, returnFocus?: Element}} [options]
      */
     function openProtocolSettings(options = {}) {
-        if (!protocolSettingsDialog) return;
+        if (!protocolSettingsDialog) return false;
         if (connectionControls && connectionControls.classList.contains('hidden')) {
             setToggleConnectionLineState(true);
         }
@@ -960,9 +1027,24 @@ document.addEventListener('DOMContentLoaded', () => {
             protocolSettingsOpenSnapshot = snapshotProtocolSettings();
             protocolSettingsOpenPresetState = { activePresetId, modifiedFromPresetId };
         }
+        if (useProtocolSettingsWindow && !alreadyOpen) {
+            protocolSettingsWindowOpen = true;
+            protocolSettingsWindowReady = false;
+            protocolSettingsSource.reset();
+        }
         updateProtocolSettingsMode();
         if (options.section) activateProtocolSection(options.section);
         renderConnectionSummary();
+        if (useProtocolSettingsWindow) {
+            protocolSettingsHost.open({ title: buildProtocolSettingsMeta().title });
+            if (protocolSettingsBtn) protocolSettingsBtn.setAttribute('aria-expanded', 'true');
+            if (!alreadyOpen ? options.focus !== false : options.focus === true) {
+                focusInitialProtocolSettingsControl();
+            }
+            updateProtocolSettingsFooter();
+            scheduleProtocolSettingsSync();
+            return true;
+        }
         if (!alreadyOpen) {
             if (typeof protocolSettingsDialog.showModal === 'function') {
                 protocolSettingsDialog.showModal();
@@ -976,25 +1058,119 @@ document.addEventListener('DOMContentLoaded', () => {
             focusInitialProtocolSettingsControl();
         }
         updateProtocolSettingsFooter();
+        return true;
     }
 
-    /** Closes the dialog, keeps the edits, and returns focus to the opener. */
-    function closeProtocolSettings(options = {}) {
-        if (!protocolSettingsDialog || !isProtocolSettingsOpen()) return;
-        if (typeof protocolSettingsDialog.close === 'function') {
-            protocolSettingsDialog.close();
-        } else {
-            protocolSettingsDialog.open = false;
-        }
+    /** Finalizes focus and summary state after either window implementation closes. */
+    function finalizeProtocolSettingsClosed(options = {}) {
         if (protocolSettingsBtn) protocolSettingsBtn.setAttribute('aria-expanded', 'false');
         renderConnectionSummary();
         if (options.restoreFocus !== false) {
             const target = protocolSettingsReturnFocus && document.contains(protocolSettingsReturnFocus)
+                && !protocolSettingsReturnFocus.disabled
                 ? protocolSettingsReturnFocus
                 : protocolSettingsBtn;
             target?.focus?.();
         }
         protocolSettingsReturnFocus = null;
+    }
+
+    /** Closes Protocol Settings, keeps the edits, and returns focus to the opener. */
+    function closeProtocolSettings(options = {}) {
+        if (!protocolSettingsDialog || !isProtocolSettingsOpen()) return;
+        if (useProtocolSettingsWindow) {
+            protocolSettingsWindowOpen = false;
+            protocolSettingsWindowReady = false;
+            pendingProtocolSettingsFocus = null;
+            protocolSettingsSyncQueued = false;
+            protocolSettingsSource.reset();
+            protocolSettingsHost.close();
+        } else if (typeof protocolSettingsDialog.close === 'function') {
+            protocolSettingsDialog.close();
+        } else {
+            protocolSettingsDialog.open = false;
+        }
+        finalizeProtocolSettingsClosed(options);
+    }
+
+    /**
+     * Replays one validated detached-window intent on the authoritative DOM.
+     * Existing listeners continue to own presets, validation, and transports.
+     */
+    function handleProtocolSettingsWindowEvent(message) {
+        if (!useProtocolSettingsWindow || !message) return;
+        if (message.type === 'close') {
+            closeProtocolSettings();
+            return;
+        }
+        const control = message.id ? document.getElementById(message.id) : null;
+        if (!control || !protocolSettingsDialog.contains(control)) return;
+        if (message.type === 'input' || message.type === 'change') {
+            if (Number.isSafeInteger(message.revision) && message.revision > 0) {
+              protocolSettingsAcknowledgedRevision = Math.max(
+                protocolSettingsAcknowledgedRevision,
+                message.revision,
+              );
+            }
+            if (control.type === 'checkbox' || control.type === 'radio') {
+                if (typeof message.checked === 'boolean') control.checked = message.checked;
+            } else if (typeof message.value === 'string') {
+                control.value = message.value;
+            }
+            control.dispatchEvent(new Event(message.type, { bubbles: true }));
+            scheduleProtocolSettingsSync();
+            return;
+        }
+        if (message.type === 'click') {
+            if (!control.disabled) control.click?.();
+            scheduleProtocolSettingsSync();
+            return;
+        }
+        if (message.type === 'keydown' && message.key) {
+            control.dispatchEvent(new KeyboardEvent('keydown', {
+                key: message.key,
+                bubbles: true,
+                shiftKey: message.shiftKey === true,
+                altKey: message.altKey === true,
+                ctrlKey: message.ctrlKey === true,
+                metaKey: message.metaKey === true,
+            }));
+            scheduleProtocolSettingsSync();
+        }
+    }
+
+    if (useProtocolSettingsWindow) {
+        protocolSettingsHost.onReady(() => {
+            protocolSettingsWindowReady = true;
+            protocolSettingsSource.reset();
+            scheduleProtocolSettingsSync();
+        });
+        protocolSettingsHost.onClosed(() => {
+            if (!protocolSettingsWindowOpen) return;
+            protocolSettingsWindowOpen = false;
+            protocolSettingsWindowReady = false;
+            pendingProtocolSettingsFocus = null;
+            protocolSettingsSyncQueued = false;
+            protocolSettingsSource.reset();
+            finalizeProtocolSettingsClosed();
+        });
+        protocolSettingsHost.onEvent(handleProtocolSettingsWindowEvent);
+        new MutationObserver(() => scheduleProtocolSettingsSync())
+            .observe(protocolSettingsDialog, {
+                subtree: true,
+                childList: true,
+                attributes: true,
+                characterData: true,
+            });
+        new MutationObserver(() => scheduleProtocolSettingsSync())
+            .observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        new MutationObserver(() => scheduleProtocolSettingsSync())
+            .observe(document.head, {
+                subtree: true,
+                childList: true,
+                attributes: true,
+                attributeFilter: ['href'],
+            });
     }
 
     /** Copies the summary text. Redacted secrets are all it ever contains. */
@@ -1012,10 +1188,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (protocolSettingsBtn) {
         protocolSettingsBtn.addEventListener('click', () => {
-            if (isProtocolSettingsOpen()) {
-                closeProtocolSettings();
-                return;
-            }
             openProtocolSettings({ returnFocus: protocolSettingsBtn });
         });
     }
@@ -1098,8 +1270,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function handleConnectionShortcut() {
-        if (isProtocolSettingsOpen()) closeProtocolSettings();
-        else openProtocolSettings({ returnFocus: protocolSettingsBtn });
+        openProtocolSettings({ returnFocus: protocolSettingsBtn });
     }
 
     // Apply the initial protocol state on load, in case a protocol other than
@@ -1788,9 +1959,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Focus the offending control, or the section that owns it when the
         // control itself is not rendered in the current configuration.
         if (element && (!protocolSettingsDialog?.contains(element) || isControlVisible(element))) {
-            element.focus?.();
+            focusProtocolSettingsControl(element);
         } else if (element) {
-            document.getElementById(`protocol-settings-tab-${getSectionForControl(element)}`)?.focus?.();
+            focusProtocolSettingsControl(
+                document.getElementById(`protocol-settings-tab-${getSectionForControl(element)}`),
+            );
         }
     }
 
@@ -2367,11 +2540,9 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             setValue('xmpp-domain', item.domain);
             setValue('xmpp-username', item.username);
-            setValue('xmpp-resource', item.resource);
             setValue('xmpp-local-jid', item.localJid);
             setValue('xmpp-conversation', item.conversation === 'muc' ? 'muc' : 'direct');
             setValue('xmpp-room', item.room);
-            setValue('xmpp-nickname', item.nickname);
             setValue('xmpp-connect-timeout', item.connectTimeoutMs || 30000);
             setValue('xmpp-reply-timeout', item.replyTimeoutMs || 15000);
             setValue('xmpp-ping-interval', item.pingIntervalMs || 60000);
@@ -2393,7 +2564,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (firstMissing) {
                 firstMissing.setAttribute('aria-invalid', 'true');
                 addAriaDescribedBy(firstMissing, 'protocol-settings-alert');
-                firstMissing.focus();
+                focusProtocolSettingsControl(firstMissing);
             }
             if (protocolSettingsAlert) {
                 protocolSettingsAlert.textContent = 'Enter the XMPP account credentials required by this output before connecting. Stored secrets cannot be recovered.';

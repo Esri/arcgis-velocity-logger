@@ -166,52 +166,65 @@ test('Velocity XMPP output mapping merges settings without recovering secrets', 
         'xmpp.host': 'xmpp.example.com',
         'xmpp.port': 5222,
         'xmpp.username': 'velocity',
-        'xmpp.passwordSet': true,
+        'xmpp.password': 'stored-secret',
         'xmpp.resource': 'output',
-        'xmpp.destination': 'logger@example.com',
-        'xmpp.roomJid': 'events@conference.example.com',
+        'xmpp.connectionType': 'room',
+        'xmpp.destination': 'events@conference.example.com',
         'xmpp.roomNickname': 'velocity',
-        'xmpp.roomPasswordSet': true,
-        'xmpp.connectTimeoutMs': 31000,
+        'xmpp.roomPassword': 'stored-room-secret',
+        'xmpp.connectTimeoutSeconds': 31,
+        'xmpp.replyTimeoutSeconds': 16,
+        'xmpp.pingIntervalSeconds': 61,
       },
     },
   });
 
-  test('Velocity direct XMPP output derives the receiving account and normalizes conversations', () => {
-    for (const conversation of ['chat', 'normal', 'direct']) {
-      const parsed = parseOutputItem({
-        output: {
-          name: 'xmpp',
-          properties: {
-            'xmpp.domain': 'sender.example.com',
-            'xmpp.username': 'sender-account',
-            'xmpp.destination': 'receiver@receive.example.com/device',
-            'xmpp.conversation': conversation,
-          },
-        },
-      });
-      assert.strictEqual(parsed.conversation, 'direct');
-      assert.strictEqual(parsed.username, 'receiver');
-      assert.strictEqual(parsed.domain, 'receive.example.com');
-      assert.strictEqual(parsed.localJid, 'receiver@receive.example.com');
-    }
-    for (const conversation of ['groupchat', 'room', 'muc']) {
-      const parsed = parseOutputItem({
-        output: { name: 'xmpp', properties: { 'xmpp.conversation': conversation } },
-      });
-      assert.strictEqual(parsed.conversation, 'muc');
-    }
-  });
   assert.strictEqual(parsed.supported, true);
   assert.strictEqual(parsed.domain, 'example.com');
   assert.strictEqual(parsed.host, 'xmpp.example.com');
   assert.strictEqual(parsed.conversation, 'muc');
-  assert.strictEqual(parsed.localJid, 'logger@example.com');
-  assert.strictEqual(parsed.replyTimeoutMs, 15000);
-  assert.strictEqual(parsed.pingIntervalMs, 60000);
-  assert.strictEqual(parsed.passwordRetained, true);
+  assert.strictEqual(parsed.room, 'events@conference.example.com');
+  assert.strictEqual(parsed.username, '');
+  assert.strictEqual(parsed.connectTimeoutMs, 31000);
+  assert.strictEqual(parsed.replyTimeoutMs, 16000);
+  assert.strictEqual(parsed.pingIntervalMs, 61000);
   assert.strictEqual(parsed.password, undefined);
+  assert.strictEqual(parsed.roomPassword, undefined);
   assert.strictEqual(parsed.tlsPolicy, 'required');
+});
+
+test('Velocity direct XMPP output derives a static receiving account', () => {
+  const parsed = parseOutputItem({
+    output: {
+      name: 'xmpp',
+      properties: {
+        'xmpp.domain': 'sender.example.com',
+        'xmpp.username': 'sender-account',
+        'xmpp.destination': 'receiver@receive.example.com/device',
+        'xmpp.connectionType': 'chat',
+      },
+    },
+  });
+  assert.strictEqual(parsed.conversation, 'direct');
+  assert.strictEqual(parsed.username, 'receiver');
+  assert.strictEqual(parsed.domain, 'receive.example.com');
+  assert.strictEqual(parsed.localJid, 'receiver@receive.example.com');
+});
+
+test('Velocity XMPP output does not treat a dynamic destination as receiver credentials', () => {
+  const parsed = parseOutputItem({
+    output: {
+      name: 'xmpp',
+      properties: {
+        'xmpp.domain': 'example.com',
+        'xmpp.destination': '${recipient}',
+        'xmpp.connectionType': 'chat',
+      },
+    },
+  });
+  assert.strictEqual(parsed.username, '');
+  assert.strictEqual(parsed.localJid, '');
+  assert.strictEqual(parsed.domain, 'example.com');
 });
 
 test('UI and help expose XMPP controls, accessibility, lifecycle and TLS', () => {

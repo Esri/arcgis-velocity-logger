@@ -83,7 +83,21 @@ The **Copy Client Settings** control is enabled only while XMPP Server is listen
 
 ## Applying an ArcGIS Velocity XMPP output
 
-Applying an ArcGIS Velocity XMPP output selects XMPP Client, opens the XMPP options, and maps host, port, timing, room, and destination settings. For direct outputs, the Logger derives its receiving username and domain from the destination JID rather than reusing the ArcGIS Velocity sender account. ArcGIS Velocity conversation values `chat`, `normal`, and `direct` map to **Direct**; `groupchat`, `room`, and `muc` map to **MUC**.
+Applying an ArcGIS Velocity XMPP output selects XMPP Client, opens the XMPP
+options, and maps its domain, host, port, connection type, static destination,
+and connection, reply, and ping timeouts. ArcGIS Velocity's `chat` connection
+type maps to **Direct**, while `room` maps to **MUC**. Timeout values are
+converted from the seconds used by ArcGIS Velocity to the milliseconds used by
+the Logger.
+
+For a direct output with a static destination JID, the Logger derives its
+receiving username and domain from that destination rather than reusing the
+ArcGIS Velocity sender account. For a room output, the static destination
+becomes the room JID. A destination that contains an Arcade expression cannot
+identify one receiving account or room in advance, so the corresponding Logger
+field remains empty for you to complete. The output's sender resource and room
+nickname are not copied because the Logger needs its own distinct receiving
+identity.
 
 ArcGIS Velocity does not return stored secrets. The Logger therefore clears account and room passwords, marks and focuses the first missing required field, and always prompts you to enter the required XMPP account credentials before connecting.
 

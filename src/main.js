@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-const { app, BrowserWindow, ipcMain, nativeTheme, dialog, clipboard, shell, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeTheme, dialog, clipboard, shell, Menu, screen } = require('electron');
 const path = require('path');
 const net = require('net');
 const dgram = require('dgram');
@@ -23,6 +23,7 @@ const { ConfigManager } = require('./config.js');
 const { APP_DEFAULTS, DEFAULT_LOG_LEVEL, parseCommandLineArgs, getCommandLineReferenceData, formatCliStartupErrorOutput } = require('./cli-options.js');
 const { runHeadlessSession, EXIT_CODES } = require('./headless-runner.js');
 const { registerUdpClient } = require('./udp-utils.js');
+const { createProtocolSettingsWindowManager } = require('./protocol-settings-window-manager.js');
 
 function requestGracefulCliExit(exitCode) {
   process.exitCode = exitCode;
@@ -180,6 +181,18 @@ let sockets = [];
 let udpClients = new Set();
 let configManager;
 let appConfig;
+const protocolSettingsWindowManager = createProtocolSettingsWindowManager({
+  BrowserWindow,
+  ipcMain,
+  screen,
+  path,
+  basePath: __dirname,
+  getMainWindow: () => mainWindow,
+  getAppConfig: () => appConfig,
+  saveAppConfig: (config) => {
+    if (configManager) configManager.saveConfig(config);
+  },
+});
 let connectionLineVisible = true; // Track connection line visibility state
 let showMetadataEnabled = false; // Track "Show Metadata" state — logs connection/call metadata for all protocols
 let inspectModeActive = false; // Tracks whether Inspect Element pick mode is active.
@@ -406,6 +419,7 @@ function createWindow() {
     mainWindow.on('move', saveWindowState);
 
     mainWindow.on('closed', () => {
+      protocolSettingsWindowManager.close({ restoreFocus: false });
       mainWindow = null;
     });
 

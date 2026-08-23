@@ -97,6 +97,11 @@ function tick() {
     tlsPolicy: 'required',
   });
   assert.strictEqual(dialog.open, true);
+  assert.strictEqual(connectionType.value, 'xmpp-client');
+  assert.strictEqual(window.document.getElementById('host').value, 'xmpp.example.com');
+  assert.strictEqual(window.document.getElementById('xmpp-domain').value, 'example.com');
+  assert.strictEqual(window.document.getElementById('xmpp-username').value, 'receiver');
+  assert.strictEqual(window.document.getElementById('xmpp-local-jid').value, 'receiver@example.com');
   assert.strictEqual(window.document.activeElement.id, 'xmpp-password');
   assert.match(window.document.getElementById('logs').textContent, /credentials required before connecting/);
   assert.doesNotMatch(window.document.getElementById('logs').textContent, /XMPP output applied - ready to connect/);

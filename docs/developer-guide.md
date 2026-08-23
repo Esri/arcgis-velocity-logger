@@ -39,11 +39,15 @@ src/
 ├── xmpp-*.js               # XMPP server core, client core, SASL, MUC, accounts, utils
 ├── connection-presets.js   # Shared Logger/Simulator connection preset definitions
 ├── connection-summary.js   # Pure connection summary generator shared by all summary surfaces
+├── protocol-settings-window-manager.js # Secure main-process owner of the detached Protocol Settings window
+├── protocol-settings-mirror.js         # Dependency-free DOM mirror shared by the renderer and the detached window
+├── protocol-settings-window.js         # Detached window controller; reports intent, owns no rule
+├── protocol-settings-preload.js        # Narrowly scoped preload for the detached window
 ├── tls-utils.js            # Shared certificate and trust-store helpers
 ├── format-utils.js         # Shared data-format constants and helpers
 ├── tooltip-utils.js        # Shared custom tooltip system
 ├── velocity-*.js           # ArcGIS Velocity sign-in, API, and output selection
-├── *.html / *.css          # Main window and dialog templates and styles
+├── *.html / *.css          # Main window, dialog, and detached window templates and styles
 ├── themes/                 # theme-loader.js and one theme-*.css per theme
 └── assets/                 # Icons, images, and packaging resources
 
@@ -62,9 +66,12 @@ Shared logic belongs in a dedicated module rather than in each transport.
 examples: gRPC, HTTP, WebSocket, and XMPP transports consume them instead of
 duplicating certificate, format, or tooltip behavior. `connection-summary.js`
 follows the same rule for the user interface: it is a pure module with no DOM
-access, so the warning alert and the read-only Summary section of the Protocol
-Settings dialog are rendered from one generated summary and can never
-disagree. See
+access, so the warning alert and the read-only Summary section of Protocol
+Settings are rendered from one generated summary and can never disagree.
+`protocol-settings-mirror.js` follows it too, on the window side: it is the one
+place that serializes and replays the authoritative Protocol Settings dialog,
+so the detached window in `protocol-settings-window.js` never owns a form rule
+of its own — see the parity contract in [`AGENTS.md`](../AGENTS.md). See
 [Connection summary and protocol settings](connection-summary.md).
 
 ## Local development
@@ -109,7 +116,7 @@ process and exits non-zero if any file fails.
 | `npm run test:headless-runner` | Output formats, stop conditions, filters, `doneFile`, exit codes |
 | `npm run test:grpc` | gRPC transport across all serialization formats and both directions |
 | `npm run test:summary` | Connection summary rows, URL composition, secret redaction, warnings, and the settings chip |
-| `npm run test:protocol-settings` | Protocol Settings dialog structure, sections, keyboard navigation, revert and reset, locking |
+| `npm run test:protocol-settings` | The authoritative Protocol Settings dialog: structure, sections, keyboard navigation, revert and reset, locking, and mirroring edits to and from the detached window |
 | `npm run test:presets` | Connection preset contract and the renderer behavior that applies presets |
 | `npm run test:parity` | Shared transport lifecycle helpers, bounds, and diagnostics compared against the ArcGIS Velocity Simulator |
 | `npm run test:prereqs-check` | Build prerequisite detection |
@@ -127,7 +134,15 @@ node test/velocity-auth-utils.test.js
 node test/format-utils.test.js
 node test/external-sign.test.js
 node test/sign-lock.test.js
+node test/protocol-settings-window.test.js
 ```
+
+`protocol-settings-window.test.js` covers the detached window: secure
+`BrowserWindow` creation and reuse on reopen, bounds resolution and
+persistence, sanitized IPC payloads for state, commands, and events, the
+dedicated preload's narrow allowlist, the DOM mirror's property, attribute,
+text, and structural replay, and the detached renderer's edit, tab, button,
+focus, and Escape reporting.
 
 Run the smallest suite that covers your change first, then `npm test` before
 committing.
@@ -164,11 +179,15 @@ directly in a browser:
 - Command Line Interface dialog: press `F3`, then verify search, quick filter
   chips, active filter pills, sortable columns, copy and export, and dragging
   the bottom edge of the table to resize it.
-- Protocol Settings dialog: press `Cmd/Ctrl+Shift+P`, then verify the section
+- Protocol Settings: press `Cmd/Ctrl+Shift+P`, then verify the section
   tabs, arrow-key navigation, **Revert changes**, **Reset to preset**, and that
-  `Escape` closes the dialog, keeps the edits, and returns focus to the trigger.
+  `Escape` closes the window, keeps the edits, and returns focus to the
+  trigger. Confirm the window resizes and moves independently of the main
+  window — including taller than it — and that reopening it, or pressing the
+  shortcut again, focuses the existing window instead of closing it. Confirm
+  closing the main window also closes it.
 - Connection summary: open Protocol Settings, select Summary, then verify the
-  card rows, **Copy**, and that a connected dialog opens read-only.
+  card rows, **Copy**, and that a connected window opens read-only.
 - Transport receive path: connect the matching ArcGIS Velocity Simulator mode
   and confirm records and metadata arrive.
 
@@ -265,7 +284,9 @@ Packaged builds write diagnostics to:
    `.protocol-settings-group` for their protocol and section; only fields that
    every protocol shares stay in the connection row. A control added to the
    dialog is locked automatically while a connection is live, because locking
-   queries the dialog instead of listing controls.
+   queries the dialog instead of listing controls. The detached Protocol
+   Settings window mirrors the new control automatically through
+   `src/protocol-settings-mirror.js`; no window-side code is ever touched.
 2. Wire behavior and state in `src/renderer.js`; persist anything durable
    through `ConfigManager` and add any new IPC channel to the whitelist in
    `src/preload.js`.
@@ -346,7 +367,7 @@ functions.
 
 ## Related documentation
 
-- [Connection summary and protocol settings](connection-summary.md) — the settings dialog and summary surfaces
+- [Connection summary and protocol settings](connection-summary.md) — Protocol Settings and the summary surfaces
 - [Command-line reference](command-line.md) — every CLI parameter and its defaults
 - [Headless mode](headless.md) — no-UI capture workflows and automation
 - [Configuration](configuration.md) — persisted settings and launch configuration

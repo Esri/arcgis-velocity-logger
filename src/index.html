@@ -108,7 +108,7 @@
                 </select>
                 <input type="text" id="host" placeholder="Host (e.g., 127.0.0.1)" value="127.0.0.1" aria-label="Host" data-tooltip="Host name or IP address. In a server mode this is the local address to bind; in a client mode it is the remote address to reach." data-tooltip-icon="🖧" data-tooltip-kind="info">
                 <input type="number" id="port" placeholder="Port (e.g., 5565)" value="5565" aria-label="Port" data-tooltip="Port number, 1 to 65535. In a server mode this is the local port to listen on; in a client mode it is the remote port to reach." data-tooltip-icon="🖧" data-tooltip-kind="info">
-                <button id="protocol-settings-btn" type="button" class="protocol-settings-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="protocol-settings-dialog" aria-label="Protocol Settings" data-tooltip="Protocol Settings (Cmd/Ctrl+Shift+P)&#10;---&#10;Open the settings for the selected protocol in a dialog with Basics, Security, and Advanced sections." data-tooltip-icon="⚙" data-tooltip-kind="info">
+                <button id="protocol-settings-btn" type="button" class="protocol-settings-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="protocol-settings-dialog" aria-label="Protocol Settings" data-tooltip="Protocol Settings (Cmd/Ctrl+Shift+P)&#10;---&#10;Open the settings for the selected protocol in a resizable window with Basics, Security, and Advanced sections." data-tooltip-icon="⚙" data-tooltip-kind="info">
                     <span class="protocol-settings-btn-icon" aria-hidden="true">⚙</span>
                     <span class="protocol-settings-btn-label">Settings</span>
                     <span id="protocol-settings-count" class="protocol-settings-count" hidden></span>
@@ -116,6 +116,11 @@
                 <button id="connect-btn" class="connect-btn" title="Connect to the configured endpoint and start receiving data">Connect</button>
                 <button id="disconnect-btn" class="disconnect-btn" disabled title="Disconnect from the current connection">Disconnect</button>
             </div>
+            <!--
+                This is the authoritative copy of every protocol-specific
+                control. Production mirrors it into a dedicated resizable
+                BrowserWindow; the native dialog remains the jsdom fallback.
+            -->
             <dialog id="protocol-settings-dialog" class="protocol-settings-dialog" aria-labelledby="protocol-settings-title">
                 <div class="protocol-settings-header">
                     <div class="protocol-settings-heading">
@@ -353,6 +358,7 @@
     <script src="./velocity-auth-utils.js"></script>
     <script src="./connection-presets.js"></script>
     <script src="./connection-summary.js"></script>
+    <script src="./protocol-settings-mirror.js"></script>
     <script src="./renderer.js"></script>
     <script>
     // Responsive UI: hide nonessential header text at small widths while keeping footer center locked.
