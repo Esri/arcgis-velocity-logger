@@ -62,9 +62,9 @@ Shared logic belongs in a dedicated module rather than in each transport.
 examples: gRPC, HTTP, WebSocket, and XMPP transports consume them instead of
 duplicating certificate, format, or tooltip behavior. `connection-summary.js`
 follows the same rule for the user interface: it is a pure module with no DOM
-access, so the warning alert, the status-bar button, and the read-only
-Summary section of the Protocol Settings dialog are all rendered from one
-generated summary and can never disagree. See
+access, so the warning alert and the read-only Summary section of the Protocol
+Settings dialog are rendered from one generated summary and can never
+disagree. See
 [Connection summary and protocol settings](connection-summary.md).
 
 ## Local development
@@ -167,8 +167,8 @@ directly in a browser:
 - Protocol Settings dialog: press `Cmd/Ctrl+Shift+P`, then verify the section
   tabs, arrow-key navigation, **Revert changes**, **Reset to preset**, and that
   `Escape` closes the dialog, keeps the edits, and returns focus to the trigger.
-- Connection summary: press `Cmd/Ctrl+Shift+I`, then verify the card rows, the
-  status-bar entry, **Copy**, and that a connected dialog opens read-only.
+- Connection summary: open Protocol Settings, select Summary, then verify the
+  card rows, **Copy**, and that a connected dialog opens read-only.
 - Transport receive path: connect the matching ArcGIS Velocity Simulator mode
   and confirm records and metadata arrive.
 

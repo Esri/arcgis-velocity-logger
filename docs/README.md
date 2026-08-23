@@ -20,7 +20,7 @@ by purpose and audience.
 | 📦 | [Build and release](build-and-release.md) | Covers build prerequisites, local builds, platform packaging, signing, and the release workflow. | Developers |
 | ⌨️ | [Command-line reference](command-line.md) | Lists every CLI parameter, its default, and its help layouts. | Users and developers |
 | 🎚 | [Connection presets](connection-presets.md) | Documents the paired Logger and Simulator presets, what they pre-fill, and the progressive-disclosure layout. | Users and developers |
-| ▤ | [Connection summary and protocol settings](connection-summary.md) | Documents the Protocol Settings dialog, its sections, and the three connection summary surfaces. | Users and developers |
+| ▤ | [Connection summary and protocol settings](connection-summary.md) | Documents the Protocol Settings dialog, its sections, warning alert, and read-only summary. | Users and developers |
 | ⚙️ | [Configuration](configuration.md) | Covers persisted settings, appearance, and launch configuration files. | Users and developers |
 | 🛠️ | [Developer guide](developer-guide.md) | Covers repository structure, local development, testing, debugging, and extension patterns. | Developers |
 | 🔌 | [gRPC transport](grpc.md) | Documents gRPC modes, serialization, TLS, RPC behavior, and metadata. | Users and developers |

@@ -713,8 +713,7 @@ button:disabled {
     color: var(--button-info-text-color, var(--button-text-color));
 }
 
-.protocol-settings-btn-icon,
-.connection-summary-action-icon {
+.protocol-settings-btn-icon {
     font-size: 0.95em;
     line-height: 1;
 }
@@ -743,34 +742,6 @@ button:disabled {
     border-color: var(--button-danger-bg, #dc3545);
     background: color-mix(in srgb, var(--button-danger-bg, #dc3545) 18%, transparent);
     opacity: 1;
-}
-
-/* Compact Summary action in the connection row. The full summary is disclosed
-   on demand in the dialog, so nothing permanent is spent on it here. */
-.connection-summary-open-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    flex: 0 0 auto;
-    white-space: nowrap;
-}
-
-.connection-summary-open-btn[data-warning="true"] {
-    border-color: var(--button-danger-bg, #dc3545);
-    color: var(--button-danger-bg, #dc3545);
-}
-
-.connection-summary-warning-count {
-    padding: 0 5px;
-    border-radius: 9px;
-    background: color-mix(in srgb, var(--button-warning-bg, #ffc107) 20%, transparent);
-    color: var(--button-warning-bg, #ffc107);
-    font-size: 0.8em;
-    line-height: 1.5;
-}
-
-.connection-summary-warning-count[hidden] {
-    display: none;
 }
 
 /* Warning-only alert. It is hidden outright when nothing is wrong, so the
@@ -861,44 +832,20 @@ button:disabled {
     opacity: 0.9;
 }
 
-/* Status-bar summary button: always clickable, never hover-only. */
-.connection-summary-status-btn {
-    max-width: 40vw;
-    padding: 2px 8px;
-    font-size: 0.85em;
-    background: transparent;
-    border: 1px solid transparent;
-    color: var(--text-color);
-    overflow: hidden;
-}
-
-.connection-summary-status-btn:hover:not(:disabled) {
-    border-color: var(--border-color);
-    background: color-mix(in srgb, var(--text-color) 8%, transparent);
-    transform: none;
-}
-
-.connection-summary-status-btn[data-warning="true"] {
-    color: var(--button-danger-bg, #dc3545);
-}
-
-.connection-summary-status-label {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 /* The dialog renders in the top layer, so it is never clipped by the row. */
 .protocol-settings-dialog {
     width: min(860px, 94vw);
-    max-height: 86vh;
+    min-width: min(420px, 94vw);
+    max-width: 94vw;
+    min-height: min(360px, calc(100vh - 32px));
+    max-height: calc(100vh - 32px);
     padding: 0;
     border: 1px solid var(--border-color);
     border-radius: 10px;
     background: var(--surface-color, var(--bg-color));
     color: var(--text-color);
     overflow: hidden;
+    resize: both;
 }
 
 .protocol-settings-dialog::backdrop {
@@ -1230,16 +1177,6 @@ button:disabled {
     }
 }
 
-@media (max-width: 860px) {
-    .connection-summary-action-label {
-        display: none;
-    }
-
-    .connection-summary-open-btn {
-        padding-inline: 8px;
-    }
-}
-
 @media (max-width: 760px) {
     .protocol-settings-btn-label {
         display: none;
@@ -1291,9 +1228,6 @@ button:disabled {
         gap: 0;
     }
 
-    .connection-summary-status-btn {
-        max-width: 30vw;
-    }
 }
 
 /* Status Components */

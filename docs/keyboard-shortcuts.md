@@ -31,7 +31,6 @@ app.
 | Toggle inspect element mode | `F11` | `F11` |
 | Configuration dialog | `Cmd+I` | `Ctrl+I` |
 | Protocol Settings dialog | `Cmd+Shift+P` | `Ctrl+Shift+P` |
-| Connection summary | `Cmd+Shift+I` | `Ctrl+Shift+I` |
 | Close open dialog | `Escape` | `Escape` |
 | Quit | `Cmd+Q` | `Ctrl+Q` |
 | Minimize window | `Cmd+M` | `Ctrl+M` |
@@ -47,10 +46,9 @@ app.
 | First or last section | `Home` / `End` | `Home` / `End` |
 | Close and keep edits | `Escape` | `Escape` |
 
-`Cmd/Ctrl+Shift+P` and `Cmd/Ctrl+Shift+I` work while a connection field has
-focus. `Cmd/Ctrl+Shift+I` opens the Protocol Settings dialog on its read-only
-Summary section and moves focus there, whether the dialog was already open or
-not. Closing the dialog always returns focus to the control that opened it. See
+`Cmd/Ctrl+Shift+P` works while a connection field has focus. Select the
+**Summary** tab inside Protocol Settings to inspect the effective connection.
+Closing the dialog always returns focus to the control that opened it. See
 [Connection summary and protocol settings](connection-summary.md).
 
 ## CLI reference dialog (`F3`) shortcuts

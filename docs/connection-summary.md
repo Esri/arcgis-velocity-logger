@@ -37,7 +37,7 @@ The connection row holds only the fields that every protocol shares:
 | Preset and the **Modified** badge. | gRPC serialization, RPC type, and endpoint header. |
 | Connection type. | HTTP format and path. |
 | Host and Port. | WebSocket format, path, subscription message, **Skip 1st**, and headers. |
-| **Settings** and **Summary**. | XMPP domain, conversation, account, room, remote binding, and timing. |
+| **Settings**. | XMPP domain, conversation, account, room, remote binding, and timing. |
 | **Connect** and **Disconnect**. | TLS toggles, certificate paths, and **Allow unverified**. |
 | The log toolbar, activity strip, and status bar. | — |
 
@@ -161,21 +161,16 @@ certificate.
 
 ## The connection summary
 
-One generator, `src/connection-summary.js`, produces the summary shown on all
-three surfaces, so they can never disagree:
+One generator, `src/connection-summary.js`, produces both summary surfaces, so
+they can never disagree:
 
 | Surface | Shows | Opens |
 |---|---|---|
 | Warning alert | The warning count and highest-priority warning. | Below the connection row, and only while a warning applies. |
-| **Summary** action | A warning count when warnings apply. | In the connection row. |
-| Status-bar summary button | `HTTP Server · https://127.0.0.1:8443/`, with a `⚠` mark when a warning applies. | In the status bar, left of the app status. |
 | Read-only Summary section | Every row, warnings first, with **Copy summary**. | Inside the Protocol Settings dialog. |
 
-None of these is hover-only. The full summary costs no permanent vertical space:
-it is disclosed on demand through the **Summary** action, the status-bar button,
-or `Cmd/Ctrl+Shift+I`, and all three reach the same read-only section. Below
-roughly 860 pixels the **Summary** action drops its label and shows only its
-icon.
+Neither surface is hover-only. The full summary costs no permanent vertical
+space: open Protocol Settings and select its Summary tab.
 
 The warning alert is the one part that is never hidden behind a disclosure. It
 is removed from the layout entirely when nothing is wrong, and it sits outside
@@ -269,8 +264,8 @@ the always-visible warning alert, so a risky configuration cannot be scrolled
 past. A single warning is shown as its own `Label: value`; several are condensed
 to `N warnings` followed by their labels. An explicit certificate-verification
 bypass always leads, because it applies to every host rather than only to
-loopback. The **Settings** chip switches to its warning style, the **Summary**
-action turns red, and the status-bar entry turns red and gains a `⚠` mark. See
+loopback. The **Settings** chip switches to its warning style, and the status-bar
+entry turns red and gains a `⚠` mark. See
 [TLS and SSL security](tls.md#explicit-certificate-verification-bypass).
 
 ## Keyboard
@@ -278,14 +273,13 @@ action turns red, and the status-bar entry turns red and gains a `⚠` mark. See
 | Action | macOS | Windows / Linux |
 |--------|-------|-----------------|
 | Open Protocol Settings | `Cmd+Shift+P` | `Ctrl+Shift+P` |
-| Open the connection summary | `Cmd+Shift+I` | `Ctrl+Shift+I` |
 | Move between sections | `←` `→` `↑` `↓` | `←` `→` `↑` `↓` |
 | First or last section | `Home` / `End` | `Home` / `End` |
 | Close and keep edits | `Escape` | `Escape` |
 
-Both shortcuts work while a connection field has focus. `Cmd/Ctrl+Shift+I`
-opens the Protocol Settings dialog on its read-only Summary section and moves
-focus there, whether the dialog was already open or not.
+The Protocol Settings shortcut works while a connection field has focus.
+Select the Summary tab to inspect the effective connection.
+Drag the dialog's lower corner to resize it within the application window.
 
 ## UI controls
 
@@ -297,15 +291,12 @@ focus there, whether the dialog was already open or not.
 | Revert changes | Restores the values the dialog opened with. |
 | Reset to preset | Re-applies the preset the fields started from. |
 | Close (✕) | Same as Done. |
-| Summary | Opens the read-only Summary section. |
 | Copy summary | Copies the summary as text, with secrets redacted. Lives in the Summary section. |
-| Status-bar summary | Opens the read-only Summary section. |
 
 ## Tooltip reference
 
 These strings match `src/index.html` and `src/renderer.js` exactly. Protocol
-Settings reflects the current mode and changed count; both Summary actions use
-short action guidance rather than embedding connection details.
+Settings reflects the current mode and changed count.
 
 | Element | Tooltip |
 |---|---|
@@ -319,9 +310,7 @@ short action guidance rather than embedding connection details.
 | Revert changes | Restore the values this dialog opened with. Fields outside the dialog are untouched. |
 | Reset to preset (available) | Restore every field of "&lt;preset label&gt;", the preset these settings started from. |
 | Reset to preset (unavailable) | Restore every field of the preset these settings started from. Available only after a preset is applied and edited. |
-| Summary | Open the full read-only connection summary (Cmd/Ctrl+Shift+I). |
 | Copy summary | Copy the connection summary as text. Passwords are never copied. |
-| Status-bar summary | Open the full read-only connection summary (Cmd/Ctrl+Shift+I). |
 
 ## Related documentation
 

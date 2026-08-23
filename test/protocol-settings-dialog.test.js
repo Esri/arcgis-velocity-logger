@@ -202,6 +202,7 @@ test('the validation banner is assertive and the read-only banner is polite', ()
 
 test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
   assert.match(styleCss, /\.protocol-settings-dialog::backdrop/);
+  assert.match(styleCss, /\.protocol-settings-dialog\s*\{[^}]*resize:\s*both/s);
   // Hiding a group must beat any display modifier, whatever the source order.
   assert.match(styleCss, /\.protocol-settings-group\[hidden\][\s\S]{0,240}display:\s*none\s*!important/);
   assert.match(styleCss, /\.protocol-settings-header\s*\{[^}]*position:\s*sticky/);
@@ -414,10 +415,10 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
     assert.match(warningRows[0].value, /Off for every host/);
     assert.strictEqual(alert.hidden, false);
     assert.strictEqual(alert.dataset.warning, 'true');
-    assert.strictEqual(document.getElementById('connection-summary-warning-count').textContent, '⚠ 1');
 
     // Copy moved into the Summary section it copies.
-    document.getElementById('connection-summary-show-all').click();
+    document.getElementById('protocol-settings-btn').click();
+    document.getElementById('protocol-settings-tab-summary').click();
     document.getElementById('connection-summary-copy').click();
     const copied = sent.filter(({ channel }) => channel === 'copy-to-clipboard').pop();
     assert.ok(copied, 'the summary is copied through the main process clipboard channel');
@@ -429,7 +430,8 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
     select('connection-type', 'xmpp-client');
     type('xmpp-username', 'velocity-logger');
     type('xmpp-password', 'do-not-print-me');
-    document.getElementById('connection-summary-show-all').click();
+    document.getElementById('protocol-settings-btn').click();
+    document.getElementById('protocol-settings-tab-summary').click();
     const summaryRows = rows('protocol-settings-summary-rows');
     const password = summaryRows.find((row) => row.key === 'xmppPassword');
     assert.strictEqual(password.value, 'Set (hidden)');
@@ -439,25 +441,16 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
     assert.doesNotMatch(document.getElementById('protocol-settings-summary-rows').textContent, /do-not-print-me/);
   });
 
-  await uiTest('Show all and the status-bar button open the read-only summary section', async ({ document, select }) => {
+  await uiTest('the Summary tab opens the read-only summary section', async ({ document, select }) => {
     select('connection-type', 'grpc-client');
-    document.getElementById('connection-summary-show-all').click();
+    document.getElementById('protocol-settings-btn').click();
+    document.getElementById('protocol-settings-tab-summary').click();
     assert.strictEqual(document.getElementById('protocol-settings-dialog').open, true);
     assert.strictEqual(document.getElementById('protocol-settings-tab-summary').getAttribute('aria-selected'), 'true');
     assert.strictEqual(document.getElementById('protocol-settings-panel-summary').hidden, false);
-    document.getElementById('protocol-settings-done').click();
-
-    const statusButton = document.getElementById('connection-summary-status-btn');
-    assert.strictEqual(statusButton.getAttribute('aria-haspopup'), 'dialog');
-    assert.match(statusButton.dataset.tooltip, /Open the full read-only connection summary/);
-    assert.match(statusButton.dataset.tooltip, /Cmd\/Ctrl\+Shift\+I/);
-    assert.strictEqual(document.getElementById('connection-summary-status-label').textContent, 'gRPC Client · 127.0.0.1:5565');
-    statusButton.click();
-    assert.strictEqual(document.getElementById('protocol-settings-dialog').open, true);
-    assert.strictEqual(document.getElementById('protocol-settings-tab-summary').getAttribute('aria-selected'), 'true');
   });
 
-  await uiTest('keyboard shortcuts open Protocol Settings and the Connection Summary', async ({ document, key, window }) => {
+  await uiTest('the Protocol Settings shortcut is the only dialog shortcut', async ({ document, key, window }) => {
     // JSDOM reports a non-Mac platform, so the primary modifier is Ctrl here.
     const dialog = document.getElementById('protocol-settings-dialog');
     key(document.body, 'P', { ctrlKey: true, shiftKey: true });
@@ -466,16 +459,12 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
     assert.strictEqual(dialog.open, false);
 
     key(document.body, 'I', { ctrlKey: true, shiftKey: true });
-    assert.strictEqual(dialog.open, true, 'the summary is disclosed on demand, never inline');
-    assert.strictEqual(document.activeElement.id, 'protocol-settings-panel-summary');
-    key(document.body, 'Escape');
+    assert.strictEqual(dialog.open, false);
 
     // The shortcut still works while a connection field has focus.
     document.getElementById('host').focus();
     key(document.getElementById('host'), 'P', { ctrlKey: true, shiftKey: true });
     assert.strictEqual(dialog.open, true);
-    key(document.getElementById('host'), 'I', { ctrlKey: true, shiftKey: true });
-    assert.strictEqual(document.activeElement.id, 'protocol-settings-panel-summary');
     key(document.body, 'Escape');
     assert.strictEqual(dialog.open, false);
 
@@ -610,7 +599,8 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
     select('connection-type', 'ws-client');
     type('ws-headers', '{"Authorization":"do-not-print-me"}');
     type('ws-subscription-msg', '{"token":"do-not-print-me"}');
-    document.getElementById('connection-summary-show-all').click();
+    document.getElementById('protocol-settings-btn').click();
+    document.getElementById('protocol-settings-tab-summary').click();
     const summaryRows = rows('protocol-settings-summary-rows');
     assert.strictEqual(summaryRows.find((row) => row.key === 'wsHeaders').value, 'Set (hidden)');
     assert.strictEqual(summaryRows.find((row) => row.key === 'wsSubscriptionMessage').value, 'Set (hidden)');

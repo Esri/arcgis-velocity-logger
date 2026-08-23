@@ -60,11 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const protocolSettingsDoneBtn = document.getElementById('protocol-settings-done');
     const connectionSummaryCard = document.getElementById('connection-summary-card');
     const connectionSummaryRows = document.getElementById('connection-summary-rows');
-    const connectionSummaryShowAllBtn = document.getElementById('connection-summary-show-all');
     const connectionSummaryCopyBtn = document.getElementById('connection-summary-copy');
-    const connectionSummaryWarningCount = document.getElementById('connection-summary-warning-count');
-    const connectionSummaryStatusBtn = document.getElementById('connection-summary-status-btn');
-    const connectionSummaryStatusLabel = document.getElementById('connection-summary-status-label');
     const httpFormatSelect = document.getElementById('http-format');
     const httpTlsCheckbox = document.getElementById('http-tls');
     const httpTlsCaInput = document.getElementById('http-tls-ca-path');
@@ -807,9 +803,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * Refreshes every summary surface from one generated summary: the inline
-     * card, the status-bar button, the dialog heading and chip, and the
-     * read-only Summary section.
+     * Refreshes every summary surface from one generated summary: the warning
+     * alert, dialog heading and chip, and read-only Summary section.
      */
     function renderConnectionSummary() {
         if (!connectionSummaryApi) return null;
@@ -838,28 +833,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 'aria-label',
                 warningLine ? `Connection warnings: ${warningLine.text}` : 'Connection warnings',
             );
-        }
-        if (connectionSummaryStatusLabel) {
-            connectionSummaryStatusLabel.textContent = connectionSummaryApi.formatConnectionSummaryChip(summary);
-        }
-        if (connectionSummaryStatusBtn) {
-            const tooltip = 'Open the full read-only connection summary (Cmd/Ctrl+Shift+I).';
-            connectionSummaryStatusBtn.dataset.tooltip = tooltip;
-            connectionSummaryStatusBtn.dataset.tooltipKind = summary.warnings.length ? 'warning' : 'info';
-            connectionSummaryStatusBtn.setAttribute(
-                'aria-label',
-                `Open connection summary: ${summary.headline}${warningLine ? `. ${warningLine.text}` : ''}`,
-            );
-            connectionSummaryStatusBtn.dataset.warning = summary.warnings.length ? 'true' : 'false';
-        }
-        if (connectionSummaryShowAllBtn) {
-            connectionSummaryShowAllBtn.dataset.tooltip = 'Open the full read-only connection summary (Cmd/Ctrl+Shift+I).';
-            connectionSummaryShowAllBtn.dataset.tooltipKind = summary.warnings.length ? 'warning' : 'info';
-            connectionSummaryShowAllBtn.dataset.warning = summary.warnings.length ? 'true' : 'false';
-        }
-        if (connectionSummaryWarningCount) {
-            connectionSummaryWarningCount.hidden = summary.warnings.length === 0;
-            connectionSummaryWarningCount.textContent = summary.warnings.length ? `⚠ ${summary.warnings.length}` : '';
         }
         if (protocolSettingsTitle) protocolSettingsTitle.textContent = summary.title;
         if (protocolSettingsSubtitle) protocolSettingsSubtitle.textContent = summary.headline;
@@ -1024,20 +997,6 @@ document.addEventListener('DOMContentLoaded', () => {
         protocolSettingsReturnFocus = null;
     }
 
-    /**
-     * Opens the read-only Summary section of Protocol Settings. Both the
-     * compact Summary action and the status-bar button reach the same surface,
-     * so there is only one place the full summary is ever shown.
-     */
-    function focusConnectionSummary() {
-        renderConnectionSummary();
-        if (!isProtocolSettingsOpen()) {
-            openProtocolSettings({ section: 'summary' });
-        }
-        activateProtocolSection('summary');
-        document.getElementById('protocol-settings-panel-summary')?.focus?.();
-    }
-
     /** Copies the summary text. Redacted secrets are all it ever contains. */
     function copyConnectionSummary() {
         const summary = renderConnectionSummary();
@@ -1131,37 +1090,16 @@ document.addEventListener('DOMContentLoaded', () => {
             renderConnectionSummary();
         });
     }
-    if (connectionSummaryShowAllBtn) {
-        connectionSummaryShowAllBtn.addEventListener('click', () => {
-            openProtocolSettings({ section: 'summary', returnFocus: connectionSummaryShowAllBtn });
-        });
-    }
     if (connectionSummaryCopyBtn) {
         connectionSummaryCopyBtn.addEventListener('click', copyConnectionSummary);
-    }
-    if (connectionSummaryStatusBtn) {
-        connectionSummaryStatusBtn.addEventListener('click', () => {
-            openProtocolSettings({ section: 'summary', returnFocus: connectionSummaryStatusBtn });
-        });
     }
     [hostInput, portInput].forEach((control) => {
         if (control) control.addEventListener('input', () => renderConnectionSummary());
     });
 
-    /**
-     * Single entry point for the two connection shortcuts, shared by the
-     * in-page key handler and, in the sister application, the menu
-     * accelerator, so both surfaces always do the same thing.
-     *
-     * @param {'protocol-settings'|'connection-summary'} name
-     */
-    function handleConnectionShortcut(name) {
-        if (name === 'protocol-settings') {
-            if (isProtocolSettingsOpen()) closeProtocolSettings();
-            else openProtocolSettings({ returnFocus: protocolSettingsBtn });
-            return;
-        }
-        focusConnectionSummary();
+    function handleConnectionShortcut() {
+        if (isProtocolSettingsOpen()) closeProtocolSettings();
+        else openProtocolSettings({ returnFocus: protocolSettingsBtn });
     }
 
     // Apply the initial protocol state on load, in case a protocol other than
@@ -2599,24 +2537,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Keyboard shortcuts: Cmd/Ctrl+Shift+P (Protocol Settings),
-    // Cmd/Ctrl+Shift+I (Connection Summary), Cmd/Ctrl+Shift+A (auto-scroll),
-    // and Cmd/Ctrl+Shift+O (order).
+    // Cmd/Ctrl+Shift+A (auto-scroll), and Cmd/Ctrl+Shift+O (order).
     document.addEventListener('keydown', (e) => {
         const isMac = navigator.platform.toUpperCase().includes('MAC');
         const hasPrimary = isMac ? e.metaKey : e.ctrlKey;
 
-        // Protocol Settings and Connection Summary stay reachable while a
-        // connection field has focus, because that is where they are needed.
+        // Protocol Settings stays reachable while a connection field has focus.
         if (hasPrimary && e.shiftKey) {
             const shortcutKey = e.key.toLowerCase();
             if (shortcutKey === 'p') {
                 e.preventDefault();
-                handleConnectionShortcut('protocol-settings');
-                return;
-            }
-            if (shortcutKey === 'i') {
-                e.preventDefault();
-                handleConnectionShortcut('connection-summary');
+                handleConnectionShortcut();
                 return;
             }
         }

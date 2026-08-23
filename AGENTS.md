@@ -467,23 +467,22 @@ Keep the following identical in both repositories.
   `protocol-settings-summary-rows`, `protocol-settings-done`,
   `protocol-settings-revert`, `protocol-settings-reset`,
   `connection-summary-card`, `connection-summary-rows`,
-  `connection-summary-show-all`, `connection-summary-copy`,
-  `connection-summary-warning-count`,
-  `connection-summary-status-btn`, and `connection-summary-status-label`.
+  and `connection-summary-copy`.
   `connection-summary-card` is the warning-only alert: it holds
   `connection-summary-rows`, renders at most one condensed line, is `hidden`
   whenever no warning applies, and sits outside the collapsible connection
   controls so a warning survives hiding the connection row.
-  `connection-summary-show-all` is the compact **Summary** action in the
-  connection row, and `connection-summary-copy` lives inside
-  `protocol-settings-panel-summary` with the section it copies.
+  `connection-summary-copy` lives inside `protocol-settings-panel-summary` with
+  the section it copies. Summary is part of the same dialog and has no separate
+  connection-row action.
   Pre-existing protocol control ids are preserved unchanged, including
   `grpc-advanced`, `http-advanced`, `ws-advanced`, and `xmpp-advanced`, which
   identify the Advanced group of each protocol.
 - **Sections.** `basics`, `security`, `advanced`, and `summary`, offered only
   when they hold something for the selected protocol and mode, with `tablist`,
   `tab`, and `tabpanel` roles, a roving tab stop, Arrow keys, and `Home` and
-  `End`. Each protocol owns one
+  `End`. The dialog is resizable in both dimensions within viewport bounds.
+  Each protocol owns one
   `.protocol-settings-group[data-protocol][data-section]` per section, and a new
   protocol starts on its own first section rather than inheriting the previous
   one.
@@ -510,13 +509,12 @@ Keep the following identical in both repositories.
   `aria-describedby` without discarding the tokens already there, and it still
   writes the message to the status log. Clearing the error removes only the
   banner's own token.
-- **Shortcuts.** `Cmd/Ctrl+Shift+P` opens or closes Protocol Settings and
-  `Cmd/Ctrl+Shift+I` opens the Connection Summary. Both surfaces funnel through
-  one `handleConnectionShortcut(name)` entry point in the renderer, so a menu
-  accelerator and the in-page key handler can never disagree.
+- **Shortcut.** `Cmd/Ctrl+Shift+P` opens or closes Protocol Settings through
+  `handleConnectionShortcut()` in the renderer. Summary is reached through the
+  dialog's Summary tab, not a separate button or shortcut.
 - **Summary generator.** `src/connection-summary.js` is a pure module with no
   DOM access. `buildConnectionSummary(state)` drives the warning alert, the
-  status-bar button, the read-only Summary section, and the configured-state
+  read-only Summary section and the configured-state
   count. `formatConnectionWarningLine(summary)` condenses every warning into the
   single line the alert renders, returning `null` when nothing is wrong; a lone
   warning keeps its own `label` and `value`, and several become `N warnings`
@@ -537,14 +535,12 @@ Keep the following identical in both repositories.
   the compact chip text: empty when the protocol has no settings or none are
   changed, and otherwise the count alone. `settings.label` keeps the full
   sentence and remains the button's tooltip and accessible name.
-- **Status-bar tooltip.** The status-bar button tooltip only says how to open
-  the summary; it never carries the summary itself.
 - **Compact connection row.** Only the preset, connection type, host, port,
-  **Settings**, **Summary**, **Connect**, and **Disconnect** are inline, on one
+  **Settings**, **Connect**, and **Disconnect** are inline, on one
   non-wrapping row. Every shrinkable control sets `min-width: 0` so a long
-  option label can never push **Connect** out of view, **Summary** drops its
-  label below roughly 860 pixels, and **Settings** drops its label below roughly
-  760 pixels. Both keep their icon, tooltip, and accessible name at every width.
+  option label can never push **Connect** out of view, and **Settings** drops its
+  label below roughly 760 pixels while retaining its icon, tooltip, and
+  accessible name.
   **Connect** and **Disconnect** stay separate controls and are never merged.
 - **Tooltip utility.** `src/tooltip-utils.js` stays byte-identical in both
   repositories. It owns title migration, dynamic content, and additive

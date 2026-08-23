@@ -31,7 +31,6 @@ purpose and audience.
 - **`F3`** — Command Line Interface dialog (searchable CLI reference, copy/export)
 - **`Ctrl/Cmd+I`** — Configuration dialog
 - **`Ctrl/Cmd+Shift+P`** — Protocol Settings dialog
-- **`Ctrl/Cmd+Shift+I`** — Connection summary
 - **Right-click** — Context menu (themes, fonts, opacity, tools)
 
 ### Config Templates
@@ -49,7 +48,7 @@ purpose and audience.
 - **Data Management**: Save logs to files, clear display, and track message counts
 - **Customizable UI**: 15 themes via dynamic loader, adjustable fonts, and window opacity control
 - **Modern UI/UX**: Compact header with progressive control hiding, auto‑scroll toggle, ascending/descending order toggle, responsive status bar
-- **Protocol Settings**: In-window dialog with Basics, Security, Advanced, and Summary sections, plus an on-demand connection summary, an always-visible warning alert, a status-bar entry, and a read-only connected view
+- **Protocol Settings**: One in-window dialog with Basics, Security, Advanced, and Summary sections, plus an always-visible warning alert and a read-only connected view
 - **Configuration**: Persistent settings with automatic save/restore
 - **Developer Tools**: Built-in debugging support and error handling
 - **About Dialog**: Modern design with detailed system/runtime info (App, Electron, Node.js, V8, OS platform/arch)

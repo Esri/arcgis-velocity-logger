@@ -249,27 +249,25 @@ compare('the connection preset identifiers and labels match exactly', () => {
   assert.deepStrictEqual(local.CONNECTION_PRESET_PORTS, simulator.CONNECTION_PRESET_PORTS);
 });
 
-compare('the connection shortcuts route through one shared entry point in both repositories', () => {
+compare('both apps expose one Protocol Settings dialog shortcut', () => {
   for (const [label, source] of [['Logger', readLocal('src/renderer.js')], ['Simulator', readSimulator('src/renderer.js')]]) {
-    assert.match(source, /function handleConnectionShortcut\(name\)/, `${label} has no shared shortcut entry point`);
-    assert.match(source, /handleConnectionShortcut\('protocol-settings'\)/, `${label} does not route Cmd\\/Ctrl+Shift+P`);
-    assert.match(source, /handleConnectionShortcut\('connection-summary'\)/, `${label} does not route Cmd\\/Ctrl+Shift+I`);
-    assert.match(source, /shortcutKey === 'i'|key === 'i'/, `${label} does not match the summary key case-insensitively`);
+    assert.match(source, /function handleConnectionShortcut\(\)/, `${label} has no shared shortcut entry point`);
+    assert.doesNotMatch(source, /handleConnectionShortcut\('connection-summary'\)/,
+      `${label} still exposes the removed Summary shortcut`);
   }
 });
 
-compare('no application-menu accelerator swallows the summary shortcut', () => {
+compare('App Configuration remains limited to its unshifted shortcut', () => {
   // The Simulator reaches App Configuration through a before-input-event
   // handler, so it has to exclude the shifted key explicitly. The Logger binds
-  // App Configuration to a plain CmdOrCtrl+I menu accelerator, which only
-  // matches that exact combination, so nothing intercepts Cmd/Ctrl+Shift+I.
+  // App Configuration to a plain CmdOrCtrl+I menu accelerator.
   const simulatorMain = readSimulator('src/main.js');
   assert.match(simulatorMain, /\(input\.control \|\| input\.meta\) && !input\.shift && !input\.alt/,
     'the Simulator no longer guards App Configuration against the shifted key');
 
   const localMain = readLocal('src/main.js');
   assert.doesNotMatch(localMain, /before-input-event/,
-    'the Logger gained a raw key handler that could swallow the summary shortcut');
+    'the Logger gained an unexpected raw key handler');
   assert.match(localMain, /accelerator: 'CmdOrCtrl\+I'/,
     'the Logger no longer binds App Configuration to the unshifted accelerator');
   assert.doesNotMatch(localMain, /accelerator: 'CmdOrCtrl\+Shift\+I'/,

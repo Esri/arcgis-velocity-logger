@@ -741,18 +741,6 @@
   }
 
   /**
-   * Short label used by the status-bar summary button.
-   *
-   * @param {object} summary the value returned by {@link buildConnectionSummary}
-   * @returns {string}
-   */
-  function formatConnectionSummaryChip(summary) {
-    if (!summary) return '';
-    const warning = summary.warnings.length ? ' ⚠' : '';
-    return `${summary.connectionTypeLabel} · ${summary.url}${warning}`;
-  }
-
-  /**
    * Concise configured state for the Protocol Settings button: how many
    * settings differ from their documented defaults, with any warnings appended
    * rather than substituted.
@@ -790,7 +778,6 @@
     formatConnectionWarningLine,
     buildConnectionSummary,
     formatConnectionSummaryText,
-    formatConnectionSummaryChip,
     describeConfiguredState,
   };
 }));
