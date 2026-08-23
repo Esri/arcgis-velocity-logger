@@ -1118,18 +1118,36 @@ button:disabled {
 
 /* Explicit certificate-verification bypass is a warning-level control. */
 .unverified-tls-check {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    gap: 4px;
-    white-space: nowrap;
-    padding: 1px 6px;
-    border: 1px solid var(--button-danger-bg, #dc3545);
-    border-radius: 4px;
-    background: color-mix(in srgb, var(--button-danger-bg, #dc3545) 10%, transparent);
+    gap: 8px;
+    box-sizing: border-box;
+    flex: 1 1 100%;
+    width: 100%;
+    min-height: 38px;
+    padding: 8px 10px;
+    border: 0;
+    border-left: 3px solid var(--button-warning-bg, #f0ad4e);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--button-warning-bg, #f0ad4e) 12%, transparent);
+    white-space: normal;
+    cursor: pointer;
 }
 
 .unverified-tls-check::before {
     content: '⚠';
+    flex: 0 0 auto;
+    color: var(--button-warning-bg, #f0ad4e);
+}
+
+.unverified-tls-check input[type="checkbox"] {
+    flex: 0 0 auto;
+    margin: 0;
+    accent-color: var(--button-warning-bg, #f0ad4e);
+}
+
+.xmpp-options-grid > .unverified-tls-check {
+    grid-column: 1 / -1;
 }
 
 .xmpp-options-grid {
