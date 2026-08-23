@@ -19,7 +19,7 @@
                 <span id="connection-text">Disconnected</span>
             </div>
             <div class="theme-controls">
-                <select id="theme-selector" aria-label="Theme">
+                <select id="theme-selector" aria-label="Theme" data-tooltip="Application theme. Choose a colour scheme, or System to follow the operating system appearance." data-tooltip-icon="🎨" data-tooltip-kind="info">
                     <option value="blue">🔵 Blue</option>
                     <option value="color-blind">🟡 Color Blind</option>
                     <option value="dark">🌙 Dark</option>
@@ -106,25 +106,21 @@
                     <option value="xmpp-server" title="XMPP Server - starts the focused in-process client-to-server service and receives direct or room message bodies.">XMPP Server</option>
                     <option value="xmpp-client" title="XMPP Client - connects to an XMPP service and receives direct or Multi-User Chat message bodies.">XMPP Client</option>
                 </select>
-                <input type="text" id="host" placeholder="Host (e.g., 127.0.0.1)" value="127.0.0.1">
-                <input type="number" id="port" placeholder="Port (e.g., 5565)" value="5565">
-                <button id="protocol-settings-btn" type="button" class="protocol-settings-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="protocol-settings-dialog" aria-label="Protocol Settings" data-tooltip="Protocol Settings (Cmd/Ctrl+Shift+P)&#10;---&#10;Open the settings for the selected protocol in a dialog with Basics, Security, and Advanced sections. Preset, connection type, host, and port stay in this row." data-tooltip-icon="⚙" data-tooltip-kind="info">
-                    <span class="protocol-settings-btn-label">Protocol Settings…</span>
-                    <span id="protocol-settings-count" class="protocol-settings-count">TCP · no protocol settings</span>
+                <input type="text" id="host" placeholder="Host (e.g., 127.0.0.1)" value="127.0.0.1" aria-label="Host" data-tooltip="Host name or IP address. In a server mode this is the local address to bind; in a client mode it is the remote address to reach." data-tooltip-icon="🖧" data-tooltip-kind="info">
+                <input type="number" id="port" placeholder="Port (e.g., 5565)" value="5565" aria-label="Port" data-tooltip="Port number, 1 to 65535. In a server mode this is the local port to listen on; in a client mode it is the remote port to reach." data-tooltip-icon="🖧" data-tooltip-kind="info">
+                <button id="protocol-settings-btn" type="button" class="protocol-settings-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="protocol-settings-dialog" aria-label="Protocol Settings" data-tooltip="Protocol Settings (Cmd/Ctrl+Shift+P)&#10;---&#10;Open the settings for the selected protocol in a dialog with Basics, Security, and Advanced sections." data-tooltip-icon="⚙" data-tooltip-kind="info">
+                    <span class="protocol-settings-btn-icon" aria-hidden="true">⚙</span>
+                    <span class="protocol-settings-btn-label">Settings</span>
+                    <span id="protocol-settings-count" class="protocol-settings-count" hidden></span>
+                </button>
+                <button id="connection-summary-show-all" type="button" class="connection-summary-action connection-summary-open-btn" aria-haspopup="dialog" aria-controls="protocol-settings-dialog" aria-label="Connection summary" data-tooltip="Open the full read-only connection summary (Cmd/Ctrl+Shift+I)." data-tooltip-icon="▤" data-tooltip-kind="info">
+                    <span class="connection-summary-action-icon" aria-hidden="true">▤</span>
+                    <span class="connection-summary-action-label">Summary</span>
+                    <span id="connection-summary-warning-count" class="connection-summary-warning-count" hidden aria-hidden="true"></span>
                 </button>
                 <button id="connect-btn" class="connect-btn" title="Connect to the configured endpoint and start receiving data">Connect</button>
                 <button id="disconnect-btn" class="disconnect-btn" disabled title="Disconnect from the current connection">Disconnect</button>
             </div>
-            <section id="connection-summary-card" class="connection-summary-card" tabindex="-1" aria-labelledby="connection-summary-card-title">
-                <div class="connection-summary-card-header">
-                    <h2 id="connection-summary-card-title" class="connection-summary-card-title">Connection summary</h2>
-                    <div class="connection-summary-card-actions">
-                        <button id="connection-summary-show-all" type="button" class="connection-summary-action" aria-label="Show all connection settings" data-tooltip="Show every connection setting, with warnings first, in a read-only summary." data-tooltip-icon="▤" data-tooltip-kind="info">Show all</button>
-                        <button id="connection-summary-copy" type="button" class="connection-summary-action" aria-label="Copy the connection summary" data-tooltip="Copy the connection summary as text. Passwords are never copied." data-tooltip-icon="⧉" data-tooltip-kind="info">Copy</button>
-                    </div>
-                </div>
-                <dl id="connection-summary-rows" class="connection-summary-rows" aria-live="polite"></dl>
-            </section>
             <dialog id="protocol-settings-dialog" class="protocol-settings-dialog" aria-labelledby="protocol-settings-title">
                 <div class="protocol-settings-header">
                     <div class="protocol-settings-heading">
@@ -279,6 +275,9 @@
                         <div id="protocol-settings-panel-summary" class="protocol-settings-panel protocol-settings-summary" role="tabpanel" tabindex="0" aria-labelledby="protocol-settings-tab-summary" hidden>
                             <p id="protocol-settings-empty" class="protocol-settings-empty" hidden>TCP has no protocol settings. Connection type, host, and port stay in the connection row.</p>
                             <dl id="protocol-settings-summary-rows" class="connection-summary-rows"></dl>
+                            <div class="protocol-settings-summary-actions">
+                                <button id="connection-summary-copy" type="button" class="connection-summary-action" aria-label="Copy the connection summary" data-tooltip="Copy the connection summary as text. Passwords are never copied." data-tooltip-icon="⧉" data-tooltip-kind="info">Copy summary</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -294,6 +293,9 @@
                 </div>
             </dialog>
         </div>
+        <section id="connection-summary-card" class="connection-warning-alert" tabindex="-1" role="status" aria-live="polite" aria-label="Connection warnings" hidden>
+            <dl id="connection-summary-rows" class="connection-summary-rows"></dl>
+        </section>
         <pre id="logs" role="log" aria-live="polite" aria-relevant="additions"></pre>
         <div id="activity-strip" class="activity-strip hidden pinned expanded" role="region" aria-label="Activity strip" aria-live="polite">
             <div id="status-wrapper" class="status-wrapper activity-card">
@@ -325,7 +327,7 @@
                     <span class="button-icon icon-status-toggle" aria-hidden="true"></span>
                 </button>
                 <div class="separator" aria-hidden="true"></div>
-                <button id="connection-summary-status-btn" class="connection-summary-status-btn" type="button" aria-haspopup="dialog" aria-controls="protocol-settings-dialog" aria-label="Connection summary" data-tooltip="Connection summary&#10;---&#10;Select or press Enter to open the full read-only summary. Hovering only previews this line." data-tooltip-icon="▤" data-tooltip-kind="info">
+                <button id="connection-summary-status-btn" class="connection-summary-status-btn" type="button" aria-haspopup="dialog" aria-controls="protocol-settings-dialog" aria-label="Connection summary" data-tooltip="Open the full read-only connection summary (Cmd/Ctrl+Shift+I)." data-tooltip-icon="▤" data-tooltip-kind="info">
                     <span id="connection-summary-status-label" class="connection-summary-status-label">TCP Server · 127.0.0.1:5565</span>
                 </button>
             </div>
@@ -486,7 +488,7 @@
                 <p id="error-message"></p>
             </div>
             <div class="dialog-footer">
-                <button id="error-close-btn" class="dialog-button">Close</button>
+                <button id="error-close-btn" class="dialog-button" aria-label="Close" data-tooltip="Dismiss this error and return to the application (Esc)" data-tooltip-icon="✕" data-tooltip-kind="info">Close</button>
             </div>
         </div>
     </div>

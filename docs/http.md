@@ -90,7 +90,7 @@ When connecting to an ArcGIS Velocity HTTP Receiver endpoint, set this to the sy
 
 ## UI controls
 
-When HTTP is selected as the connection type, its controls live in the **Protocol Settings** dialog (**Protocol Settings…** in the connection row, or `Cmd/Ctrl+Shift+P`), grouped into **Basics** and **Security** (HTTP has no Advanced settings). See [Connection summary and protocol settings](connection-summary.md).
+When HTTP is selected as the connection type, its controls live in the **Protocol Settings** dialog (**Settings** in the connection row, or `Cmd/Ctrl+Shift+P`), grouped into **Basics** and **Security** (HTTP has no Advanced settings). See [Connection summary and protocol settings](connection-summary.md).
 
 The following controls appear:
 

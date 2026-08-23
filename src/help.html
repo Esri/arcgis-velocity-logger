@@ -250,7 +250,7 @@
 
             <div class="help-section">
                 <h3>Protocol Settings &amp; Connection Summary</h3>
-                <p>Select <strong>Protocol Settings…</strong> in the connection row, or press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd>, to open the settings for the selected protocol. The button carries a chip that reports the configured state, for example <code>HTTP · 2 changed</code> or <code>TCP · no protocol settings</code>, and turns into a warning chip whenever the summary reports a warning.</p>
+                <p>Select <strong>Settings</strong> in the connection row, or press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd>, to open the settings for the selected protocol. The button carries a numeric chip counting the settings that differ from their defaults. The adjacent <strong>Summary</strong> action carries the warning count. The full configured-state sentence — for example <code>HTTP · 2 changed</code> or <code>TCP · no protocol settings</code> — stays available as the Settings button&rsquo;s tooltip and accessible name. On a narrow window the buttons drop their labels and keep their icons and badges.</p>
                 <ul>
                     <li><strong>Basics:</strong> The settings this protocol needs before it can receive data.</li>
                     <li><strong>Security:</strong> TLS or the STARTTLS policy, certificate verification, and the CA, certificate, and key paths.</li>
@@ -262,7 +262,8 @@
                     <li><strong>Validation:</strong> A failed Connect opens the dialog, selects the section that owns the offending control, focuses it, and explains the problem in an assertive banner.</li>
                     <li><strong>Keyboard:</strong> Arrow keys move between sections, <kbd>Home</kbd> and <kbd>End</kbd> jump to the first and last, and closing returns focus to the control that opened the dialog.</li>
                 </ul>
-                <p>The same summary appears on three surfaces: the inline card under the connection row (three rows, warnings first, with <strong>Show all</strong> and <strong>Copy</strong>), the status-bar entry showing the mode and endpoint with a <code>⚠</code> mark when a warning applies, and the read-only Summary section. None of them is hover-only — select the card action or the status-bar entry, or press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd>. Secrets are reported only as <code>Set (hidden)</code>, <code>Empty</code>, or <code>Not set</code>, and <strong>Copy</strong> never includes a password.</p>
+                <p>The full summary is disclosed on demand rather than kept on screen: select <strong>Summary</strong> in the connection row, select the status-bar entry showing the mode and endpoint, or press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd>. All three open the same read-only Summary section, where <strong>Copy summary</strong> also lives. Warnings are the exception: whenever one applies, a one-line warning alert appears under the connection row and stays visible even when the connection row is hidden, the Summary action carries the warning count, and the status-bar entry turns red and gains a <code>⚠</code> mark. Secrets are reported only as <code>Set (hidden)</code>, <code>Empty</code>, or <code>Not set</code>, and <strong>Copy summary</strong> never includes a password.</p>
+                <p>Tooltips are shown on deliberate hover only. Resting the pointer on a control for about a second opens its tooltip; moving, typing, scrolling, or selecting anything dismisses it, and it stays suppressed briefly afterwards. Keyboard focus never opens a tooltip visually — the same text is attached to the focused control as an accessible description instead — and hover tooltips stay suppressed while a dialog is open.</p>
             </div>
 
             <div class="help-section">
@@ -274,15 +275,6 @@
                     <li><strong>List Order:</strong> Toggle between ascending (oldest first) and descending (newest first) order</li>
                     <li><strong>Line Counter:</strong> Track total messages received</li>
                     <li><strong>Command Line Interface:</strong> <code>&gt;_</code> opens the CLI reference and option builder dialog (F3)</li>
-                </ul>
-            </div>
-
-            <div class="help-section">
-                <h3>Tooltips</h3>
-                <p>Hover or focus controls for custom, theme-aware tooltips. Some dense status fields, such as the Activity Strip text, open details on click.</p>
-                <ul>
-                    <li><strong>Icons/colours:</strong> Auth, TLS, warning, success, and error states use distinct theme-aware accents.</li>
-                    <li><strong>Accessibility:</strong> Controls keep ARIA labels while native title tooltips are replaced.</li>
                 </ul>
             </div>
 

@@ -48,8 +48,9 @@ app.
 | Close and keep edits | `Escape` | `Escape` |
 
 `Cmd/Ctrl+Shift+P` and `Cmd/Ctrl+Shift+I` work while a connection field has
-focus, and both reveal the connection row first when it is hidden. Closing the
-dialog always returns focus to the control that opened it. See
+focus. `Cmd/Ctrl+Shift+I` opens the Protocol Settings dialog on its read-only
+Summary section and moves focus there, whether the dialog was already open or
+not. Closing the dialog always returns focus to the control that opened it. See
 [Connection summary and protocol settings](connection-summary.md).
 
 ## CLI reference dialog (`F3`) shortcuts

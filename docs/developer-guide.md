@@ -62,7 +62,7 @@ Shared logic belongs in a dedicated module rather than in each transport.
 examples: gRPC, HTTP, WebSocket, and XMPP transports consume them instead of
 duplicating certificate, format, or tooltip behavior. `connection-summary.js`
 follows the same rule for the user interface: it is a pure module with no DOM
-access, so the inline summary card, the status-bar button, and the read-only
+access, so the warning alert, the status-bar button, and the read-only
 Summary section of the Protocol Settings dialog are all rendered from one
 generated summary and can never disagree. See
 [Connection summary and protocol settings](connection-summary.md).

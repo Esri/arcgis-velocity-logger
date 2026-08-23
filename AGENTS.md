@@ -460,7 +460,15 @@ Keep the following identical in both repositories.
   `protocol-settings-revert`, `protocol-settings-reset`,
   `connection-summary-card`, `connection-summary-rows`,
   `connection-summary-show-all`, `connection-summary-copy`,
+  `connection-summary-warning-count`,
   `connection-summary-status-btn`, and `connection-summary-status-label`.
+  `connection-summary-card` is the warning-only alert: it holds
+  `connection-summary-rows`, renders at most one condensed line, is `hidden`
+  whenever no warning applies, and sits outside the collapsible connection
+  controls so a warning survives hiding the connection row.
+  `connection-summary-show-all` is the compact **Summary** action in the
+  connection row, and `connection-summary-copy` lives inside
+  `protocol-settings-panel-summary` with the section it copies.
   Pre-existing protocol control ids are preserved unchanged, including
   `grpc-advanced`, `http-advanced`, `ws-advanced`, and `xmpp-advanced`, which
   identify the Advanced group of each protocol.
@@ -499,9 +507,13 @@ Keep the following identical in both repositories.
   one `handleConnectionShortcut(name)` entry point in the renderer, so a menu
   accelerator and the in-page key handler can never disagree.
 - **Summary generator.** `src/connection-summary.js` is a pure module with no
-  DOM access. `buildConnectionSummary(state)` drives the inline card, the
+  DOM access. `buildConnectionSummary(state)` drives the warning alert, the
   status-bar button, the read-only Summary section, and the configured-state
-  count. It covers all twelve protocol and mode combinations, sorts warnings
+  count. `formatConnectionWarningLine(summary)` condenses every warning into the
+  single line the alert renders, returning `null` when nothing is wrong; a lone
+  warning keeps its own `label` and `value`, and several become `N warnings`
+  followed by the highest-priority warning. It covers all twelve protocol and
+  mode combinations, sorts warnings
   first with the certificate-verification bypass leading them, composes
   effective HTTP and WebSocket URLs, and reports a secret only as
   `Set (hidden)`, `Empty`, or `Not set`. Row objects carry `key`, `label`,
@@ -513,15 +525,30 @@ Keep the following identical in both repositories.
   self-signed pair, and only a half-configured pair raises a warning. The
   certificate-verification row is reported whenever encryption applies. The
   configured-state label always reports the changed count and appends any
-  warnings rather than replacing the count with them.
+  warnings rather than replacing the count with them. `settings.shortLabel` is
+  the compact chip text: empty when the protocol has no settings or none are
+  changed, and otherwise the count alone. `settings.label` keeps the full
+  sentence and remains the button's tooltip and accessible name.
 - **Status-bar tooltip.** The status-bar button tooltip only says how to open
   the summary; it never carries the summary itself.
+- **Compact connection row.** Only the preset, connection type, host, port,
+  **Settings**, **Summary**, **Connect**, and **Disconnect** are inline, on one
+  non-wrapping row. Every shrinkable control sets `min-width: 0` so a long
+  option label can never push **Connect** out of view, **Summary** drops its
+  label below roughly 860 pixels, and **Settings** drops its label below roughly
+  760 pixels. Both keep their icon, tooltip, and accessible name at every width.
+  **Connect** and **Disconnect** stay separate controls and are never merged.
 - **Tooltip utility.** `src/tooltip-utils.js` stays byte-identical in both
-  repositories. It owns `data-tooltip-trigger`, `data-tooltip-persist-scroll`,
-  the top-layer re-parenting that keeps a tooltip visible above a modal
-  `<dialog>`, and the additive `aria-describedby` handling that lets a tooltip
-  and a validation banner describe one control at the same time. Fix it there
-  rather than working around it in a renderer.
+  repositories. It owns title migration, dynamic content, and additive
+  `aria-describedby`. Visual tooltips require roughly 900 ms of stationary
+  fine-pointer hover within a 4 px tolerance. Movement, pointer interaction,
+  keyboard input, form input, scrolling, dragging, resizing, target removal,
+  focus alone, and an open modal dialog suppress or dismiss them. The utility
+  never invents fallback tooltips from visible labels, select option text, or
+  placeholders. Focus associates the same content as a hidden accessible
+  description without opening a visual popup, and visible tooltips do not
+  intercept pointer input. Fix shared behavior there rather than working around
+  it in a renderer.
 
 Only these differences are allowed, and each one follows from the direction of
 data flow or from a control that only one application has.

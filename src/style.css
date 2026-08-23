@@ -636,17 +636,46 @@ button:disabled {
 
 .connection-primary {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     align-items: center;
     flex-wrap: nowrap;
+    min-width: 0;
+}
+
+/* Every shrinkable control in the row needs an explicit zero minimum, or the
+   intrinsic width of a long option label keeps the row wider than the window
+   and pushes Connect and Disconnect out of view. */
+.connection-primary > select,
+.connection-primary > input {
+    min-width: 0;
+}
+
+.connection-primary > #connection-type {
+    flex: 0 1 auto;
+    max-width: 190px;
+    text-overflow: ellipsis;
+}
+
+.connection-primary > #host {
+    flex: 1 1 120px;
+}
+
+.connection-primary > #port {
+    flex: 0 1 92px;
+}
+
+.connection-primary > .connect-btn,
+.connection-primary > .disconnect-btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
 }
 
 /* Preset picker: sits ahead of Connection Type and stays compact so the
    primary row keeps its single-line rhythm. */
 .connection-preset-select {
     flex: 0 1 auto;
-    max-width: 210px;
-    min-width: 80px;
+    max-width: 190px;
+    min-width: 0;
     text-align: left;
     text-align-last: left;
     text-overflow: ellipsis;
@@ -671,15 +700,23 @@ button:disabled {
    Protocol Settings dialog and connection summary
    ------------------------------------------------------------------ */
 
-/* Trigger button: a label plus a persistent configured-state chip. */
+/* Trigger button: an icon, a short label, and a numeric configured-state chip.
+   The full sentence lives in the tooltip so the row stays narrow. */
 .protocol-settings-btn {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     flex: 0 0 auto;
     white-space: nowrap;
+    padding-inline: 8px;
     background-color: var(--button-info-bg, var(--button-bg-color));
     color: var(--button-info-text-color, var(--button-text-color));
+}
+
+.protocol-settings-btn-icon,
+.connection-summary-action-icon {
+    font-size: 0.95em;
+    line-height: 1;
 }
 
 .protocol-settings-btn-label {
@@ -687,13 +724,19 @@ button:disabled {
 }
 
 .protocol-settings-count {
-    padding: 1px 6px;
+    min-width: 1.25em;
+    padding: 0 5px;
     border: 1px solid color-mix(in srgb, currentColor 45%, transparent);
     border-radius: 10px;
     font-size: 0.72em;
     line-height: 1.6;
+    text-align: center;
     white-space: nowrap;
     opacity: 0.9;
+}
+
+.protocol-settings-count[hidden] {
+    display: none;
 }
 
 .protocol-settings-count[data-warning="true"] {
@@ -702,49 +745,60 @@ button:disabled {
     opacity: 1;
 }
 
-/* Inline summary card: three rows, warnings first, plus explicit actions. */
-.connection-summary-card {
+/* Compact Summary action in the connection row. The full summary is disclosed
+   on demand in the dialog, so nothing permanent is spent on it here. */
+.connection-summary-open-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.connection-summary-open-btn[data-warning="true"] {
+    border-color: var(--button-danger-bg, #dc3545);
+    color: var(--button-danger-bg, #dc3545);
+}
+
+.connection-summary-warning-count {
+    padding: 0 5px;
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--button-warning-bg, #ffc107) 20%, transparent);
+    color: var(--button-warning-bg, #ffc107);
+    font-size: 0.8em;
+    line-height: 1.5;
+}
+
+.connection-summary-warning-count[hidden] {
+    display: none;
+}
+
+/* Warning-only alert. It is hidden outright when nothing is wrong, so the
+   connection area costs a single row, and it sits outside the collapsible
+   connection controls so a warning stays visible either way. */
+.connection-warning-alert {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    margin-top: 6px;
-    padding: 6px 8px;
-    border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
-    border-left: 3px solid color-mix(in srgb, var(--button-info-bg, var(--border-color)) 70%, var(--border-color));
+    margin: 0 0 4px;
+    padding: 3px 8px;
+    border: 1px solid color-mix(in srgb, var(--button-danger-bg, #dc3545) 45%, transparent);
+    border-left: 3px solid var(--button-danger-bg, #dc3545);
     border-radius: 6px;
-    background: color-mix(in srgb, var(--surface-color, var(--bg-color)) 88%, transparent);
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    background: color-mix(in srgb, var(--button-danger-bg, #dc3545) 10%, transparent);
 }
 
-.connection-summary-card:focus-visible {
+.connection-warning-alert[hidden] {
+    display: none;
+}
+
+.connection-warning-alert:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--button-bg-color) 45%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--button-danger-bg, #dc3545) 45%, transparent);
 }
 
-.connection-summary-card[data-warning="true"] {
-    border-left-color: var(--button-danger-bg, #dc3545);
-}
-
-.connection-summary-card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-}
-
-.connection-summary-card-title {
-    margin: 0;
-    font-size: 0.8em;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-    opacity: 0.75;
-}
-
-.connection-summary-card-actions {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+.connection-warning-alert .connection-summary-row {
+    grid-template-columns: auto 1fr;
+    align-items: baseline;
 }
 
 .connection-summary-action {
@@ -757,6 +811,13 @@ button:disabled {
 
 .connection-summary-action:hover:not(:disabled) {
     background: color-mix(in srgb, var(--text-color) 8%, transparent);
+}
+
+/* Copy lives with the read-only Summary section it copies. */
+.protocol-settings-summary-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 8px;
 }
 
 .connection-summary-rows {
@@ -1138,6 +1199,40 @@ button:disabled {
 }
 
 /* Compact layout: the rail becomes a segmented tab strip above the panels. */
+/* Responsive connection row: the label of each icon-bearing action drops out
+   before anything is clipped, so Connect and Disconnect stay reachable. They
+   keep their accessible names, which the tooltip and aria-label already carry. */
+@media (max-width: 980px) {
+    .connection-preset-select {
+        max-width: 150px;
+    }
+
+    .connection-primary > #connection-type {
+        max-width: 150px;
+    }
+}
+
+@media (max-width: 860px) {
+    .connection-summary-action-label {
+        display: none;
+    }
+
+    .connection-summary-open-btn {
+        padding-inline: 8px;
+    }
+}
+
+@media (max-width: 760px) {
+    .protocol-settings-btn-label {
+        display: none;
+    }
+
+    .connection-preset-select,
+    .connection-primary > #connection-type {
+        max-width: 120px;
+    }
+}
+
 @media (max-width: 760px) {
     .protocol-settings-body {
         flex-direction: column;
@@ -1564,6 +1659,13 @@ pre#logs::-webkit-scrollbar-thumb {
 .custom-tooltip.visible {
     opacity: 1;
     transform: translateY(0) scale(1);
+    pointer-events: none;
+}
+
+/* Intent tooltips are informational, never interactive, so they must not
+   intercept the pointer or offer their own controls. */
+.custom-tooltip-copy {
+    display: none;
 }
 
 .custom-tooltip-icon {

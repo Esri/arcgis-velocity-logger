@@ -307,7 +307,7 @@ electron . runMode=headless protocol=grpc mode=server ip=0.0.0.0 port=50051 useT
 
 ## UI usage
 
-When gRPC is selected as the connection type, its controls live in the **Protocol Settings** dialog (**Protocol Settings…** in the connection row, or `Cmd/Ctrl+Shift+P`), grouped into **Basics**, **Security**, and — in client mode — **Advanced**. See [Connection summary and protocol settings](connection-summary.md).
+When gRPC is selected as the connection type, its controls live in the **Protocol Settings** dialog (**Settings** in the connection row, or `Cmd/Ctrl+Shift+P`), grouped into **Basics**, **Security**, and — in client mode — **Advanced**. See [Connection summary and protocol settings](connection-summary.md).
 
 The following controls appear:
 

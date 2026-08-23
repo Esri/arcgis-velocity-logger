@@ -367,7 +367,9 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
     assert.strictEqual(document.getElementById('grpc-tls').checked, false);
     assert.strictEqual(document.getElementById('connection-type').value, 'grpc-server');
     assert.match(document.getElementById('protocol-settings-title').textContent, /gRPC Server settings/);
-    assert.match(document.getElementById('protocol-settings-count').textContent, /^gRPC · \d+ changed( · \d+ warnings?)?$/);
+    // The chip is a bare count now; the sentence lives in the button tooltip.
+    assert.match(document.getElementById('protocol-settings-count').textContent, /^\d+$/);
+    assert.match(document.getElementById('protocol-settings-btn').dataset.tooltip, /gRPC Server settings: \d+ of \d+ changed/);
     assert.strictEqual(sent.filter(({ channel }) => channel.startsWith('connect-')).length, 0);
 
     document.getElementById('protocol-settings-btn').click();
@@ -377,31 +379,45 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
 
   await uiTest('the chip counts protocol settings that differ from their defaults', async ({ document, select, check }) => {
     const chip = document.getElementById('protocol-settings-count');
+    const button = document.getElementById('protocol-settings-btn');
     select('connection-type', 'tcp-client');
-    assert.strictEqual(chip.textContent, 'TCP · no protocol settings');
+    assert.strictEqual(chip.textContent, '', 'a protocol with no settings shows no chip');
+    assert.strictEqual(chip.hidden, true);
+    assert.match(button.getAttribute('aria-label'), /TCP · no protocol settings$/);
 
     select('connection-type', 'http-client');
-    assert.strictEqual(chip.textContent, 'HTTP · defaults');
+    assert.strictEqual(chip.textContent, '', 'untouched defaults show no chip');
+    assert.strictEqual(chip.hidden, true);
+    assert.match(button.getAttribute('aria-label'), /HTTP · defaults$/);
     select('http-format', 'json');
-    assert.strictEqual(chip.textContent, 'HTTP · 1 changed');
-    // A warning is appended to the count, never substituted for it.
+    assert.strictEqual(chip.textContent, '1');
+    assert.strictEqual(chip.hidden, false);
+    // A warning is appended to the accessible name, never substituted for it.
     check('http-tls', false);
-    assert.strictEqual(chip.textContent, 'HTTP · 2 changed · 1 warning');
+    assert.strictEqual(chip.textContent, '2');
+    assert.match(button.getAttribute('aria-label'), /HTTP · 2 changed · 1 warning$/);
     assert.strictEqual(chip.dataset.warning, 'true', 'plaintext raises a warning on the chip');
   });
 
-  await uiTest('the inline card shows three rows with warnings first and copies redacted text', async ({ document, select, check, rows, sent }) => {
+  await uiTest('the warning alert stays hidden until something is wrong', async ({ document, select, check, rows, sent }) => {
+    const alert = document.getElementById('connection-summary-card');
     select('connection-type', 'http-server');
-    assert.deepStrictEqual(rows('connection-summary-rows').map((row) => row.key), ['connection', 'endpoint', 'status']);
-    assert.strictEqual(rows('connection-summary-rows')[1].value, 'https://127.0.0.1:8443/');
+    assert.strictEqual(alert.hidden, true, 'a healthy connection costs no vertical space');
+    assert.deepStrictEqual(rows('connection-summary-rows'), []);
 
     select('connection-type', 'http-client');
     check('http-allow-unverified', true);
-    const primary = rows('connection-summary-rows');
-    assert.strictEqual(primary[0].key, 'unverifiedCertificate');
-    assert.strictEqual(primary[0].kind, 'warning');
-    assert.strictEqual(document.getElementById('connection-summary-card').dataset.warning, 'true');
+    const warningRows = rows('connection-summary-rows');
+    assert.strictEqual(warningRows.length, 1, 'the alert is a single line');
+    assert.strictEqual(warningRows[0].key, 'warnings');
+    assert.strictEqual(warningRows[0].kind, 'warning');
+    assert.match(warningRows[0].value, /Off for every host/);
+    assert.strictEqual(alert.hidden, false);
+    assert.strictEqual(alert.dataset.warning, 'true');
+    assert.strictEqual(document.getElementById('connection-summary-warning-count').textContent, '⚠ 1');
 
+    // Copy moved into the Summary section it copies.
+    document.getElementById('connection-summary-show-all').click();
     document.getElementById('connection-summary-copy').click();
     const copied = sent.filter(({ channel }) => channel === 'copy-to-clipboard').pop();
     assert.ok(copied, 'the summary is copied through the main process clipboard channel');
@@ -433,7 +449,8 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
 
     const statusButton = document.getElementById('connection-summary-status-btn');
     assert.strictEqual(statusButton.getAttribute('aria-haspopup'), 'dialog');
-    assert.match(statusButton.dataset.tooltip, /Select or press Enter to open/);
+    assert.match(statusButton.dataset.tooltip, /Open the full read-only connection summary/);
+    assert.match(statusButton.dataset.tooltip, /Cmd\/Ctrl\+Shift\+I/);
     assert.strictEqual(document.getElementById('connection-summary-status-label').textContent, 'gRPC Client · 127.0.0.1:5565');
     statusButton.click();
     assert.strictEqual(document.getElementById('protocol-settings-dialog').open, true);
@@ -449,7 +466,9 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
     assert.strictEqual(dialog.open, false);
 
     key(document.body, 'I', { ctrlKey: true, shiftKey: true });
-    assert.strictEqual(document.activeElement.id, 'connection-summary-card');
+    assert.strictEqual(dialog.open, true, 'the summary is disclosed on demand, never inline');
+    assert.strictEqual(document.activeElement.id, 'protocol-settings-panel-summary');
+    key(document.body, 'Escape');
 
     // The shortcut still works while a connection field has focus.
     document.getElementById('host').focus();

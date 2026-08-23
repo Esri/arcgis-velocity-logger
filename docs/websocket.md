@@ -106,7 +106,7 @@ Useful for authentication tokens or API keys required by the WebSocket endpoint.
 
 ## UI controls
 
-When WebSocket is selected as the connection type, its controls live in the **Protocol Settings** dialog (**Protocol Settings…** in the connection row, or `Cmd/Ctrl+Shift+P`), grouped into **Basics**, **Security**, and **Advanced**. See [Connection summary and protocol settings](connection-summary.md).
+When WebSocket is selected as the connection type, its controls live in the **Protocol Settings** dialog (**Settings** in the connection row, or `Cmd/Ctrl+Shift+P`), grouped into **Basics**, **Security**, and **Advanced**. See [Connection summary and protocol settings](connection-summary.md).
 
 The following controls appear:
 

@@ -153,7 +153,7 @@ self-signed certificate while STARTTLS still encrypts the stream.
 |---|---|
 | Preset | Pre-fills the connection fields for a paired local Logger and Simulator test. Defaults to Custom. |
 | Modified badge | Appears after a populated field is edited; names the preset the fields started from. |
-| Protocol Settings… | Opens the protocol-specific settings for the selected connection type, with a chip reporting how many of them differ from their defaults. |
+| Settings | Opens the protocol-specific settings for the selected connection type, with a numeric chip reporting how many of them differ from their defaults. |
 
 ## Tooltip reference
 

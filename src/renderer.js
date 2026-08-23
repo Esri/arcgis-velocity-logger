@@ -62,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const connectionSummaryRows = document.getElementById('connection-summary-rows');
     const connectionSummaryShowAllBtn = document.getElementById('connection-summary-show-all');
     const connectionSummaryCopyBtn = document.getElementById('connection-summary-copy');
+    const connectionSummaryWarningCount = document.getElementById('connection-summary-warning-count');
     const connectionSummaryStatusBtn = document.getElementById('connection-summary-status-btn');
     const connectionSummaryStatusLabel = document.getElementById('connection-summary-status-label');
     const httpFormatSelect = document.getElementById('http-format');
@@ -815,34 +816,60 @@ document.addEventListener('DOMContentLoaded', () => {
         const summary = connectionSummaryApi.buildConnectionSummary(readConnectionState());
         lastConnectionSummary = summary;
 
-        renderSummaryRows(connectionSummaryRows, summary.primaryRows);
         renderSummaryRows(protocolSettingsSummaryRows, summary.rows);
 
+        // The always-visible alert carries warnings only. With nothing wrong it
+        // is hidden outright, so the connection area keeps a single-row height.
+        const warningLine = connectionSummaryApi.formatConnectionWarningLine(summary);
+        renderSummaryRows(connectionSummaryRows, warningLine
+            ? [{
+                key: 'warnings',
+                label: warningLine.label,
+                value: warningLine.value,
+                kind: 'warning',
+                severity: 'warning',
+            }]
+            : []);
+
         if (connectionSummaryCard) {
-            connectionSummaryCard.dataset.warning = summary.warnings.length ? 'true' : 'false';
-            connectionSummaryCard.setAttribute('aria-label', `Connection summary: ${summary.headline}`);
+            connectionSummaryCard.hidden = !warningLine;
+            connectionSummaryCard.dataset.warning = warningLine ? 'true' : 'false';
+            connectionSummaryCard.setAttribute(
+                'aria-label',
+                warningLine ? `Connection warnings: ${warningLine.text}` : 'Connection warnings',
+            );
         }
         if (connectionSummaryStatusLabel) {
             connectionSummaryStatusLabel.textContent = connectionSummaryApi.formatConnectionSummaryChip(summary);
         }
         if (connectionSummaryStatusBtn) {
-            const warningLine = summary.warnings.length
-                ? `\n---\n⚠ ${summary.warnings[0].label}: ${summary.warnings[0].value}`
-                : '';
-            const tooltip = `Connection summary\n---\n${summary.connectionTypeLabel} · ${summary.headline}\nSelect or press Enter to open the full read-only summary. Hovering only previews this line.${warningLine}`;
+            const tooltip = 'Open the full read-only connection summary (Cmd/Ctrl+Shift+I).';
             connectionSummaryStatusBtn.dataset.tooltip = tooltip;
             connectionSummaryStatusBtn.dataset.tooltipKind = summary.warnings.length ? 'warning' : 'info';
-            connectionSummaryStatusBtn.setAttribute('aria-label', tooltip.replace(/\n+/g, ' '));
+            connectionSummaryStatusBtn.setAttribute(
+                'aria-label',
+                `Open connection summary: ${summary.headline}${warningLine ? `. ${warningLine.text}` : ''}`,
+            );
             connectionSummaryStatusBtn.dataset.warning = summary.warnings.length ? 'true' : 'false';
+        }
+        if (connectionSummaryShowAllBtn) {
+            connectionSummaryShowAllBtn.dataset.tooltip = 'Open the full read-only connection summary (Cmd/Ctrl+Shift+I).';
+            connectionSummaryShowAllBtn.dataset.tooltipKind = summary.warnings.length ? 'warning' : 'info';
+            connectionSummaryShowAllBtn.dataset.warning = summary.warnings.length ? 'true' : 'false';
+        }
+        if (connectionSummaryWarningCount) {
+            connectionSummaryWarningCount.hidden = summary.warnings.length === 0;
+            connectionSummaryWarningCount.textContent = summary.warnings.length ? `⚠ ${summary.warnings.length}` : '';
         }
         if (protocolSettingsTitle) protocolSettingsTitle.textContent = summary.title;
         if (protocolSettingsSubtitle) protocolSettingsSubtitle.textContent = summary.headline;
         if (protocolSettingsCount) {
-            protocolSettingsCount.textContent = summary.settings.label;
+            protocolSettingsCount.textContent = summary.settings.shortLabel;
+            protocolSettingsCount.hidden = !summary.settings.shortLabel;
             protocolSettingsCount.dataset.warning = summary.warnings.length ? 'true' : 'false';
         }
         if (protocolSettingsBtn) {
-            const tooltip = `Protocol Settings (Cmd/Ctrl+Shift+P)\n---\nOpen the ${summary.connectionTypeLabel} settings: ${summary.settings.hasSettings ? `${summary.settings.count} of ${summary.settings.total} changed from their defaults` : 'this protocol has no protocol settings'}.\nPreset, connection type, host, and port stay in this row.`;
+            const tooltip = `Protocol Settings (Cmd/Ctrl+Shift+P)\n---\nOpen the ${summary.connectionTypeLabel} settings: ${summary.settings.hasSettings ? `${summary.settings.count} of ${summary.settings.total} changed from their defaults` : 'this protocol has no protocol settings'}.`;
             protocolSettingsBtn.dataset.tooltip = tooltip;
             protocolSettingsBtn.setAttribute('aria-label', `Protocol Settings for ${summary.connectionTypeLabel}: ${summary.settings.label}`);
         }
@@ -997,18 +1024,18 @@ document.addEventListener('DOMContentLoaded', () => {
         protocolSettingsReturnFocus = null;
     }
 
-    /** Moves focus to the inline connection summary, revealing it first. */
+    /**
+     * Opens the read-only Summary section of Protocol Settings. Both the
+     * compact Summary action and the status-bar button reach the same surface,
+     * so there is only one place the full summary is ever shown.
+     */
     function focusConnectionSummary() {
-        if (isProtocolSettingsOpen()) {
-            activateProtocolSection('summary');
-            document.getElementById('protocol-settings-panel-summary')?.focus?.();
-            return;
-        }
-        if (connectionControls && connectionControls.classList.contains('hidden')) {
-            setToggleConnectionLineState(true);
-        }
         renderConnectionSummary();
-        connectionSummaryCard?.focus?.();
+        if (!isProtocolSettingsOpen()) {
+            openProtocolSettings({ section: 'summary' });
+        }
+        activateProtocolSection('summary');
+        document.getElementById('protocol-settings-panel-summary')?.focus?.();
     }
 
     /** Copies the summary text. Redacted secrets are all it ever contains. */
