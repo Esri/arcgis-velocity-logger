@@ -7,6 +7,7 @@
     <title>Help - ArcGIS Velocity Logger</title>
     <link rel="stylesheet" href="./themes.css">
     <link rel="stylesheet" href="./help.css">
+    <link rel="stylesheet" href="./accessibility.css">
     <script src="./themes/theme-loader.js"></script>
 </head>
 <body>
@@ -148,9 +149,14 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const params = new URLSearchParams(window.location.search);
-            const theme = params.get('theme') || 'theme-dark';
-            if (window.themeLoader) window.themeLoader.loadTheme(theme);
-            else document.body.className = theme;
+            const theme = params.get('theme') || 'dark';
+            const themeHref = params.get('themeHref') || '';
+            if (window.themeLoader) {
+                window.themeLoader.initializeThemeWindow({ theme, themeHref, api: window.electronAPI });
+            } else {
+                document.body.className = `theme-${theme}`;
+                document.body.dataset.theme = theme;
+            }
 
             const searchInput = document.getElementById('help-search');
             const clearSearchButton = document.getElementById('help-search-clear');

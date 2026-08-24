@@ -137,6 +137,7 @@ node test/external-sign.test.js
 node test/sign-lock.test.js
 node test/protocol-settings-window.test.js
 node test/reference-window-manager.test.js
+node test/theme-cascade.test.js
 ```
 
 `protocol-settings-window.test.js` covers the detached window: secure
@@ -152,6 +153,14 @@ clamping and persistence, focus-on-reopen, ready lifecycle, and closing both
 workspaces when the main window closes. Help documentation links use one
 allowlisted GitHub documentation prefix and open externally through the
 manager; every other new-window request is denied.
+
+`theme-cascade.test.js` resolves the real CSS cascade for Help, the Command
+Line Interface, and the detached Protocol Settings window across every built-in
+theme, including System under both operating-system color schemes. It compares
+the resolved page, surface, border, text, and heading colors of Help against
+Protocol Settings, checks text, muted text, heading, and link contrast, and
+fails when a window stylesheet derives a palette token on `:root`, keeps a
+fixed color fallback, or paints a fixed black or white overlay.
 
 Run the smallest suite that covers your change first, then `npm test` before
 committing.
@@ -302,7 +311,8 @@ Packaged builds write diagnostics to:
 |---|---|
 | Port already in use | Check with `lsof -i :<port>` or `netstat -an \| grep <port>`, then pick a free port. |
 | Debugger will not attach | The inspector port is occupied. Check `lsof -i :9229`, stop the stale Electron process by PID, and re-run. Validate syntax with `node -c src/main.js`. |
-| Theme does not apply | Confirm `themes/theme-loader.js` is loaded and `<link id="current-theme-stylesheet">` exists. Themes load only through that link; the body must carry no `theme-*` class. |
+| Theme does not apply | Confirm `themes/theme-loader.js` is loaded and `<link id="current-theme-stylesheet">` exists. The loader also puts a `theme-<name>` class and `data-theme` on the body; every theme palette is scoped to that class. |
+| A window stays dark under a light theme | A palette token was derived on `:root`. Theme variables exist only from `body` downwards, so a `:root` declaration is substituted against the html element, freezes at the dark defaults in `src/themes.css`, and is then inherited by the whole document. Declare derived tokens on `body`. |
 | IPC message never arrives | The channel is missing from the `send`, `invoke`, or `on` whitelist in `src/preload.js`. |
 | Header controls wrap or overflow | `.header` and `.theme-controls` must keep `flex-wrap: nowrap`; check the progressive-hide width thresholds in `index.html`. |
 | Tooltip does not appear | The control lacks `data-tooltip` and `aria-label`, or a state change updated the icon without updating `element.dataset.tooltip`. |
@@ -372,10 +382,10 @@ functions.
 ### Adding a theme
 
 1. Add `src/themes/theme-<name>.css` defining every custom property the app
-   uses: base, surface, and text colors; button background, text, and border;
-   border and shadow colors; status and toggle colors; compatibility aliases;
-   and `--title-gradient-start`, `--title-gradient-mid`, and
-   `--title-gradient-end`.
+   uses, scoped to `body.theme-<name>`: base, surface, and text colors; button
+   background, text, and border; border and shadow colors; status and toggle
+   colors; compatibility aliases; and `--title-gradient-start`,
+   `--title-gradient-mid`, and `--title-gradient-end`.
 2. Register the name in `ThemeLoader.getAvailableThemes()` in
    `src/themes/theme-loader.js`.
 3. Add the option to every user-facing theme selector.
@@ -384,6 +394,30 @@ functions.
    so the UI stays usable if dynamic loading fails.
 5. Update the [configuration guide](configuration.md) when the available theme
    list changes.
+6. Run `node test/theme-cascade.test.js`, which resolves the real cascade for
+   Help, the Command Line Interface, and Protocol Settings and checks the new
+   theme for palette parity and text contrast.
+
+### Shared semantic palette
+
+`src/themes.css` derives one semantic palette — `--app-bg`, `--app-surface`,
+`--app-raised`, `--app-border`, `--app-text`, `--app-muted-text`,
+`--app-heading`, `--app-accent`, the `--app-*-bg` interaction surfaces, and the
+`--link-*` tokens — that the main window, the detached Protocol Settings
+window, Help, and the Command Line Interface all share.
+
+Two rules keep it working:
+
+- Declare derived tokens on `body`, never on `:root`. The theme loader applies
+  the theme class to the body element, so `body.theme-*` is the only place a
+  theme palette exists. A `var()` in a `:root` declaration is substituted
+  against the html element, which only carries the dark defaults, and the
+  resolved dark value is then inherited by the whole document.
+- Reference the semantic tokens instead of restating per-theme values or
+  falling back to a fixed color. A window stylesheet should carry no literal
+  hex color and no fixed black or white overlay; tint interaction surfaces with
+  `color-mix()` against `--app-text` so a light theme darkens and a dark theme
+  lightens.
 
 ## Validation checklist
 

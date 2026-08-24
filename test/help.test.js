@@ -68,8 +68,19 @@ function createDialogDom(html, { includeCliApi = false } = {}) {
     beforeParse(window) {
       window.themeLoader = {
         loadTheme(theme) {
-          window.document.body.className = theme;
-          window._loadedTheme = theme;
+          const normalized = String(theme || 'dark').replace(/^theme-/, '') || 'dark';
+          window.document.body.className = `theme-${normalized}`;
+          window.document.body.dataset.theme = normalized;
+          window._loadedTheme = normalized;
+          return normalized;
+        },
+        initializeThemeWindow({ theme, api, channels = ['load-saved-theme'] } = {}) {
+          this.loadTheme(theme);
+          if (api && typeof api.on === 'function') {
+            channels.forEach((channel) => {
+              api.on(channel, (nextTheme) => this.loadTheme(nextTheme));
+            });
+          }
         },
       };
       window.URL.createObjectURL = () => {
@@ -85,6 +96,11 @@ function createDialogDom(html, { includeCliApi = false } = {}) {
         },
       };
       window.electronAPI = {
+        on: (channel, callback) => {
+          window._ipcListeners = window._ipcListeners || {};
+          window._ipcListeners[channel] = window._ipcListeners[channel] || [];
+          window._ipcListeners[channel].push(callback);
+        },
         send: (channel, data) => {
           window._sentMessages = window._sentMessages || [];
           window._sentMessages.push({ channel, data });
@@ -98,6 +114,10 @@ function createDialogDom(html, { includeCliApi = false } = {}) {
             return Promise.resolve(mockCliReference);
           }
           return Promise.resolve(null);
+        },
+        emit: (channel, payload) => {
+          (window._ipcListeners && window._ipcListeners[channel] ? window._ipcListeners[channel] : [])
+            .forEach((callback) => callback(payload));
         },
       };
       window.close = () => {

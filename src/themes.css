@@ -91,6 +91,52 @@ body.theme-dark {
     --logs-border-color: #333333;
 }
 
+/* ========================================
+   SHARED SEMANTIC PALETTE
+   ========================================
+   Every theme file declares its palette on `body.theme-*`, never on `:root`,
+   because the theme loader puts the theme class on the body element. Any token
+   derived from those values must therefore be declared on `body` too: a
+   `:root` declaration is substituted against the html element, where only the
+   dark defaults above exist, and the frozen dark result is then inherited by
+   the whole document no matter which theme is selected.
+
+   These tokens are the single semantic palette shared by the main window, the
+   detached Protocol Settings window, Help, and the Command Line Interface, so
+   a secondary window never needs per-theme values of its own. */
+body {
+    --app-bg: var(--background-color);
+    --app-surface: var(--surface-color, var(--bg-color));
+    --app-raised: color-mix(in srgb, var(--surface-color, var(--bg-color)) 88%, var(--text-color) 12%);
+    --app-border: var(--border-color);
+    --app-text: var(--text-color);
+    --app-muted-text: color-mix(in srgb, var(--text-color) 70%, var(--surface-color, var(--bg-color)) 30%);
+    --app-heading: var(--header-color, var(--text-color));
+    --app-accent: var(--accent-color, var(--primary-color));
+    --app-shadow: var(--shadow-color, rgba(0, 0, 0, 0.2));
+
+    /* Interaction surfaces, tinted with the theme's own text colour so they
+       darken light themes and lighten dark themes. */
+    --app-subtle-bg: color-mix(in srgb, var(--text-color) 5%, transparent);
+    --app-hover-bg: color-mix(in srgb, var(--text-color) 8%, transparent);
+    --app-active-bg: color-mix(in srgb, var(--text-color) 14%, transparent);
+    --app-selected-bg: color-mix(in srgb, var(--button-bg-color, var(--button-bg)) 18%, transparent);
+    --app-selected-border: color-mix(in srgb, var(--button-bg-color, var(--button-bg)) 60%, var(--border-color));
+    --app-focus-ring: var(--button-bg-color, var(--button-bg));
+    --app-inset-highlight: color-mix(in srgb, var(--surface-color, var(--bg-color)) 70%, transparent);
+
+    --link-color: color-mix(in srgb, var(--text-color) 86%, var(--accent-color, var(--primary-color)) 14%);
+    /* Hover strengthens toward the theme's heading colour, which is always the
+       highest-contrast foreground a theme defines, so the hover state never
+       reads fainter than the resting link. Leaning on the raw accent collapses
+       contrast in themes whose accent is darker than their own surface. */
+    --link-hover-color: color-mix(in srgb, var(--link-color) 58%, var(--header-color, var(--text-color)) 42%);
+    --link-visited-color: color-mix(in srgb, var(--link-color) 82%, var(--link-emphasis) 18%);
+    --link-active-color: color-mix(in srgb, var(--link-color) 90%, var(--header-color, var(--text-color)) 10%);
+    --link-emphasis: color-mix(in srgb, var(--accent-color, var(--primary-color)) 45%, var(--header-color, var(--text-color)) 55%);
+    --link-focus-ring: color-mix(in srgb, var(--header-color, var(--text-color)) 72%, var(--accent-color, var(--primary-color)) 28%);
+}
+
 /* Default body styles when no theme is applied */
 body {
     font-family: var(--font-family);

@@ -203,7 +203,17 @@ function createReferenceWindowManager(options) {
     });
   }
 
-  return { closeAll, focus, getWindow: getLiveWindow, open };
+  function updateTheme(theme) {
+    const cleanTheme = typeof theme === 'string' ? theme.trim() : '';
+    if (!cleanTheme) return;
+    windows.forEach((window) => {
+      if (window && !window.isDestroyed()) {
+        window.webContents.send('load-saved-theme', cleanTheme);
+      }
+    });
+  }
+
+  return { closeAll, focus, getWindow: getLiveWindow, open, updateTheme };
 }
 
 module.exports = {

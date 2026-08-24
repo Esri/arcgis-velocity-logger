@@ -23,20 +23,69 @@ class ThemeLoader {
     constructor() {
         this.loadedThemes = new Set();
         this.currentTheme = null;
+        this.currentThemeHref = '';
         this.themeLinkElement = null;
+        this.themeClasses = this.getAvailableThemes().map((themeName) => `theme-${themeName}`);
+    }
+
+    /**
+     * Normalize a theme name to the bare theme id.
+     * @param {string} themeName
+     * @returns {string}
+     */
+    normalizeThemeName(themeName) {
+        if (typeof themeName !== 'string') return '';
+        const trimmed = themeName.trim();
+        if (!trimmed) return '';
+        const normalized = trimmed.replace(/^theme-/, '');
+        return this.getAvailableThemes().includes(normalized) ? normalized : '';
+    }
+
+    /**
+     * Apply the matching theme class and data attribute without removing
+     * non-theme classes already on the body.
+     * @param {string} themeName
+     */
+    applyThemeClass(themeName) {
+        if (!document.body) return;
+        this.themeClasses.forEach((className) => document.body.classList.remove(className));
+        document.body.classList.add(`theme-${themeName}`);
+        document.body.dataset.theme = themeName;
+    }
+
+    /**
+     * Normalize a theme stylesheet href.
+     * @param {string} themeHref
+     * @param {string} themeName
+     * @returns {string}
+     */
+    normalizeThemeHref(themeHref, themeName) {
+        const fallbackHref = `./themes/theme-${themeName}.css`;
+        if (typeof themeHref === 'string' && themeHref.trim()) {
+            const trimmed = themeHref.trim();
+            const match = trimmed.match(/^(?:\.\/)?themes\/theme-([a-z-]+)\.css$/);
+            if (match && match[1] === themeName && this.getAvailableThemes().includes(match[1])) {
+                return trimmed;
+            }
+        }
+        return fallbackHref;
     }
 
     /**
      * Load a theme by name
      * @param {string} themeName - The name of the theme to load (without 'theme-' prefix)
      */
-    loadTheme(themeName) {
-        // Remove 'theme-' prefix if present
-        const cleanThemeName = themeName.replace('theme-', '');
+    loadTheme(themeName, themeHref) {
+        const cleanThemeName = this.normalizeThemeName(themeName) || 'dark';
+        const cleanThemeHref = this.normalizeThemeHref(themeHref, cleanThemeName);
         
-        // Don't reload if it's already the current theme
-        if (this.currentTheme === cleanThemeName) {
-            return;
+        // Refresh the body class and theme metadata even when the stylesheet
+        // is already current. This keeps the current theme available to the
+        // main process and preserves the selected theme when other classes are
+        // already present on the body.
+        if (this.currentTheme === cleanThemeName && this.currentThemeHref === cleanThemeHref) {
+            this.applyThemeClass(cleanThemeName);
+            return cleanThemeName;
         }
 
         // Remove previous theme link if it exists
@@ -46,17 +95,17 @@ class ThemeLoader {
         const linkElement = document.createElement('link');
         linkElement.rel = 'stylesheet';
         linkElement.type = 'text/css';
-        linkElement.href = `./themes/theme-${cleanThemeName}.css`;
+        linkElement.href = cleanThemeHref;
         linkElement.id = 'current-theme-stylesheet';
 
         // Add to head
         document.head.appendChild(linkElement);
         this.themeLinkElement = linkElement;
         this.currentTheme = cleanThemeName;
+        this.currentThemeHref = cleanThemeHref;
         this.loadedThemes.add(cleanThemeName);
-
-        // Apply theme class to body
-        document.body.className = `theme-${cleanThemeName}`;
+        this.applyThemeClass(cleanThemeName);
+        return cleanThemeName;
     }
 
     /**
@@ -68,6 +117,7 @@ class ThemeLoader {
             this.themeLinkElement = null;
         }
         this.currentTheme = null;
+        this.currentThemeHref = '';
     }
 
     /**
@@ -75,7 +125,9 @@ class ThemeLoader {
      * @returns {string|null} The current theme name or null if no theme is loaded
      */
     getCurrentTheme() {
-        return this.currentTheme;
+        return this.currentTheme || this.normalizeThemeName(document.body && document.body.dataset
+            ? document.body.dataset.theme
+            : '');
     }
 
     /**
@@ -84,7 +136,7 @@ class ThemeLoader {
      * @returns {boolean} True if the theme is loaded
      */
     isThemeLoaded(themeName) {
-        return this.loadedThemes.has(themeName.replace('theme-', ''));
+        return this.loadedThemes.has(this.normalizeThemeName(themeName));
     }
 
     /**
@@ -109,6 +161,47 @@ class ThemeLoader {
             'ocean',
             'mocha'
         ];
+    }
+
+    /**
+     * Load the initial theme and subscribe to live theme updates.
+     * @param {object} options
+     * @param {string} [options.theme]
+     * @param {object} [options.api]
+     * @param {string[]} [options.channels]
+     * @returns {function} cleanup function
+     */
+    initializeThemeWindow(options = {}) {
+        const {
+            theme,
+            themeHref,
+            api = window.electronAPI,
+            channels = ['load-saved-theme'],
+        } = options;
+        const initialTheme = this.normalizeThemeName(theme) || this.getCurrentTheme() || 'dark';
+        this.loadTheme(initialTheme, themeHref);
+
+        if (!api || typeof api.on !== 'function') {
+            return () => {};
+        }
+
+        const handlers = [];
+        channels.forEach((channel) => {
+            const handler = (nextTheme) => {
+                if (typeof nextTheme !== 'string' || !nextTheme.trim()) return;
+                this.loadTheme(nextTheme);
+            };
+            api.on(channel, handler);
+            handlers.push(() => {
+                if (typeof api.removeListener === 'function') {
+                    api.removeListener(channel, handler);
+                }
+            });
+        });
+
+        return () => {
+            handlers.forEach((cleanup) => cleanup());
+        };
     }
 }
 

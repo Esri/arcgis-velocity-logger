@@ -26,6 +26,12 @@ const { registerUdpClient } = require('./udp-utils.js');
 const { createProtocolSettingsWindowManager } = require('./protocol-settings-window-manager.js');
 const { createReferenceWindowManager } = require('./reference-window-manager.js');
 
+const SUPPORTED_THEMES = new Set([
+  'light', 'dark', 'dark-gray', 'light-gray', 'blue', 'green',
+  'high-contrast', 'color-blind', 'system', 'midnight', 'sunset',
+  'rose', 'rose-dark', 'ocean', 'mocha',
+]);
+
 function requestGracefulCliExit(exitCode) {
   process.exitCode = exitCode;
   app.once('will-quit', () => {
@@ -125,7 +131,6 @@ function resetConfig() {
     velocityLoginWindow.center();
   }
   if (mainWindow) {
-    mainWindow.webContents.send('load-saved-theme', appConfig.theme);
     mainWindow.webContents.send('font-size-changed', appConfig.font.size);
     mainWindow.reload();
   }
@@ -152,6 +157,67 @@ let velocitySendAuthToken = false;
 
 function getVelocityAuthTokenForConnection() {
   return velocitySendAuthToken && velocityTokenManager.isAuthenticated ? velocityTokenManager.token : null;
+}
+
+function normalizeThemeName(themeName) {
+  if (typeof themeName !== 'string') return '';
+  const trimmed = themeName.trim();
+  if (!trimmed) return '';
+  return trimmed.replace(/^theme-/, '');
+}
+
+async function getRenderedTheme(fallback = 'dark') {
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents || mainWindow.webContents.isDestroyed()) {
+    return normalizeThemeName(appConfig && appConfig.theme) || fallback;
+  }
+  try {
+    const theme = await mainWindow.webContents.executeJavaScript(`
+      (() => {
+        const body = document.body;
+        if (!body) return '';
+        return body.dataset.theme
+          || (body.className || '').split(/\\s+/).find((name) => name.indexOf('theme-') === 0)
+          || '';
+      })()
+    `, true);
+    return normalizeThemeName(theme) || normalizeThemeName(appConfig && appConfig.theme) || fallback;
+  } catch (error) {
+    console.error('Could not get theme from main window, using fallback:', error);
+    return normalizeThemeName(appConfig && appConfig.theme) || fallback;
+  }
+}
+
+async function getRenderedThemeHref(fallbackTheme = 'dark') {
+  const normalizedFallback = normalizeThemeName(fallbackTheme) || 'dark';
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents || mainWindow.webContents.isDestroyed()) {
+    return `./themes/theme-${normalizedFallback}.css`;
+  }
+  try {
+    const href = await mainWindow.webContents.executeJavaScript(`
+      (() => {
+        const link = document.getElementById('current-theme-stylesheet');
+        return link ? (link.getAttribute('href') || '') : '';
+      })()
+    `, true);
+    return typeof href === 'string' && href.trim() ? href.trim() : `./themes/theme-${normalizedFallback}.css`;
+  } catch (error) {
+    console.error('Could not get theme stylesheet from main window, using fallback:', error);
+    return `./themes/theme-${normalizedFallback}.css`;
+  }
+}
+
+function sendThemeToWindow(targetWindow, theme) {
+  if (targetWindow && !targetWindow.isDestroyed()) {
+    targetWindow.webContents.send('load-saved-theme', theme);
+  }
+}
+
+function broadcastThemeToSecondaryWindows(theme) {
+  sendThemeToWindow(aboutWindow, theme);
+  sendThemeToWindow(configWindow, theme);
+  sendThemeToWindow(errorWindow, theme);
+  sendThemeToWindow(launchConfigWindow, theme);
+  referenceWindowManager.updateTheme(theme);
 }
 
 function hotSwapVelocityAuthToken() {
@@ -486,15 +552,8 @@ async function showAboutDialog() {
     aboutWindow.focus();
     return;
   }
-  let theme = 'dark'; // Default theme
-  if (mainWindow) {
-    try {
-      const currentTheme = await mainWindow.webContents.executeJavaScript('document.body.className');
-      theme = currentTheme || theme;
-    } catch (err) {
-      console.error('Could not get theme from main window, using default:', err);
-    }
-  }
+  const theme = await getRenderedTheme();
+  const themeHref = await getRenderedThemeHref(theme);
 
   aboutWindow = new BrowserWindow({
     width: 360,
@@ -523,7 +582,7 @@ async function showAboutDialog() {
     }
   });
   
-  aboutWindow.loadFile(path.join(__dirname, 'about.html'), { query: { theme } });
+  aboutWindow.loadFile(path.join(__dirname, 'about.html'), { query: { theme, themeHref } });
 }
 
 /**
@@ -535,15 +594,8 @@ async function showConfigDialog() {
     return;
   }
 
-  let theme = 'dark'; // Default theme
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    try {
-      const currentTheme = await mainWindow.webContents.executeJavaScript('document.body.className');
-      theme = currentTheme || theme;
-    } catch (err) {
-      console.error('Could not get theme from main window, using default:', err);
-    }
-  }
+  const theme = await getRenderedTheme();
+  const themeHref = await getRenderedThemeHref(theme);
 
   const appConfigDialog = (appConfig.dialogSizes && appConfig.dialogSizes.appConfig) || {};
   configWindow = new BrowserWindow({
@@ -581,7 +633,7 @@ async function showConfigDialog() {
     const configData = {
       config: appConfig,
       configPath: configManager.getConfigPath(),
-      theme: `theme-${appConfig.theme}`,
+      theme,
     };
     configWindow.webContents.send('load-config-data', configData);
   });
@@ -594,7 +646,7 @@ async function showConfigDialog() {
     configWindow = null;
   });
 
-  configWindow.loadFile(path.join(__dirname, 'config.html'), { query: { theme } });
+  configWindow.loadFile(path.join(__dirname, 'config.html'), { query: { theme, themeHref } });
 }
 
 /**
@@ -607,15 +659,8 @@ async function showErrorDialog(error) {
     return;
   }
 
-  let theme = 'dark'; // Default theme
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    try {
-      const currentTheme = await mainWindow.webContents.executeJavaScript('document.body.className');
-      theme = currentTheme || theme;
-    } catch (err) {
-      console.error('Could not get theme from main window, using default:', err);
-    }
-  }
+  const theme = await getRenderedTheme();
+  const themeHref = await getRenderedThemeHref(theme);
 
   const errorInfo = `Error: ${error.message}\n\nStack Trace:\n${error.stack}`;
 
@@ -643,7 +688,7 @@ async function showErrorDialog(error) {
       const errorData = {
         message: 'An unexpected error occurred.',
         details: errorInfo,
-        theme: appConfig ? appConfig.theme : 'dark'
+        theme,
       };
       currentWindow.webContents.send('load-error-data', errorData);
     }
@@ -659,7 +704,7 @@ async function showErrorDialog(error) {
     errorWindow = null;
   });
 
-  errorWindow.loadFile(path.join(__dirname, 'error.html'), { query: { theme } });
+  errorWindow.loadFile(path.join(__dirname, 'error.html'), { query: { theme, themeHref } });
 }
 
 /**
@@ -667,22 +712,15 @@ async function showErrorDialog(error) {
  */
 async function showHelpDialog() {
   if (referenceWindowManager.focus('help')) return;
-  let theme = 'dark'; // Default theme
-  if (mainWindow) {
-    try {
-      const currentTheme = await mainWindow.webContents.executeJavaScript('document.body.className');
-      theme = currentTheme || theme;
-    } catch (err) {
-      console.error('Could not get theme from main window, using default:', err);
-    }
-  }
+  const theme = await getRenderedTheme();
+  const themeHref = await getRenderedThemeHref(theme);
 
   referenceWindowManager.open({
     key: 'help',
     title: 'Help - ArcGIS Velocity Logger',
     file: 'help.html',
     readyChannel: 'help-dialog-ready',
-    query: { theme },
+    query: { theme, themeHref },
     allowedExternalUrlPrefix: 'https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/',
     defaults: {
       width: 1080,
@@ -701,22 +739,15 @@ async function showHelpDialog() {
 async function showCommandLineDialog() {
   if (referenceWindowManager.focus('commandLine')) return;
 
-  let theme = 'dark';
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    try {
-      const currentTheme = await mainWindow.webContents.executeJavaScript('document.body.className');
-      theme = currentTheme || theme;
-    } catch (err) {
-      console.error('Could not get theme from main window, using default:', err);
-    }
-  }
+  const theme = await getRenderedTheme();
+  const themeHref = await getRenderedThemeHref(theme);
 
   referenceWindowManager.open({
     key: 'commandLine',
     title: 'Command Line Interface - ArcGIS Velocity Logger',
     file: 'cli.html',
     readyChannel: 'cli-dialog-ready',
-    query: { theme },
+    query: { theme, themeHref },
     defaults: {
       width: 1200,
       height: 760,
@@ -736,6 +767,7 @@ function applyConfigSettings(config) {
   // Apply theme
   if (config.theme) {
     mainWindow.webContents.send('load-saved-theme', config.theme);
+    broadcastThemeToSecondaryWindows(config.theme);
   }
 
   // Apply menu bar visibility
@@ -1030,15 +1062,8 @@ async function showLaunchConfigDialog() {
   }
   if (!mainWindow) return;
 
-  let theme = 'dark';
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    try {
-      const currentTheme = await mainWindow.webContents.executeJavaScript('document.body.className');
-      theme = currentTheme || theme;
-    } catch (error) {
-      console.error('Could not get theme from main window, using default:', error);
-    }
-  }
+  const theme = await getRenderedTheme();
+  const themeHref = await getRenderedThemeHref(theme);
 
   const launchConfigDialog = (appConfig.dialogSizes && appConfig.dialogSizes.launchConfig) || {};
   launchConfigWindow = new BrowserWindow({
@@ -1077,7 +1102,7 @@ async function showLaunchConfigDialog() {
       const launchConfig = await getCurrentLaunchConfig();
       const data = {
         config: launchConfig,
-        theme: `theme-${appConfig.theme}`,
+        theme,
       };
       launchConfigWindow.webContents.send('load-launch-config-data', data);
     } catch (error) {
@@ -1093,7 +1118,7 @@ async function showLaunchConfigDialog() {
     launchConfigWindow = null;
   });
 
-  launchConfigWindow.loadFile(path.join(__dirname, 'launch-config.html'), { query: { theme } });
+  launchConfigWindow.loadFile(path.join(__dirname, 'launch-config.html'), { query: { theme, themeHref } });
 }
 
 /**
@@ -1416,6 +1441,7 @@ function setTheme(theme) {
     if (mainWindow) {
       mainWindow.webContents.send('load-saved-theme', theme);
     }
+    broadcastThemeToSecondaryWindows(theme);
   }
 }
 
@@ -1603,10 +1629,11 @@ function createMainMenu() {
 
 
 ipcMain.on('save-theme', (event, theme) => {
-  if (appConfig) {
-    appConfig.theme = theme;
-    configManager.saveConfig(appConfig);
-  }
+  if (!appConfig || !mainWindow || event.sender !== mainWindow.webContents
+      || !SUPPORTED_THEMES.has(theme)) return;
+  appConfig.theme = theme;
+  configManager.saveConfig(appConfig);
+  broadcastThemeToSecondaryWindows(theme);
 });
 
 
@@ -1614,8 +1641,16 @@ ipcMain.on('save-theme', (event, theme) => {
 ipcMain.handle('get-current-theme', async () => {
   if (mainWindow) {
     try {
-      const theme = await mainWindow.webContents.executeJavaScript('document.body.className');
-      return theme.replace('theme-', ''); // Return only the theme name
+      const theme = await mainWindow.webContents.executeJavaScript(`
+        (() => {
+          const body = document.body;
+          if (!body) return '';
+          return body.dataset.theme
+            || (body.className || '').split(/\\s+/).find((name) => name.indexOf('theme-') === 0)
+            || '';
+        })()
+      `, true);
+      return normalizeThemeName(theme); // Return only the theme name
     } catch (err) {
       handleError(err, 'Get Theme');
       return 'dark'; // Default theme

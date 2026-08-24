@@ -2113,6 +2113,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             // Fallback to old method if theme loader is not available
             document.body.className = `theme-${theme}`;
+            document.body.dataset.theme = theme;
         }
         themeSelector.value = theme;
     });
@@ -2386,6 +2387,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             // Fallback to old method if theme loader is not available
             document.body.className = `theme-${selectedTheme}`;
+            document.body.dataset.theme = selectedTheme;
         }
         window.electronAPI.send('save-theme', selectedTheme);
     });
@@ -2798,6 +2800,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 // Fallback to old method if theme loader is not available
                 document.body.className = `theme-${theme}`;
+                document.body.dataset.theme = theme;
             }
         }
     });

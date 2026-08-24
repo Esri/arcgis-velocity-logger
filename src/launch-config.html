@@ -63,6 +63,10 @@
     button:hover {
       background-color: var(--button-hover-bg);
     }
+    button:focus-visible {
+      outline: 2px solid var(--link-focus-ring, var(--button-hover-bg));
+      outline-offset: 2px;
+    }
     .copy-feedback {
       color: #28a745;
       font-size: 12px;
@@ -74,6 +78,7 @@
       opacity: 1;
     }
   </style>
+  <link rel="stylesheet" href="accessibility.css">
 </head>
 <body>
   <h1>Launch Configuration</h1>
@@ -86,24 +91,18 @@
   <script>
     let launchConfig = null;
 
-    // Apply theme immediately from URL parameters to prevent white flash
     const urlParams = new URLSearchParams(window.location.search);
-    const theme = urlParams.get('theme') || 'theme-dark';
+    const theme = urlParams.get('theme') || 'dark';
+    const themeHref = urlParams.get('themeHref') || '';
     if (window.themeLoader) {
-      window.themeLoader.loadTheme(theme);
+      window.themeLoader.initializeThemeWindow({ theme, themeHref, api: window.electronAPI });
     } else {
-      document.body.className = theme;
+      document.body.className = `theme-${theme}`;
+      document.body.dataset.theme = theme;
     }
 
     window.electronAPI.on('load-launch-config-data', (data) => {
       launchConfig = data.config;
-      if (data.theme && data.theme !== theme) {
-        if (window.themeLoader) {
-          window.themeLoader.loadTheme(data.theme);
-        } else {
-          document.body.className = data.theme;
-        }
-      }
       document.getElementById('configJson').textContent = JSON.stringify(launchConfig, null, 2);
     });
 
@@ -139,4 +138,3 @@
   <script src="tooltip-utils.js"></script>
 </body>
 </html>
-

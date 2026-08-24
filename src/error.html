@@ -62,7 +62,13 @@
     button:hover {
       background-color: var(--button-hover-bg);
     }
+    button:focus-visible,
+    textarea:focus-visible {
+      outline: 2px solid var(--link-focus-ring, var(--button-hover-bg));
+      outline-offset: 2px;
+    }
   </style>
+  <link rel="stylesheet" href="accessibility.css">
 </head>
 <body>
   <div class="content">
@@ -82,26 +88,17 @@
     const sendToDevBtn = document.getElementById('send-to-dev-btn');
     const closeBtn = document.getElementById('close-btn');
 
-    // Apply theme immediately from URL parameters to prevent white flash
     const urlParams = new URLSearchParams(window.location.search);
-    const theme = urlParams.get('theme') || 'theme-dark';
+    const theme = urlParams.get('theme') || 'dark';
+    const themeHref = urlParams.get('themeHref') || '';
     if (window.themeLoader) {
-      window.themeLoader.loadTheme(theme);
+      window.themeLoader.initializeThemeWindow({ theme, themeHref, api: window.electronAPI });
     } else {
-      // Fallback to old method if theme loader is not available
-      document.body.className = theme;
+      document.body.className = `theme-${theme}`;
+      document.body.dataset.theme = theme;
     }
 
     window.electronAPI.on('load-error-data', (data) => {
-      // Update theme if it's different from URL parameter
-      if (data.theme && `theme-${data.theme}` !== theme) {
-        if (window.themeLoader) {
-          window.themeLoader.loadTheme(`theme-${data.theme}`);
-        } else {
-          // Fallback to old method if theme loader is not available
-          document.body.className = `theme-${data.theme}`;
-        }
-      }
       errorMessage.textContent = data.message;
       errorDetails.value = data.details;
     });

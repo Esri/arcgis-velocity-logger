@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="./themes.css">
     <link rel="stylesheet" href="./help.css">
     <link rel="stylesheet" href="./cli.css">
+    <link rel="stylesheet" href="./accessibility.css">
     <script src="./themes/theme-loader.js"></script>
 </head>
 <body>
@@ -105,11 +106,15 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
-            // Apply theme from query param.
             const urlParams = new URLSearchParams(window.location.search);
-            const theme = urlParams.get('theme') || 'theme-dark';
-            if (window.themeLoader) window.themeLoader.loadTheme(theme);
-            else document.body.className = theme;
+            const theme = urlParams.get('theme') || 'dark';
+            const themeHref = urlParams.get('themeHref') || '';
+            if (window.themeLoader) {
+                window.themeLoader.initializeThemeWindow({ theme, themeHref, api: window.electronAPI });
+            } else {
+                document.body.className = `theme-${theme}`;
+                document.body.dataset.theme = theme;
+            }
 
             const closeButton = document.getElementById('close-button');
             const cliOverviewList = document.getElementById('cli-overview-list');
@@ -414,4 +419,3 @@
   <script src="tooltip-utils.js"></script>
 </body>
 </html>
-

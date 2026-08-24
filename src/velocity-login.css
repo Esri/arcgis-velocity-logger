@@ -254,6 +254,11 @@ h3 {
   box-shadow: 0 1px 3px rgba(0,0,0,0.15);
 }
 
+button:focus-visible {
+  outline: 2px solid var(--link-focus-ring, var(--accent-color, #4da6ff));
+  outline-offset: 2px;
+}
+
 .btn-token-only {
   background: transparent;
   color: var(--accent-color, #4fc3f7);
@@ -620,4 +625,3 @@ h3 {
 .custom-tooltip-success { --custom-tooltip-accent: #66cc66; }
 .custom-tooltip-warning { --custom-tooltip-accent: #f5a623; }
 .custom-tooltip-error { --custom-tooltip-accent: #ff6b6b; }
-

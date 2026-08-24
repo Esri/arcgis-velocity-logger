@@ -20,17 +20,19 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  // 1. Apply theme from URL query parameter
   const params = new URLSearchParams(window.location.search);
-  const theme = params.get('theme') || 'theme-dark';
   if (window.themeLoader) {
-    window.themeLoader.loadTheme(theme);
+    window.themeLoader.initializeThemeWindow({
+      theme: params.get('theme'),
+      themeHref: params.get('themeHref'),
+      api: window.electronAPI,
+    });
   } else {
-    // Fallback to old method if theme loader is not available
-    document.body.className = theme;
+    const theme = params.get('theme') || 'dark';
+    document.body.className = `theme-${theme}`;
+    document.body.dataset.theme = theme;
   }
 
-  // 2. Get and display the app version
   window.electronAPI.invoke('get-app-version').then(version => {
     if (version) {
       document.getElementById('about-version').textContent = `Version ${version}`;
@@ -40,10 +42,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('about-version').textContent = 'Version 1.0.0';
   });
 
-  // 3. Signal that the dialog is ready to be shown
   window.electronAPI.send('about-dialog-ready');
 
-  // 4. Set up close functionality
   const closeButton = document.getElementById('about-close');
   if (closeButton) {
     closeButton.addEventListener('click', () => {
@@ -51,7 +51,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 5. Set up keyboard shortcuts
   document.addEventListener('keydown', (e) => {
     if (document.hasFocus() && e.key === 'Escape') {
       window.electronAPI.send('close-dialog');

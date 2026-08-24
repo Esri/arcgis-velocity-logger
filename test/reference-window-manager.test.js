@@ -62,6 +62,8 @@ class MockBrowserWindow {
       height: options.height,
     };
     this.webContents = {
+      sent: [],
+      send: (channel, payload) => this.webContents.sent.push({ channel, payload }),
       setWindowOpenHandler: (handler) => { this.webContents.windowOpenHandler = handler; },
     };
     MockBrowserWindow.instances.push(this);
@@ -214,6 +216,27 @@ test('ready lifecycle shows the window and closing persists bounds', () => {
   assert.deepStrictEqual(fixture.saves.at(-1).dialogSizes.help, window.bounds);
   assert.strictEqual(fixture.manager.getWindow('help'), null);
   assert.strictEqual(fixture.ipcMain.listeners.has('help-dialog-ready'), false);
+});
+
+test('theme updates are broadcast to all open reference windows', () => {
+  const fixture = createFixture();
+  fixture.manager.open({
+    key: 'help',
+    title: 'Help',
+    file: 'help.html',
+    defaults: { width: 1080, height: 760 },
+  });
+  fixture.manager.open({
+    key: 'commandLine',
+    title: 'CLI',
+    file: 'cli.html',
+    defaults: { width: 1200, height: 760 },
+  });
+
+  fixture.manager.updateTheme('rose-dark');
+
+  const delivered = MockBrowserWindow.instances.flatMap((window) => window.webContents.sent);
+  assert.deepStrictEqual(delivered.filter((entry) => entry.channel === 'load-saved-theme').map((entry) => entry.payload), ['rose-dark', 'rose-dark']);
 });
 
 test('closing the main window can close every reference workspace', () => {
