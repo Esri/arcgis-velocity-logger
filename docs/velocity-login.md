@@ -1,12 +1,17 @@
-# ArcGIS Velocity login and output picker
+# ArcGIS Velocity sign-in and output picker
 
 [← Documentation index](README.md) · [Repository overview](../README.md#documentation)
 
-This guide explains the ArcGIS Velocity sign-in dialog, output browser, and token-based authentication built into the Logger's toolbar. It is written for users and integrators who want to authenticate against an ArcGIS portal, browse available ArcGIS Velocity outputs, and auto-configure the app's connection settings instead of entering them by hand.
+The **Sign In to ArcGIS Velocity** toolbar button opens a dialog for Portal
+authentication, output browsing, and applying supported connection settings.
+This guide covers the workflow, controls, tooltips, and credential storage
+for users and integrators with an ArcGIS Online or ArcGIS Enterprise account
+authorized to access ArcGIS Velocity.
+
+Use a build whose sign-in dialog includes the **Velocity endpoint** section.
 
 ## Table of contents
 
-- [Overview](#overview)
 - [Workflow](#workflow)
 - [Authentication](#authentication)
 - [OAuth 2.0](#oauth-20)
@@ -15,129 +20,284 @@ This guide explains the ArcGIS Velocity sign-in dialog, output browser, and toke
 - [Scope toggle](#scope-toggle)
 - [Dialog size persistence](#dialog-size-persistence)
 - [UI controls](#ui-controls)
+- [Tooltip reference](#tooltip-reference)
 - [Credential storage](#credential-storage)
-
-## Overview
-
-The **🔑 Sign In to ArcGIS Velocity** button in the toolbar opens a modal dialog that lets you authenticate against your ArcGIS portal, browse available ArcGIS Velocity outputs by type, preview output details, and auto-populate the Logger's connection settings with a single click.
+- [Related documentation](#related-documentation)
 
 ## Workflow
 
-1. Click **🔑** in the toolbar.
-2. Enter your Portal URL (default: `https://velocitydemo.maps.arcgis.com`), username, and password.
-3. Click **Sign In** — the dialog fetches your organization's ArcGIS Velocity outputs.
-4. Use the **Type** dropdown to filter outputs (gRPC, HTTP, WebSocket, TCP, XMPP, etc.).
-5. Select an output to view its details (URL, auth type, format, schema fields).
-6. Click **Apply** — the main window auto-configures: connection mode, host, port, path, TLS, and format.
-7. Check the footer **🔑 Token On / Token Off** badge. Click it to control whether the ArcGIS Velocity token is sent with new client connections.
-8. Click **Connect** as usual to start receiving data.
+To configure a supported data subscription:
+
+1. Click **Sign In to ArcGIS Velocity** in the toolbar;
+2. enter your complete Portal URL (default:
+   `https://velocitydemo.maps.arcgis.com`), username, and password. Preserve
+   any published context, for example `https://portal.example.com/portal`;
+3. leave **Velocity endpoint** on **Automatic**, or choose **Custom public
+   URL** and enter the complete public API base. See
+   [Choose the Velocity endpoint](velocity-rest-api.md#choose-the-velocity-endpoint);
+4. click **Sign In** and review **Effective URL** and the status message;
+5. use **Server** when multiple ArcGIS Velocity servers are available, or
+   leave **All Velocity servers** selected to aggregate outputs. Use
+   **Type** to filter outputs, then select an output to retrieve any required
+   subscription details;
+6. while disconnected, click **Apply** to populate validated connection
+   settings. This does not connect or start capture;
+7. check the footer **Token On / Token Off** badge and review the settings;
+8. click **Connect** to receive data.
+
+Disconnect before using **Apply** or **Use Token Only**; both actions are
+blocked while a transport is connecting or connected. Pending endpoint edits
+disable output application until **Apply URL** succeeds.
+Changing **Portal URL** requires a new sign-in. A successful Portal sign-in
+can still leave endpoint discovery or output listing unavailable; the error
+remains visible, and **Use Token Only** is available for a destination that
+accepts that Portal token.
+
+The picker shows each output's source server and analytic identity. The
+detail table shows **Source server**, **Analytic**, **Analytic ID**, and
+**Output ID**. The source server's name and ID are separate from the raw
+output ID. Unavailable servers produce an explicit partial-results warning
+without hiding outputs from healthy servers.
 
 ## Authentication
 
-| Output Auth Type | How the Logger Authenticates |
+| Output authentication | Behavior |
 |---|---|
-| `arcgis` (token) | `Authorization: ******` header/metadata — used for gRPC, HTTP, WebSocket |
-| `basic` | `Authorization: Basic <base64(user:pass)>` header — used for HTTP outputs configured with basic auth |
-| `none` | No authentication header is sent (TCP, UDP) |
+| ArcGIS token | Sends bearer authentication through a header or gRPC metadata on token-capable client transports. |
+| Basic authentication | Disables token sending; Apply does not recover saved basic-auth credentials. |
+| None | Disables token sending. |
 
-### Token refresh and status
+### Token refresh
 
-- Tokens refresh at **80% of lifetime** and retry with exponential backoff on failure.
-- The footer auth badge shows whether a token is available and sent with new gRPC, HTTP, and WebSocket client connections.
-- Token refresh/toggle notices go to the **Activity Strip**; failures still appear in logs.
-- The Activity Strip is in the main layout, pinned by default, and filters to connection activity by default. Use its filter toggle for all activity, arrows for history, pin for auto-hide, and status text hover/click for details; click keeps details open while logs update.
-- Raw bearer tokens are never shown; tooltips show safe metadata only.
+Tokens refresh at **80% of lifetime** and retry with exponential backoff on
+failure. The footer auth badge shows whether a token is available and sent
+with new gRPC, HTTP, and WebSocket client connections. Raw bearer tokens are
+never shown; tooltips show safe metadata only.
 
 ### Token sending toggle
 
-The login dialog supports two usage modes:
+The dialog supports two usage modes:
 
-1. **Use Token Only** — sign in and use the ArcGIS Velocity token with your own manually configured connection settings. The footer badge defaults to **🔑 Token On**.
-2. **Apply an Output** — sign in, select an output, and apply its connection settings. Outputs with `arcgis`, `token`, `bearer`, OAuth, or unspecified auth on token-capable transports default to **🔑 Token On**. Outputs with `basic`, `none`, TCP, or unsupported auth default to **◇ Token Off**.
+1. **Use Token Only** signs in without changing the manually configured
+   transport fields and defaults to **Token On**;
+2. **Apply** selects a supported output. ArcGIS, token, bearer, OAuth, and
+   unspecified authentication on token-capable transports default to
+   **Token On**. Basic, none, and unsupported authentication default to
+   **Token Off**.
 
-Click the footer badge to toggle token sending for **new** client connections. Active gRPC and HTTP client transports hot-swap the refreshed token when possible; WebSocket upgrade headers are fixed at connect time, so reconnect after changing the toggle.
-
-The **🔒 TLS badge** is intentionally separate: it describes encryption and certificate trust only. The **🔑 auth badge** describes token availability and whether the token is sent.
+Click the footer badge to change token sending for new client connections.
+Active gRPC and HTTP clients hot-swap refreshed tokens when possible.
+WebSocket upgrade headers are fixed at connect time; reconnect after changing
+the toggle. The TLS badge describes encryption and trust, not authentication.
+See [TLS and SSL security](tls.md) for that separate surface.
 
 ## OAuth 2.0
 
-The **OAuth 2.0** tab supports client-credentials flow (Client ID + Client Secret). This is currently only supported by ArcGIS Velocity for HTTP Poller outputs. The Apply button is disabled with a tooltip when the selected output type does not support OAuth.
+The **OAuth 2.0** tab supports client-credentials flow using **Client ID** and
+**Client Secret**. Portal and endpoint selection are shared with the password
+tab. The application's permissions and the deployment determine which
+resources its token can access. Signing in does not grant output access or
+change an unsupported destination into a subscription.
 
 ## Unsupported output types
 
-Output types not yet supported by the Logger are displayed with a **⚠** prefix and muted styling in the dropdowns. The **Apply** button is disabled for these types. Use the **Supported / All** radio toggle in the picker header to control their visibility. The default is **Supported** (unsupported types are hidden on first open).
+Unsupported types have a **⚠** prefix and muted styling. **Apply** is disabled
+for these items. **Supported** is the default filter; **All** includes
+unsupported types. Configured outbound HTTP, gRPC, WebSocket, and TCP
+destinations are not subscriptions the Logger can consume as another client.
+The **Availability** row and disabled Apply tooltip explain why an output
+cannot be used.
+
+If the list contains only unsupported destinations, the status reports the
+actual total and prompts you to choose **All** beside **Supported**; an empty
+supported filter does not mean that the servers returned no outputs.
+Stream Layer entries requiring details remain selectable, but Apply stays
+disabled until the subscription details have been resolved successfully.
+
+Configured outputs belong to analytics. Their identity combines source server,
+analytic kind, analytic ID, and output ID; labels and raw output IDs can repeat.
+The `/outputs` connector catalog describes connector definitions, not running
+subscriptions. See [Management resources](velocity-rest-api.md#management-resources).
+
+Missing or invalid advertised endpoint properties are errors, not a reason
+to reuse the previous output's fields. For endpoint mapping rules, see
+[Apply connection settings](velocity-rest-api.md#apply-connection-settings).
 
 ## Output type reference
 
-Each output type is visually identified in the picker dropdowns and info panel by a unique Unicode icon and a colour that matches the protocol's brand or role. The icon appears as a prefix character in the dropdown option text, and in the info panel's **Type** row as a coloured badge.
+Dropdowns and the detail panel identify each type with a geometric Unicode
+icon and a color:
 
-| Icon | Output Type | Colour | Supported by Logger |
-|------|-------------|--------|---------------------|
-| ⬡ (`\u2B21`) | `grpc` — gRPC | `#7c4dff` (purple) | ✅ Yes |
-| ■ (`\u25A0`) | `http` — HTTP | `#0097a7` (teal) | ✅ Yes |
-| ◆ (`\u25C6`) | `websocket` — WebSocket | `#00897b` (green) | ✅ Yes |
-| ◗ (`\u25D7`) | `tcp` — TCP | `#546e7a` (slate) | ✅ Yes |
-| ● (`\u25CF`) | `xmpp` — XMPP | `#5e35b1` (purple) | ✅ Yes |
-| ▲ (`\u25B2`) | `kafka` — Kafka | `#e53935` (red) | ❌ Not yet |
-| ◎ (`\u25CE`) | `mqtt` — MQTT | `#f57c00` (orange) | ❌ Not yet |
-| ▣ (`\u25A3`) | `file` — File | `#8d6e63` (brown) | ❌ Not yet |
-| ❖ (`\u2756`) | `azure-event-hub` — Azure Event Hub | `#0078d4` (Microsoft blue) | ❌ Not yet |
-| ❖ (`\u2756`) | `azure-service-bus` — Azure Service Bus | `#0062ad` (dark blue) | ❌ Not yet |
-| ○ (`\u25EF`) | *(unknown type)* | `#888` (grey) | ❌ Not yet |
-
-> [!NOTE]
-> The icon characters are plain Unicode geometric shapes — no emoji — ensuring consistent rendering across platforms and OS native select dropdowns.
+| Icon | Output type | Color | Supported |
+|---|---|---|---|
+| ◆ | `stream-lyr-new` — Stream Layer | `#00897b` | Requires a usable advertised WebSocket subscription; JSON format. |
+| ● | `xmpp` — XMPP | `#5e35b1` | Yes, when supported subscription settings are available. |
+| ⬡ | `grpc` — gRPC | `#7c4dff` | Not for modern outbound destinations. |
+| ■ | `http` — HTTP | `#0097a7` | Not for modern outbound destinations. |
+| ◆ | `websocket` — WebSocket | `#00897b` | Not for modern outbound destinations. |
+| ◗ | `tcp` — TCP | `#546e7a` | Not for modern outbound destinations. |
+| ▲ | `kafka` — Kafka | `#e53935` | No. |
+| ◎ | `mqtt` — MQTT | `#f57c00` | No. |
+| ▣ | `file` — File | `#8d6e63` | No. |
+| ❖ | `azure-event-hub` — Azure Event Hub | `#0078d4` | No. |
+| ❖ | `azure-service-bus` — Azure Service Bus | `#0062ad` | No. |
+| ○ | Unknown type | `#888` | No. |
 
 ## Scope toggle
 
-The **My Outputs / ORG Outputs** segmented control in the sign-in row lets you switch between:
+**My Outputs** requests configured outputs from analytics available in the
+user's scope. **ORG Outputs**, the default, requests organization scope with
+`view=admin` and requires the appropriate organization-wide permissions.
+Changing scope re-fetches the list. **Refresh** requests the current scope
+without changing it. These controls operate within the selected server scope.
 
-- **My Outputs** — returns only outputs owned by the signed-in user (`/iot/outputs`).
-- **ORG Outputs** (default) — adds `view=admin` to the API request to return all outputs in the organization. Requires the signed-in account to have administrator privileges.
-
-Switching scope re-fetches from the API. The **⟳ Refresh** button re-requests the current scope without changing scope.
+List, detail, and Apply requests use the current authenticated session and
+composite output identity. Changing servers invalidates pending requests and
+the previous selection, even when the session revision is unchanged.
+Malformed responses remain visible errors, not successful empty lists.
+Safe TLS diagnostics are displayed as returned; changing credentials or
+removing the Portal context does not repair certificate trust.
 
 ## Dialog size persistence
 
-The Velocity Login dialog opens at **590 x 840** pixels by default. After resizing or moving the window, its size and position are automatically saved to `dialogSizes.velocityLogin` in `config.json` and restored on the next open. To reset to the default size, remove the `velocityLogin` key from `dialogSizes` in `config.json`.
+The dialog opens at **590 × 840** pixels by default. Its size and position
+are saved under `dialogSizes.velocityLogin` in App Config and restored on the
+next open. Remove that key to restore the default bounds. See
+[Configuration](configuration.md) for storage locations.
+
+The dialog uses the main window's rendered theme when it opens and follows
+theme changes while it remains open or hidden.
+Buttons pair their text and background colors for the selected theme.
+Disabled actions remain fully opaque and readable, with a dashed border
+distinguishing them from available actions.
 
 ## UI controls
 
-Tooltips use the app's custom renderer with theme-aware icons/colors. Tooltip text is plain text only.
+The shared **Portal URL**, expandable **Velocity endpoint**, and **Remember
+me** controls sit outside both authentication forms. The endpoint section
+contains **Automatic**, **Custom public URL**, **Public API URL**, **Detect
+again**, and **Apply URL**. Read-only **Detected URL**, **Effective URL**, and
+the endpoint status distinguish discovery from the active browsing endpoint.
+With multiple registered servers, **Server** defaults to **All Velocity
+servers**, and the section shows each server's URLs and status. Select one
+server before editing its custom public URL. A single server retains the
+simple endpoint editor without a server selector.
+**Apply URL** is disabled in the aggregate view. **Detect again** remains a
+Portal-wide preview and never resets individual servers' saved overrides.
+See the [REST API guide](velocity-rest-api.md#choose-the-velocity-endpoint)
+for endpoint selection and validation.
 
-| Control | Tooltip / Behaviour |
+The password form contains **Username**, **Password**, and its visibility
+toggle. OAuth contains **Client ID**, **Client Secret**, and its visibility
+toggle. Both use **Sign In**. The picker contains scope and supported-type
+filters, **Refresh**, **Type**, **Output**, and a read-only detail table.
+**Apply** closes the dialog only after the main window accepts the settings;
+errors keep it open. **Use Token Only** preserves manual connection fields,
+and **Close** dismisses the dialog without applying an output.
+
+The detail table includes source and analytic identity, type, URL or host,
+authentication, format, schema fields, and availability. Displayed output
+URLs omit credentials and query parameters. Source-qualified list errors
+remain in the endpoint section while healthy outputs can still be inspected;
+the status banner also reports partial results and can be dismissed.
+
+## Tooltip reference
+
+Tooltips use the shared custom tooltip utility. These strings match the
+controls exactly:
+
+| Control | Tooltip |
 |---|---|
-| 🔑 button | "Sign In to ArcGIS Velocity — browse and apply output connection settings" |
-| Portal URL | "ArcGIS Enterprise or ArcGIS Online portal URL" |
-| Username | "ArcGIS account username" |
-| Password | "ArcGIS account password" |
-| Show / Hide password | SVG eye icon toggles password field between masked and visible. |
-| Remember me | "Remember portal URL and username for next session" |
-| Sign In | "Authenticate and retrieve outputs from your Velocity organization" |
-| My Outputs | "Show only outputs you own" |
-| ORG Outputs | "Show all outputs in your organization (requires admin privileges)" — adds `view=admin` (default active scope) |
-| ⟳ Refresh | "Refresh: re-request the list of outputs from Velocity" — re-fetches current scope |
-| Supported | Show only output types supported by the Logger (default active filter) |
+| Password tab | Sign in with ArcGIS username and password |
+| OAuth tab | Sign in with OAuth 2.0 client credentials; resource access depends on the application permissions |
+| Portal URL | ArcGIS Enterprise or ArcGIS Online portal URL |
+| Velocity endpoint | Choose the public Velocity API address used to browse resources |
+| Server label and initial dropdown | Browse all Velocity servers or select one server to edit its public API URL |
+| All Velocity servers option | Browse resources from all Velocity servers |
+| Automatic | Use the public API address found through Portal discovery |
+| Custom public URL | Use a complete public API base instead of the detected address |
+| Public API URL | Complete HTTPS API base, including the public context and optional port; no resource suffix, credentials, query, or fragment |
+| Detect again | Refresh discovery without changing the custom URL or active browsing endpoint |
+| Apply URL | Validate and apply the endpoint selection with the current Portal session, then reload the list |
+| Apply URL in aggregate view | Select one Velocity server before applying a public API URL |
+| Username | ArcGIS account username |
+| Password | ArcGIS account password (press Enter to sign in) |
+| Show password | Show password |
+| Hide password | Hide password |
+| Client ID | OAuth 2.0 application Client ID |
+| Client Secret | OAuth 2.0 application Client Secret (press Enter to sign in) |
+| Show client secret | Show client secret |
+| Hide client secret | Hide client secret |
+| Remember me | Remember the Portal URL, username, server selection, and each server's endpoint preferences; never save passwords or tokens |
+| Sign In | Authenticate and retrieve outputs from your Velocity organization |
+| My Outputs | Show only outputs you own |
+| ORG Outputs | Show all outputs in your organization (requires admin privileges) |
+| Refresh | Refresh: re-request the list of outputs from Velocity |
+| Supported | Show only output types supported by the Logger |
 | All | Show all output types, including those not yet supported by the Logger |
-| Type dropdown | Each option is prefixed with a type icon. Unsupported types show ⚠ prefix. |
-| Output dropdown | Each option is prefixed with a type icon. Unsupported items show ⚠ prefix and italic muted styling. |
-| Use Token Only | "Use Velocity token for authentication only — keep your own connection settings in the main window" |
-| Apply | "Apply the selected output connection settings to the main window." Disabled for unsupported types. |
-| Close | "Close this dialog without applying." |
-| Footer auth badge | Shows token on/off/error state, selected output, auth type, expiry, and next toggle action. |
-| Footer TLS badge | Mirrors the selected protocol's TLS checkbox while disconnected; connected tooltips describe encryption and certificate trust. |
-| Activity Strip | Shows operational status, time, history, connection-only/all-activity filter, pin, and full-detail click tooltip. |
+| Type label and initial dropdown | Filter by output type. Types marked with a warning are not yet supported by the Logger. |
+| Output label and initial dropdown | Select an output to view its details and apply connection settings. |
+| All Types option | Show all output types |
+| Empty Output option | Select an output to view its details |
+| Use Token Only | Use Velocity token for authentication only — keep your own connection settings in the main window |
+| Apply | Apply the selected output's connection settings to the main window. |
+| Apply before endpoint validation | Sign in or apply the pending endpoint before applying an output. |
+| Apply while resolving details | Loading output details before applying connection settings. |
+| Apply with unsupported output | Cannot apply — this output has no supported data subscription. |
+| Close | Close this dialog |
+| Status dismiss | Dismiss this message |
+
+Dropdown tooltips follow the selected option. A supported type uses
+`Show {type label} outputs`; an unsupported type uses
+`{type label} - not yet supported by the Logger`. Output options use
+`{qualified label} - {type label} output` or
+`{qualified label} - {unsupported reason}`. A qualified label includes the
+analytic name, kind, ID, and source server name and ID when present.
+Server options use `Browse resources from {server label} ({server ID})`.
+The detail-panel type badge uses the type label. An explicit unsupported
+reason replaces the disabled Apply tooltip with `Cannot apply — {reason}`.
+
+The scope-group tooltip is:
+
+```text
+My outputs: show only outputs you own
+ORG Outputs: show all outputs in your organization (requires admin privileges)
+```
+
+The supported-filter group tooltip is:
+
+```text
+Supported: show only output types supported by the Logger
+All: show all output types including unsupported ones
+```
 
 ## Credential storage
 
-When **Remember me** is checked, the portal URL and username are stored in the app's user data directory (`velocity-credentials.json`). The password is never persisted to disk.
+With **Remember me**, the Portal URL, username, selected server scope, and
+accepted endpoint preferences are stored in `velocity-credentials.json` in
+the app's user data directory. Each custom URL belongs to a specific Portal
+and registered server ID; it never becomes an override for every server on
+that Portal. Changing the Portal or server never silently reuses another
+server's custom URL. Passwords, client secrets, and tokens are not persisted.
+
+Preferences are grouped under `endpointProfiles` by normalized Portal URL.
+Each Portal stores `selectedServerId` independently from the endpoint mode
+and public URL in `serverProfiles[serverId]`. Selecting **All Velocity
+servers** stores a viewing scope, not a custom URL for all sources.
+A legacy single-endpoint preference is used only when a single source can be
+identified; it is not copied to every registered server.
+
+With Remember me off, endpoint preferences remain session-only. Turning it
+off removes saved preferences. Password and client-secret inputs are cleared
+after a successful sign-in. Browsing requests use current main-process
+session metadata, not a cached token in the dialog.
 
 ## Related documentation
 
-- [Repository overview](../README.md)
-- [Configuration](configuration.md)
-- [gRPC transport](grpc.md)
-- [HTTP transport](http.md)
-- [WebSocket transport](websocket.md)
-- [XMPP transport](xmpp.md)
-- [TLS and SSL security](tls.md)
+| Document | Purpose |
+|---|---|
+| [ArcGIS Velocity REST API](velocity-rest-api.md) | Public URLs, endpoint discovery, server selection, and management versus data endpoints. |
+| [Configuration](configuration.md) | App Config, launch settings, and storage locations. |
+| [WebSocket transport](websocket.md) | Stream subscriptions, paths, and authentication. |
+| [XMPP transport](xmpp.md) | Supported XMPP subscriptions and receiving identities. |
+| [TLS and SSL security](tls.md) | Certificate types, trust, and verification. |

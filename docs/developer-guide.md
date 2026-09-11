@@ -75,6 +75,17 @@ so the detached window in `protocol-settings-window.js` never owns a form rule
 of its own — see the parity contract in [`AGENTS.md`](../AGENTS.md). See
 [Connection summary and protocol settings](connection-summary.md).
 
+ArcGIS Velocity management requests use `velocity-endpoints.js` for public
+context validation and URL joining, `velocity-rest-client.js` for requests and
+token lifecycle, and the main-owned `velocity-session.js` for discovered servers
+and active endpoint profiles. `velocity-output-api.js` maps configured analytic
+outputs; `velocity-output-session.js` retains source-qualified identities and
+resolves stream credentials only in main. The sign-in renderer receives safe
+metadata through `velocity-login-ipc.js`, while `velocity-endpoint-ui.js` owns
+the shared endpoint controls and `velocity-preferences.js` owns persistence.
+Keep these shared foundations aligned with ArcGIS Velocity Simulator rather
+than introducing renderer-owned tokens or another URL builder.
+
 ## Local development
 
 | Command | Purpose |
@@ -132,12 +143,17 @@ node test/http-transport.test.js
 node test/ws-transport.test.js
 node test/tooltip-utils.test.js
 node test/velocity-auth-utils.test.js
+node test/velocity-output-api.test.js
+node test/velocity-output-session.test.js
+node test/velocity-login-ipc.test.js
+node test/velocity-stream-connect.test.js
 node test/format-utils.test.js
 node test/external-sign.test.js
 node test/sign-lock.test.js
 node test/protocol-settings-window.test.js
 node test/reference-window-manager.test.js
 node test/theme-cascade.test.js
+node test/window-button-contrast.test.js
 ```
 
 `protocol-settings-window.test.js` covers the detached window: secure
@@ -162,8 +178,25 @@ Protocol Settings, checks text, muted text, heading, and link contrast, and
 fails when a window stylesheet derives a palette token on `:root`, keeps a
 fixed color fallback, or paints a fixed black or white overlay.
 
+`window-button-contrast.test.js` measures actual button selectors and their
+semantic role pairs in the main window, narrow layout, sign-in, App Config,
+Launch Config, Error, About, Help, CLI, and embedded and detached Protocol
+Settings. It covers every theme and both System color schemes, enabled and
+disabled interaction combinations, selected toggles, read-only settings,
+populated count badges, and clickable authentication and TLS indicators.
+The measurements resolve imported styles, inline styles, nested labels,
+opacity, transparent surfaces, and gradient stops. Button text must reach
+4.5:1 contrast; disabled controls retain opaque, readable colors and a dashed
+border or inset outline.
+
 Run the smallest suite that covers your change first, then `npm test` before
 committing.
+
+Velocity tests use synthetic Portal registries and API responses. Cover custom
+contexts, duplicate output names across servers and analytics, partial source
+failures, stale list/detail/connect responses, and token refresh without
+exposing credentials in renderer state or diagnostics. Do not replace these
+fixtures with saved responses from a signed-in deployment.
 
 ### Sister-application parity
 
@@ -171,7 +204,9 @@ committing.
 ArcGIS Velocity Simulator: the bounded WebSocket close helpers, the WebSocket
 teardown bound and bind-failure message, the HTTP subscription pacing
 constants, the gRPC teardown diagnostics and their `{ warnings }` shape, the
-shared TLS helpers, and the connection preset identifiers and labels. It expects
+shared TLS and network-authority helpers, WebSocket client credential handling,
+the Velocity REST/session/endpoint-control foundations, and the connection
+preset identifiers and labels. It expects
 the Simulator checked out beside this repository as
 `../arcgis-velocity-simulator`, or at the path in `VELOCITY_SIMULATOR_ROOT`.
 Without a Simulator checkout the cross-application comparisons are skipped and
@@ -396,7 +431,9 @@ functions.
    list changes.
 6. Run `node test/theme-cascade.test.js`, which resolves the real cascade for
    Help, the Command Line Interface, and Protocol Settings and checks the new
-   theme for palette parity and text contrast.
+   theme for palette parity and text contrast. Run
+   `node test/window-button-contrast.test.js` for button roles and interaction
+   states, then check the rendered controls with the actual theme loader.
 
 ### Shared semantic palette
 
@@ -405,6 +442,22 @@ functions.
 `--app-heading`, `--app-accent`, the `--app-*-bg` interaction surfaces, and the
 `--link-*` tokens — that the main window, the detached Protocol Settings
 window, Help, and the Command Line Interface all share.
+
+`src/button-palette.css`, imported by `src/themes.css`, owns paired
+`--action-button-*` default and disabled colors and
+`--action-<role>-{bg,text,hover-bg,hover-text}` values for primary, success,
+danger, warning, info, and toggle actions. Keep the foreground and background
+together when changing a state; selected toggles retain their on-state hue
+on hover. Avoid foreground/background transitions that pass through unreadable
+intermediate colors. Logger's connection actions retain their green and red
+status colors.
+
+`src/dialog-buttons.css` applies those pairs to app-rendered dialogs through
+the `--dialog-button-*` aliases. Window-specific styles own layout, not a
+second button palette. Native operating-system dialogs keep their native
+appearance. Both companion applications use the same semantic token names;
+their adapters follow each application's actual theme classes and palette
+vocabulary rather than assuming identical raw colors.
 
 Two rules keep it working:
 

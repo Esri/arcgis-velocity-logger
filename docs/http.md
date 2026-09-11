@@ -88,6 +88,14 @@ The HTTP Path field (default `/`) specifies the URL path appended after the host
 
 When connecting to an ArcGIS Velocity HTTP Receiver endpoint, set this to the system-generated path provided by the feed configuration (typically something like `/receiver/<feed-id>`). For local testing between the Logger and Simulator, the default `/` is usually sufficient.
 
+Preserve the advertised host, explicit port, path, and required non-secret
+query when entering a data endpoint. An HTTPS URL without a port uses 443;
+this does not change the local server default. An analytic's outbound HTTP
+destination is not a subscription endpoint, so the output picker does not
+apply it as an HTTP client connection. See
+[ArcGIS Velocity REST API](velocity-rest-api.md) for the distinction between
+management and data endpoints.
+
 ## UI controls
 
 When HTTP is selected as the connection type, its controls live in the **Protocol Settings** dialog (**Settings** in the connection row, or `Cmd/Ctrl+Shift+P`), grouped into **Basics** and **Security** (HTTP has no Advanced settings). See [Connection summary and protocol settings](connection-summary.md).

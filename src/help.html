@@ -100,8 +100,9 @@
 
                 <section class="help-section">
                     <h3>Connect to ArcGIS Velocity</h3>
-                    <p>Select the ArcGIS Velocity sign-in control to browse outputs and apply supported connection settings. Applying an output fills the connection mode, host, port, path, TLS, and format when those values are available. Stored passwords and output secrets are never recovered.</p>
-                    <p>After you apply a supported output, the Logger can attach its token to supported gRPC metadata, HTTP headers, and WebSocket upgrade headers. The token is refreshed before it expires and is never displayed in the interface.</p>
+                    <p>Select the ArcGIS Velocity sign-in control and enter the Portal URL used for authentication. Automatic discovery finds the registered public API endpoints. Browse all servers or select one server to inspect its results and configure a Custom public API URL. Preserve its complete public context, such as <code>https://api.example.com/velocity</code>; HTTPS uses port 443 when no port is specified.</p>
+                    <p>The output list identifies each configured output by its source server and analytic. Healthy servers remain visible when another server fails. Stream Layers resolve to their advertised WebSocket subscription; outbound connector destinations are not subscriptions and remain unavailable for automatic Apply. XMPP outputs retain their receiving-account configuration. Stored passwords and output secrets are never recovered.</p>
+                    <p>Disconnect before applying settings. Apply fills the connection fields without connecting. For Stream Layers, Connect obtains a fresh stream token and sends it only over WSS; the temporary token is never displayed or saved in connection settings. Use <strong>Use Token Only</strong> for a manually configured compatible gRPC, HTTP, or WebSocket connection. The Portal token refreshes before expiration and stays bound to the applied sign-in session.</p>
                     <p>See the <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/velocity-login.md" target="_blank" rel="noreferrer">ArcGIS Velocity sign-in guide</a> for output selection and authentication details.</p>
                 </section>
 

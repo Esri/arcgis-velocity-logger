@@ -21,6 +21,13 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
+  if (window.themeLoader) {
+    const params = new URLSearchParams(window.location.search);
+    window.themeLoader.loadTheme(params.get('theme') || 'dark', params.get('themeHref') || '');
+    if (window.velocityApi.onLoadSavedTheme) {
+      window.velocityApi.onLoadSavedTheme((theme) => window.themeLoader.loadTheme(theme));
+    }
+  }
   // ─── Element References ────────────────────────────────────────────────────
   const tabs = document.querySelectorAll('.auth-tab');
   const formPassword = document.getElementById('auth-form-password');
@@ -40,10 +47,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const refreshBtn = document.getElementById('refresh-btn');
   const scopeMyBtn = document.getElementById('scope-my');
   const scopeOrgBtn = document.getElementById('scope-org');
-  const toggleUnsupportedBtn = document.getElementById('toggle-unsupported-btn');
   const filterSupportedBtn = document.getElementById('filter-supported-btn');
   const filterAllBtn = document.getElementById('filter-all-btn');
-  const rememberMe = document.getElementById('remember-me');
 
   // Info fields
   const infoLabel = document.getElementById('info-label');
@@ -53,20 +58,88 @@ document.addEventListener('DOMContentLoaded', () => {
   const infoAuth = document.getElementById('info-auth');
   const infoFormat = document.getElementById('info-format');
   const infoSchema = document.getElementById('info-schema');
+  const infoServer = document.getElementById('info-server');
+  const infoAnalytic = document.getElementById('info-analytic');
+  const infoAnalyticId = document.getElementById('info-analytic-id');
+  const infoAvailability = document.getElementById('info-availability');
 
   let currentTab = 'password';
-  let allItems = []; // populated after sign-in
+  let allItems = [];
   let selectedItem = null;
-  let lastVelocityUrl = null; // stored for refresh
-  let lastToken = null;
+  let listRevision = 0;
+  let selectionRevision = 0;
+  let loading = false;
+  let detailsPending = false;
+  let selectedRevision = null;
+  let listedRevision = null;
   let useAdminScope = true; // default: org outputs
   let showUnsupported = false; // default: show supported only
+
+  const endpoint = window.VelocityEndpointUI.create({
+    document,
+    api: window.velocityApi,
+    onInvalidate: invalidateItems,
+    onChange: syncActions,
+    onLoadItems: () => refreshItems('Loading outputs…'),
+    setStatus,
+  });
+
+  function tooltip(control, text) {
+    control.dataset.tooltip = text;
+    control.setAttribute('aria-label', text);
+  }
+
+  // Existing title tooltips are migrated by the shared tooltip utility.
+  document.querySelectorAll('button, input, select, label').forEach(control => {
+    const target = control.htmlFor && document.getElementById(control.htmlFor);
+    const text = control.dataset.tooltip || control.getAttribute('title')
+      || (target && (target.dataset.tooltip || target.getAttribute('title')));
+    if (text) tooltip(control, text);
+  });
+
+  function syncActions() {
+    const unavailable = !endpoint.canBrowse || loading || Boolean(endpoint.busy);
+    [refreshBtn, scopeMyBtn, scopeOrgBtn, itemSelect, itemTypeSelect,
+      filterSupportedBtn, filterAllBtn].forEach(control => { control.disabled = unavailable; });
+    const canApply = !unavailable && !detailsPending && selectedItem && selectedItem.supported
+      && !selectedItem.detailRequired && selectedRevision === endpoint.session.revision;
+    applyBtn.disabled = !canApply;
+    const reason = selectedItem && selectedItem.unsupportedReason;
+    tooltip(applyBtn, !endpoint.canBrowse
+      ? 'Sign in or apply the pending endpoint before applying an output.'
+      : detailsPending ? 'Loading output details before applying connection settings.'
+      : reason ? `Cannot apply — ${reason}`
+      : selectedItem && !selectedItem.supported ? 'Cannot apply — this output has no supported data subscription.'
+      : "Apply the selected output's connection settings to the main window.");
+  }
+
+  function clearSelection() {
+    selectionRevision++;
+    selectedItem = null;
+    selectedRevision = null;
+    detailsPending = false;
+    infoPanel.classList.add('hidden');
+    applyBtn.disabled = true;
+  }
+
+  function invalidateItems() {
+    listRevision++;
+    loading = false;
+    listedRevision = null;
+    allItems = [];
+    clearSelection();
+    itemSelect.replaceChildren();
+    itemTypeSelect.replaceChildren();
+    pickerSection.classList.add('hidden');
+    setStatus('');
+  }
 
   // ─── Type icons and colors ─────────────────────────────────────────────────
   const TYPE_META = {
     'grpc':       { icon: '\u2B21', label: 'gRPC',      color: '#7c4dff' },
     'http':       { icon: '\u25A0', label: 'HTTP',       color: '#0097a7' },
     'websocket':  { icon: '\u25C6', label: 'WebSocket',  color: '#00897b' },
+    'stream-lyr-new': { icon: '\u25C6', label: 'Stream Layer', color: '#00897b' },
     'xmpp':       { icon: '\u25CF', label: 'XMPP',       color: '#5e35b1' },
     'tcp':        { icon: '\u25D7', label: 'TCP',        color: '#546e7a' },
     'kafka':      { icon: '\u25B2', label: 'Kafka',      color: '#e53935' },
@@ -91,6 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showUnsupported = false;
         syncFilterBtns();
         populateTypeDropdown();
+        if (listedRevision !== null) reportListStatus();
       }
     });
   }
@@ -101,6 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showUnsupported = true;
         syncFilterBtns();
         populateTypeDropdown();
+        if (listedRevision !== null) reportListStatus();
       }
     });
   }
@@ -117,45 +192,18 @@ document.addEventListener('DOMContentLoaded', () => {
   setScope(true); // default to Org Outputs
 
   if (scopeMyBtn) scopeMyBtn.addEventListener('click', async () => {
-    if (useAdminScope) {
+    if (useAdminScope && endpoint.canBrowse && !loading) {
       setScope(false);
-      if (lastVelocityUrl && lastToken) {
-        setStatus('info', 'Loading my outputs…');
-        try {
-          await loadItems(lastVelocityUrl, lastToken);
-          setStatus('success', `${allItems.filter(i=>i.supported).length} supported of ${allItems.length} output(s)`);
-        } catch (err) { setStatus('error', err.message); }
-      }
+      await refreshItems('Loading my outputs…');
     }
   });
 
   if (scopeOrgBtn) scopeOrgBtn.addEventListener('click', async () => {
-    if (!useAdminScope) {
+    if (!useAdminScope && endpoint.canBrowse && !loading) {
       setScope(true);
-      if (lastVelocityUrl && lastToken) {
-        setStatus('info', 'Loading org outputs…');
-        try {
-          await loadItems(lastVelocityUrl, lastToken);
-          setStatus('success', `${allItems.filter(i=>i.supported).length} supported of ${allItems.length} output(s)`);
-        } catch (err) { setStatus('error', err.message); }
-      }
+      await refreshItems('Loading org outputs…');
     }
   });
-
-  // ─── Load stored credentials ───────────────────────────────────────────────
-  (async () => {
-    try {
-      const stored = await window.velocityApi.getStoredCredentials();
-      if (stored) {
-        if (stored.portalUrl) {
-          document.getElementById('portal-url').value = stored.portalUrl;
-          document.getElementById('oauth-portal-url').value = stored.portalUrl;
-        }
-        if (stored.username) document.getElementById('username').value = stored.username;
-        if (stored.rememberMe) rememberMe.checked = true;
-      }
-    } catch (_) { /* ignore */ }
-  })();
 
   // ─── Tab Switching ─────────────────────────────────────────────────────────
   tabs.forEach(tab => {
@@ -169,90 +217,94 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ─── Sign In ───────────────────────────────────────────────────────────────
-  signInBtn.addEventListener('click', async () => {
-    setStatus('signing-in');
-    try {
-      let result;
-      if (currentTab === 'password') {
-        const portalUrl = document.getElementById('portal-url').value.trim();
-        const username = document.getElementById('username').value.trim();
-        const password = document.getElementById('password').value;
-        if (!portalUrl || !username || !password) {
-          setStatus('error', 'Please fill in all fields.');
-          return;
-        }
-        result = await window.velocityApi.login({ portalUrl, username, password });
-        // Persist if remember me
-        if (rememberMe.checked) {
-          await window.velocityApi.storeCredentials({ portalUrl, username, rememberMe: true });
-        }
-      } else {
-        const portalUrl = document.getElementById('oauth-portal-url').value.trim();
-        const clientId = document.getElementById('client-id').value.trim();
-        const clientSecret = document.getElementById('client-secret').value;
-        if (!portalUrl || !clientId || !clientSecret) {
-          setStatus('error', 'Please fill in all fields.');
-          return;
-        }
-        result = await window.velocityApi.loginOAuth({ portalUrl, clientId, clientSecret });
-      }
-
-      if (result.error) {
-        setStatus('error', result.error);
-        return;
-      }
-
-      setStatus('success', 'Signed in. Loading outputs…');
-      // Enable 'Use Token Only' after successful sign-in
-      if (useTokenBtn) { useTokenBtn.disabled = false; useTokenBtn.classList.remove('hidden'); }
-      await loadItems(result.velocityUrl, result.token);
-      setStatus('success', `Signed in${allItems.length > 0 ? ` • ${allItems.filter(i=>i.supported).length} supported output(s) of ${allItems.length} total` : ' • No outputs found (check org permissions)'}`);
-    } catch (err) {
-      setStatus('error', err.message || 'Sign-in failed.');
-    }
-  });
+  signInBtn.addEventListener('click', () => endpoint.signIn(currentTab));
 
   // ─── Refresh Button ────────────────────────────────────────────────────────
   if (refreshBtn) {
     refreshBtn.addEventListener('click', async () => {
-      if (!lastVelocityUrl || !lastToken) {
-        setStatus('error', 'Please sign in first.');
-        return;
-      }
-      setStatus('info', 'Refreshing outputs…');
-      try {
-        await loadItems(lastVelocityUrl, lastToken);
-        setStatus('success', `Refreshed • ${allItems.filter(i=>i.supported).length} supported of ${allItems.length} total output(s)`);
-      } catch (err) {
-        setStatus('error', `Refresh failed: ${err.message}`);
-      }
+      if (endpoint.canBrowse) await refreshItems('Refreshing outputs…');
     });
   }
 
   // ─── Load Items ────────────────────────────────────────────────────────────
-  async function loadItems(velocityUrl, token) {
-    lastVelocityUrl = velocityUrl;
-    lastToken = token;
-    const items = await window.velocityApi.listItems({ velocityUrl, token, adminScope: useAdminScope });
-    if (items && items.error) throw new Error(items.error);
-    allItems = Array.isArray(items) ? items : [];
-    populateTypeDropdown();
-    pickerSection.classList.remove('hidden');
+  async function refreshItems(message) {
+    if (!endpoint.canBrowse) return;
+    const epoch = endpoint.generation;
+    const revision = endpoint.session.revision;
+    const request = ++listRevision;
+    clearSelection();
+    allItems = [];
+    listedRevision = null;
+    endpoint.setListErrors([]);
+    pickerSection.classList.add('hidden');
+    loading = true;
+    syncActions();
+    setStatus('info', message);
+    try {
+      const response = await window.velocityApi.listItems({
+        adminScope: useAdminScope, revision, serverId: endpoint.session.selectedServerId,
+      });
+      if (epoch !== endpoint.generation || request !== listRevision) return;
+      if (response && response.error) throw new Error(response.error);
+      if (!response || response.revision !== revision || !Array.isArray(response.items)
+        || !Array.isArray(response.errors) || response.errors.some(error => !error
+          || typeof error.serverId !== 'string' || typeof error.message !== 'string')) {
+        throw new Error('The output list response is invalid. Check the effective API URL and try again.');
+      }
+      const { items, errors } = response;
+      if (!Array.isArray(items) || items.some(item => !item || typeof item !== 'object' || Array.isArray(item)
+        || typeof item.outputType !== 'string' || !item.outputType
+        || typeof item.label !== 'string' || typeof item.supported !== 'boolean')) {
+        throw new Error('The output list response is invalid. Check the effective API URL and try again.');
+      }
+      const keys = new Set();
+      allItems = items.map(item => {
+        const key = item.id;
+        if (typeof key !== 'string' || !key || keys.has(key)) throw new Error('The output list contains missing or duplicate identities.');
+        keys.add(String(key));
+        return { ...item, key: String(key) };
+      });
+      listedRevision = response.revision;
+      endpoint.setListErrors(errors);
+      populateTypeDropdown();
+      pickerSection.classList.remove('hidden');
+      reportListStatus();
+    } catch (error) {
+      if (epoch === endpoint.generation && request === listRevision) {
+        allItems = [];
+        setStatus('error', error.message || 'Could not load outputs.');
+      }
+    } finally {
+      if (epoch === endpoint.generation && request === listRevision) {
+        loading = false;
+        syncActions();
+      }
+    }
+  }
+
+  function reportListStatus() {
+    const supported = allItems.filter(item => item.supported).length;
+    const unsupportedOnly = supported === 0 && allItems.length > 0 && !showUnsupported;
+    const count = `${supported} supported of ${allItems.length} outputs.`;
+    const hint = unsupportedOnly ? ' Choose All beside Supported to view unsupported outputs.' : '';
+    const errors = endpoint.listErrorMessage;
+    setStatus(errors ? 'warning' : unsupportedOnly ? 'info' : 'success', errors
+      ? `${count}${hint} Some Velocity servers could not be queried. ${errors}` : `${count}${hint}`);
   }
 
   function populateTypeDropdown() {
-    const visibleItems = showUnsupported ? allItems : allItems.filter(i => i.supported);
+    const visibleItems = showUnsupported ? allItems : allItems.filter(i => i.supported || i.detailRequired);
     const types = [...new Set(visibleItems.map(i => i.outputType))].sort();
-    itemTypeSelect.innerHTML = '<option value="">All Types</option>';
+    itemTypeSelect.innerHTML = '<option value="" title="Show all output types">All Types</option>';
     types.forEach(type => {
       const opt = document.createElement('option');
       opt.value = type;
-      const supported = allItems.some(i => i.outputType === type && i.supported);
+      const supported = allItems.some(i => i.outputType === type && (i.supported || i.detailRequired));
       const meta = typeMeta(type);
-      opt.textContent = supported ? `${meta.icon} ${type}` : `\u26A0 ${type}`;
+      opt.textContent = supported ? `${meta.icon} ${meta.label}` : `\u26A0 ${meta.label}`;
       opt.style.color = supported ? meta.color : '#f5a623';
       if (!supported) opt.classList.add('type-option-unsupported');
-      opt.title = supported ? `Show ${type} outputs` : `${type} - not yet supported by the Logger`;
+      opt.title = supported ? `Show ${meta.label} outputs` : `${meta.label} - not yet supported by the Logger`;
       itemTypeSelect.appendChild(opt);
     });
     populateItemDropdown();
@@ -260,50 +312,87 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function populateItemDropdown() {
     const filterType = itemTypeSelect.value;
-    const visibleItems = showUnsupported ? allItems : allItems.filter(i => i.supported);
+    const visibleItems = showUnsupported ? allItems : allItems.filter(i => i.supported || i.detailRequired);
     const filtered = filterType ? visibleItems.filter(i => i.outputType === filterType) : visibleItems;
-    itemSelect.innerHTML = '<option value="">- Select -</option>';
+    itemSelect.innerHTML = '<option value="" title="Select an output to view its details">- Select -</option>';
     filtered.forEach((item) => {
       const opt = document.createElement('option');
-      const globalIdx = allItems.indexOf(item);
-      opt.value = globalIdx;
-      opt.dataset.globalIdx = globalIdx;
+      opt.value = item.key;
+      const analyticLabel = item.analyticId
+        ? `${item.label} — ${item.analyticName || item.analyticId} (${item.analyticKind || 'analytic'}: ${item.analyticId})`
+        : item.label;
+      const label = item.serverId ? `${analyticLabel} — ${sourceServerLabel(item)}` : analyticLabel;
       const meta = typeMeta(item.outputType);
-      opt.textContent = item.supported
-        ? `${meta.icon} ${item.label}  [${item.outputType}]`
-        : `\u26A0 ${item.label}  [${item.outputType}]`;
-      opt.style.color = item.supported ? meta.color : '#f5a623';
-      if (!item.supported) opt.classList.add('item-option-unsupported');
-      opt.title = item.supported
-        ? `${item.label} - ${meta.label} output`
-        : `${item.label} - ${meta.label} (not yet supported by the Logger)`;
+      const available = item.supported || item.detailRequired;
+      opt.textContent = available
+        ? `${meta.icon} ${label}  [${meta.label}]`
+        : `\u26A0 ${label}  [${meta.label}]`;
+      opt.style.color = available ? meta.color : '#f5a623';
+      if (!available) opt.classList.add('item-option-unsupported');
+      opt.title = available
+        ? `${label} - ${meta.label} output`
+        : `${label} - ${item.unsupportedReason || 'No supported data subscription'}`;
       itemSelect.appendChild(opt);
     });
-    infoPanel.classList.add('hidden');
-    applyBtn.disabled = true;
-    selectedItem = null;
+    clearSelection();
+    syncSelectTooltip(itemTypeSelect);
+    syncSelectTooltip(itemSelect);
+    syncActions();
+  }
+
+  function syncSelectTooltip(select) {
+    const option = select.selectedOptions[0];
+    if (option) tooltip(select, option.dataset.tooltip || option.title || select.getAttribute('aria-label'));
   }
 
   // ─── Dropdown Events ───────────────────────────────────────────────────────
   itemTypeSelect.addEventListener('change', populateItemDropdown);
 
-  itemSelect.addEventListener('change', () => {
+  itemSelect.addEventListener('change', async () => {
+    clearSelection();
+    syncSelectTooltip(itemSelect);
+    if (!endpoint.canBrowse || loading || endpoint.busy) return;
     const opt = itemSelect.selectedOptions[0];
-    if (!opt || opt.value === '') {
-      infoPanel.classList.add('hidden');
-      applyBtn.disabled = true;
-      selectedItem = null;
-      return;
-    }
-    const globalIdx = parseInt(opt.dataset.globalIdx, 10);
-    const item = allItems[globalIdx];
+    if (!opt || opt.value === '') return;
+    const item = allItems.find(candidate => candidate.key === opt.value);
+    if (!item) return;
     selectedItem = item;
+    selectedRevision = listedRevision;
+    detailsPending = !!item.detailRequired;
     showInfo(item);
-    applyBtn.disabled = !item.supported;
-    if (!item.supported) {
-      applyBtn.title = 'Cannot apply - this output type is not yet supported by the Logger.';
-    } else {
-      applyBtn.title = 'Apply the selected output connection settings to the main window.';
+    syncActions();
+    if (!detailsPending) return;
+    const epoch = endpoint.generation;
+    const selection = selectionRevision;
+    const stillCurrent = () => epoch === endpoint.generation && selection === selectionRevision;
+    setStatus('info', 'Loading output subscription details…');
+    try {
+      const detail = await window.velocityApi.getItemDetails({
+        id: item.id, revision: selectedRevision,
+      });
+      if (!stillCurrent()) return;
+      if (detail && detail.error) throw new Error(detail.error);
+      if (!detail || typeof detail !== 'object' || Array.isArray(detail)
+        || detail.detailRequired || typeof detail.supported !== 'boolean'
+        || detail.id !== item.id
+        || (detail.key && String(detail.key) !== item.key)
+        || ['serverId', 'analyticKind', 'analyticId', 'outputId', 'id'].some(key => item[key] != null
+          && detail[key] != null && detail[key] !== item[key])) {
+        throw new Error('The output detail response is invalid or does not match the selected output.');
+      }
+      selectedItem = { ...item, ...detail, key: item.key, detailRequired: false };
+      detailsPending = false;
+      showInfo(selectedItem);
+      setStatus(selectedItem.supported ? 'success' : 'error',
+        selectedItem.supported ? 'Output subscription details loaded.' : selectedItem.unsupportedReason || 'This output has no supported data subscription.');
+    } catch (error) {
+      if (!stillCurrent()) return;
+      detailsPending = false;
+      selectedItem = { ...item, supported: false, unsupportedReason: error.message };
+      showInfo(selectedItem);
+      setStatus('error', error.message);
+    } finally {
+      if (stillCurrent()) syncActions();
     }
   });
 
@@ -317,33 +406,61 @@ document.addEventListener('DOMContentLoaded', () => {
       badge.title = meta.label;
     }
     infoLabel.textContent = item.label || '-';
-    infoId.textContent = item.id || '-';
+    infoId.textContent = item.outputId || item.id || '-';
+    infoServer.textContent = sourceServerLabel(item);
+    infoAnalytic.textContent = item.analyticName || '-';
+    infoAnalyticId.textContent = item.analyticId || '-';
     infoType.textContent = meta.label || item.outputType || '-';
-    infoUrl.textContent = item.url || item.host || '-';
+    infoUrl.textContent = visibleEndpoint(item.url || item.host);
     infoAuth.textContent = item.authType || 'none';
     infoFormat.textContent = item.format || '-';
-    const schemaFields = Array.isArray(item.schema) ? item.schema.map(f => f.name || f.fieldName || f).join(', ') : '-';
+    const schemaFields = Array.isArray(item.schema) ? item.schema.map(f => f && (f.name || f.fieldName || f)).join(', ') : '-';
     infoSchema.textContent = schemaFields || '-';
+    infoAvailability.textContent = item.unsupportedReason
+      || (detailsPending ? 'Resolving subscription details…'
+        : item.supported ? 'Supported data subscription' : 'No supported data subscription');
     infoPanel.classList.remove('hidden');
   }
 
+  function visibleEndpoint(value) {
+    if (!value) return '-';
+    try {
+      const url = new URL(value);
+      url.username = '';
+      url.password = '';
+      url.search = '';
+      url.hash = '';
+      return url.href;
+    } catch (_) { return String(value).split(/[?#]/)[0].replace(/^.*@/, ''); }
+  }
+
+  function sourceServerLabel(item) {
+    return item.serverName && item.serverId
+      ? `${item.serverName} (${item.serverId})`
+      : item.serverName || item.serverId || '-';
+  }
+
   // ─── Apply ─────────────────────────────────────────────────────────────────
-  applyBtn.addEventListener('click', () => {
-    if (!selectedItem) return;
-    window.velocityApi.applyItem(selectedItem);
-    window.velocityApi.hideWindow();
-  });
+  applyBtn.addEventListener('click', () => applySelection(false));
 
   // ─── Use Token Only ───────────────────────────────────────────────────────
   if (useTokenBtn) {
-    useTokenBtn.addEventListener('click', () => {
-      window.velocityApi.applyItem({ tokenOnly: true, authType: 'token' });
-      window.velocityApi.hideWindow();
-    });
+    useTokenBtn.addEventListener('click', () => applySelection(true));
+  }
+
+  async function applySelection(tokenOnly) {
+    if (!endpoint.session || endpoint.busy || (tokenOnly ? !endpoint.session.authenticated
+      : !endpoint.canBrowse || loading || !selectedItem || !selectedItem.supported || selectedItem.detailRequired
+        || detailsPending || selectedRevision !== endpoint.session.revision)) return;
+    const selection = selectionRevision;
+    await endpoint.applyItem({
+      ...(tokenOnly ? { tokenOnly: true } : { id: selectedItem.id }),
+      revision: tokenOnly ? endpoint.session.revision : selectedRevision,
+    }, () => tokenOnly || selection === selectionRevision);
   }
 
   // ─── Close ─────────────────────────────────────────────────────────────────
-  closeBtn.addEventListener('click', () => { window.velocityApi.hideWindow(); });
+  closeBtn.addEventListener('click', () => endpoint.close());
 
   // ─── Enter key in password / secret fields triggers Sign In ────────────────
   function handleEnterKey(e) {
@@ -369,7 +486,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const visible = input.type === 'text';
       input.type = visible ? 'password' : 'text';
       toggle.innerHTML = visible ? EYE_OPEN_SVG : EYE_CLOSED_SVG;
-      toggle.title = visible ? 'Show password' : 'Hide password';
+      const name = inputId === 'client-secret' ? 'client secret' : 'password';
+      tooltip(toggle, `${visible ? 'Show' : 'Hide'} ${name}`);
     });
   }
   setupPasswordToggle('toggle-password', 'password');
@@ -384,28 +502,37 @@ document.addEventListener('DOMContentLoaded', () => {
       statusBannerText.textContent = 'Signing in…';
       statusBannerDismiss.classList.add('hidden');
       statusBanner.classList.remove('hidden');
-      signInBtn.disabled = true;
     } else if (type === 'error') {
       statusBanner.classList.add('error');
       statusBannerIcon.textContent = '✕';
       statusBannerText.textContent = message;
       statusBannerDismiss.classList.remove('hidden');
       statusBanner.classList.remove('hidden');
-      signInBtn.disabled = false;
     } else if (type === 'success') {
       statusBanner.classList.add('success');
       statusBannerIcon.textContent = '✓';
       statusBannerText.textContent = message;
       statusBannerDismiss.classList.remove('hidden');
       statusBanner.classList.remove('hidden');
-      signInBtn.disabled = false;
+    } else if (type === 'warning') {
+      statusBanner.classList.add('warning');
+      statusBannerIcon.textContent = '!';
+      statusBannerText.textContent = message;
+      statusBannerDismiss.classList.remove('hidden');
+      statusBanner.classList.remove('hidden');
+    } else if (type === 'info') {
+      statusBanner.classList.add('info');
+      statusBannerIcon.innerHTML = '<span class="spinner"></span>';
+      statusBannerText.textContent = message;
+      statusBannerDismiss.classList.remove('hidden');
+      statusBanner.classList.remove('hidden');
     } else {
       statusBanner.classList.add('hidden');
-      signInBtn.disabled = false;
     }
   }
 
   statusBannerDismiss.addEventListener('click', () => {
     statusBanner.classList.add('hidden');
   });
+  endpoint.initialize();
 });

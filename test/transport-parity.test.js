@@ -71,7 +71,7 @@ function extractFunction(source, name) {
     else if (char === '}') {
       depth -= 1;
       if (seenBrace && depth === 0) {
-        return source.slice(start, index + 1).replace(/\s+/g, ' ').trim();
+        return source.slice(start, index + 1).replace(/^\s*\/\/.*$/gm, '').replace(/\s+/g, ' ').trim();
       }
     }
   }
@@ -119,6 +119,26 @@ test('the HTTP client stops subscribing after a definitive non-SSE answer', () =
 // ---------------------------------------------------------------------------
 // Cross-application comparisons.
 // ---------------------------------------------------------------------------
+
+compare('network authority formatting is byte-identical', () => {
+  assert.strictEqual(readLocal('src/network-address-utils.js'), readSimulator('src/network-address-utils.js'));
+});
+
+for (const name of [
+  'velocity-endpoints', 'velocity-rest-client', 'velocity-session',
+  'velocity-preferences', 'velocity-connection-options', 'velocity-endpoint-ui',
+]) {
+  compare(`${name} is byte-identical`, () => {
+    assert.strictEqual(readLocal(`src/${name}.js`), readSimulator(`src/${name}.js`));
+  });
+}
+
+compare('WebSocket client credentials and lifecycle remain identical', () => {
+  assert.strictEqual(
+    extractFunction(readLocal('src/ws-transport.js'), 'createWsClientTransport'),
+    extractFunction(readSimulator('src/ws-transport.js'), 'createWsClientTransport'),
+  );
+});
 
 compare('the WebSocket close helpers are character-for-character identical', () => {
   const local = readLocal('src/ws-transport.js');

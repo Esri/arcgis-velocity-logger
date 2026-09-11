@@ -96,6 +96,7 @@ documentation is added, renamed, or updated.
   | `command-line.md` | The complete option reference, defaults, and help layouts. |
   | `headless.md` | No-UI capture workflows, stop conditions, and automation. |
   | `configuration.md` | Persisted settings and launch configuration files. |
+  | `velocity-rest-api.md` | Portal, public REST API, and data endpoint URL conventions and current application support. |
   | `developer-guide.md` | Local development, testing, debugging, and extension patterns. |
   | `build-and-release.md` | Build prerequisites, packaging, signing, and releases. |
 

@@ -77,20 +77,13 @@ body {
 
 /* Close Button */
 .about-close {
-    background-color: var(--close-bg);
-    color: white;
     border: none;
     border-radius: 6px;
     padding: 8px 16px;
     font-size: 0.9em;
     font-weight: 500;
     cursor: pointer;
-    transition: background-color 0.2s, transform 0.1s;
     width: 100%;
-}
-
-.about-close:hover {
-    background-color: var(--close-hover-bg);
 }
 
 .about-close:focus-visible {

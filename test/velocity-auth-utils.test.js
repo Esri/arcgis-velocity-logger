@@ -10,11 +10,14 @@ assert.strictEqual(getVelocityItemType({ outputType: 'grpc' }), 'grpc');
 assert.strictEqual(getVelocityItemType({ feedType: 'http-receiver' }), 'http-receiver');
 assert.strictEqual(isTokenCapableItem({ outputType: 'tcp' }), false);
 assert.strictEqual(isTokenCapableItem({ outputType: 'websocket' }), true);
+assert.strictEqual(isTokenCapableItem({ outputType: 'stream-lyr-new' }), true);
 
 assert.strictEqual(shouldSendVelocityTokenByDefault({ tokenOnly: true, authType: 'token' }), true);
 assert.strictEqual(shouldSendVelocityTokenByDefault({ outputType: 'grpc', authType: 'arcgis' }), true);
 assert.strictEqual(shouldSendVelocityTokenByDefault({ outputType: 'http', authType: 'token' }), true);
 assert.strictEqual(shouldSendVelocityTokenByDefault({ outputType: 'websocket', authType: '' }), true);
+assert.strictEqual(shouldSendVelocityTokenByDefault({ outputType: 'stream-lyr-new', authType: 'token' }), true);
+assert.strictEqual(shouldSendVelocityTokenByDefault({ outputType: 'stream-lyr-new', authType: 'none' }), false);
 assert.strictEqual(shouldSendVelocityTokenByDefault({ outputType: 'http', authType: 'basic' }), false);
 assert.strictEqual(shouldSendVelocityTokenByDefault({ outputType: 'http', authType: 'none' }), false);
 assert.strictEqual(shouldSendVelocityTokenByDefault({ outputType: 'tcp', authType: '' }), false);
@@ -24,4 +27,3 @@ assert.strictEqual(describeVelocityAuthType('basic'), 'Basic auth (token not use
 assert.strictEqual(describeVelocityAuthType('none'), 'No auth required');
 
 console.log('velocity-auth-utils tests passed');
-

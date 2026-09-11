@@ -13,6 +13,7 @@ It is intended for users and developers connecting the Logger to a WebSocket end
 - [TLS (WSS)](#tls-wss)
 - [Default ports](#default-ports)
 - [WebSocket path](#websocket-path)
+- [ArcGIS Velocity Stream Layers](#arcgis-velocity-stream-layers)
 - [Subscription message](#subscription-message)
 - [Ignore first message](#ignore-first-message)
 - [Custom HTTP headers](#custom-http-headers)
@@ -85,6 +86,33 @@ The WS Path field (default `/`) specifies the URL path appended after the host a
 
 - **Server mode**: Only WebSocket upgrade requests matching this path exactly are accepted.
 - **Client mode**: This path is used in the outgoing connection URL. For example, `wss://velocity.example.com:8443/feed/stream-id`.
+
+Preserve the path and any required non-secret query supplied by the WebSocket
+service; do not derive them from a management API URL. An advertised `wss` URL
+without an explicit port uses 443, independently of the local server default.
+
+## ArcGIS Velocity Stream Layers
+
+The output picker locates configured ArcGIS Velocity Stream Layers through
+their parent analytics and resolves the advertised StreamServer connection
+URL. **Apply** fills the public connection settings without connecting.
+The Logger retrieves fresh stream credentials when you select **Connect**.
+Temporary tokens are used only in the secure connection handshake; they are
+not copied into WS Path, custom headers, the connection summary, or saved
+launch configurations.
+
+Changing the Velocity API endpoint does not move an active stream. Disconnect,
+refresh and reapply the desired output, then connect again. Reconnect to use
+refreshed credentials; an existing WebSocket handshake cannot be updated
+in place.
+
+The Logger uses the Portal session for StreamServer information only when
+the advertised HTTPS service URL shares the effective API URL's origin.
+It does not forward Portal credentials to a different host or port. A
+cross-origin service must provide its connection information without those
+credentials; otherwise ask the administrator for a reachable same-origin
+public stream service. See
+[ArcGIS Velocity REST API](velocity-rest-api.md#data-endpoints).
 
 ## Subscription message
 

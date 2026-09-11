@@ -192,6 +192,13 @@ How it works depending on serialization:
 
 The optional `grpcHeaderPathKey` / `grpcHeaderPath` parameters inject a metadata header on the `Watch`/`watch` call. This is required when connecting to a real ArcGIS Velocity endpoint so the platform can route the subscription to the correct feed item. When connecting to the Simulator, these parameters are accepted but ignored by the server.
 
+Use the advertised authority, explicit port, and routing metadata for a
+compatible subscription endpoint. A secure authority without a port uses 443.
+The public REST context, such as `/velocity`, is not a prefix for gRPC methods.
+An analytic's outbound gRPC destination is not automatically a subscription
+endpoint. See [ArcGIS Velocity REST API](velocity-rest-api.md) for management
+and data endpoint conventions.
+
 Disconnect always completes. It cancels the streaming subscription, waits for
 that call to settle, and closes the channel. When the peer disappeared first,
 the pending call ends with an error such as `14 UNAVAILABLE: Connection

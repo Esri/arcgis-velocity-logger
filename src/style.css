@@ -56,8 +56,8 @@ body {
 
 /* Control button styles */
 .control-button {
-    background-color: var(--button-info-bg);
-    color: var(--button-info-text-color, var(--button-text));
+    background-color: var(--action-info-bg);
+    color: var(--action-info-text);
     padding: 6px; /* Square dimension for icon buttons */
     width: 28px;
     height: 28px;
@@ -70,11 +70,12 @@ body {
     border: none;
     border-radius: 4px;
     cursor: help;
-    transition: background-color 0.2s ease, transform 0.1s ease;
+    transition: box-shadow 0.2s ease, transform 0.1s ease;
 }
 
 .control-button:hover:not(:disabled) {
-    background-color: var(--button-hover-bg);
+    background-color: var(--action-info-hover-bg);
+    color: var(--action-info-hover-text);
     transform: translateY(-1px);
 }
 
@@ -82,9 +83,16 @@ body {
     transform: translateY(0);
 }
 
-.control-button.active {
-    background-color: var(--button-toggle-on-bg);
-    color: var(--button-toggle-on-text, var(--button-text));
+.control-button.active:not(:disabled),
+.control-button[data-enabled="true"]:not(:disabled) {
+    background-color: var(--action-toggle-bg);
+    color: var(--action-toggle-text);
+}
+
+.control-button.active:hover:not(:disabled),
+.control-button[data-enabled="true"]:hover:not(:disabled) {
+    background-color: var(--action-toggle-hover-bg);
+    color: var(--action-toggle-hover-text);
 }
 
 /* Button icon styles */
@@ -270,22 +278,23 @@ body {
     cursor: help;
     font: inherit;
     line-height: 1;
-    opacity: 0.78;
-    transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease, transform 0.1s ease;
+    opacity: 1;
+    transition: border-color 0.15s ease, transform 0.1s ease;
 }
 
-.activity-action-btn:hover,
-.activity-action-btn:focus-visible,
-.activity-action-btn.active {
+.activity-action-btn:hover:not(:disabled),
+.activity-action-btn:focus-visible:not(:disabled),
+.activity-action-btn.active:not(:disabled) {
     opacity: 1;
     background: rgba(128, 128, 128, 0.16);
+    color: var(--text-color);
     border-color: var(--border-color);
     outline: none;
 }
 
 .activity-filter-btn,
 .activity-pin-btn {
-    color: color-mix(in srgb, var(--text-color) 76%, transparent);
+    color: var(--text-color);
     border-color: color-mix(in srgb, var(--border-color) 58%, transparent);
     background: color-mix(in srgb, var(--surface-color) 80%, #000 20%);
 }
@@ -296,22 +305,22 @@ body {
     height: 15px;
 }
 
-.activity-filter-btn.active,
-.activity-pin-btn.active {
-    color: var(--button-toggle-on-text, var(--button-text));
+.activity-filter-btn.active:not(:disabled),
+.activity-pin-btn.active:not(:disabled) {
+    color: var(--action-toggle-text);
     background: linear-gradient(180deg,
-        color-mix(in srgb, var(--button-toggle-on-bg) 94%, #fff 6%),
-        var(--button-toggle-on-bg));
+        color-mix(in srgb, var(--action-toggle-bg) 94%, #fff 6%),
+        var(--action-toggle-bg));
     border-color: color-mix(in srgb, var(--button-toggle-on-bg) 72%, var(--border-color));
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--button-toggle-on-bg) 28%, transparent),
                 0 0 12px color-mix(in srgb, var(--button-toggle-on-bg) 28%, transparent);
 }
 
-.activity-filter-btn:not(.active):hover,
-.activity-filter-btn:not(.active):focus-visible,
-.activity-pin-btn:not(.active):hover,
-.activity-pin-btn:not(.active):focus-visible {
-    color: var(--text-color);
+.activity-filter-btn:not(.active):hover:not(:disabled),
+.activity-filter-btn:not(.active):focus-visible:not(:disabled),
+.activity-pin-btn:not(.active):hover:not(:disabled),
+.activity-pin-btn:not(.active):focus-visible:not(:disabled) {
+    color: var(--action-neutral-hover-text);
     background: color-mix(in srgb, var(--button-info-bg) 16%, transparent);
     border-color: color-mix(in srgb, var(--button-info-bg) 44%, var(--border-color));
 }
@@ -322,9 +331,11 @@ body {
 
 .activity-action-btn:disabled {
     cursor: default;
-    opacity: 0.38;
-    background: transparent;
-    border-color: transparent;
+    opacity: 1;
+    background: var(--action-button-disabled-bg);
+    color: var(--action-button-disabled-text);
+    outline: 1px dashed var(--action-button-disabled-text);
+    outline-offset: -2px;
     transform: none;
 }
 
@@ -484,13 +495,18 @@ body {
 }
 
 #toggle-status-line-btn:not(:disabled)[aria-pressed="true"] {
-    background-color: var(--button-toggle-on-bg);
-    color: var(--button-toggle-on-text, var(--button-text));
+    background-color: var(--action-toggle-bg);
+    color: var(--action-toggle-text);
+}
+
+#toggle-status-line-btn:hover:not(:disabled)[aria-pressed="true"] {
+    background-color: var(--action-toggle-hover-bg);
+    color: var(--action-toggle-hover-text);
 }
 
 #toggle-status-line-btn:disabled {
     cursor: default;
-    opacity: 0.45;
+    opacity: 1;
 }
 
 .status-bar-center {
@@ -575,15 +591,16 @@ input:focus {
 /* Buttons */
 button {
     cursor: pointer;
-    background-color: var(--button-bg-color);
-    color: var(--button-text-color);
+    background-color: var(--action-button-bg);
+    color: var(--action-button-text);
     border: none;
     font-weight: 500;
-    transition: background-color 0.2s ease, transform 0.1s ease;
+    transition: box-shadow 0.2s ease, transform 0.1s ease;
 }
 
 button:hover:not(:disabled) {
-    background-color: var(--button-hover-bg-color);
+    background-color: var(--action-button-hover-bg);
+    color: var(--action-button-hover-text);
     transform: translateY(-1px);
 }
 
@@ -591,31 +608,39 @@ button:active:not(:disabled) {
     transform: translateY(0);
 }
 
-button:disabled {
-    opacity: 0.5;
+button:disabled,
+button[class]:disabled,
+button[id]:disabled {
+    opacity: 1;
+    background: var(--action-button-disabled-bg);
+    color: var(--action-button-disabled-text);
+    outline: 1px dashed var(--action-button-disabled-text);
+    outline-offset: -2px;
     cursor: not-allowed;
     transform: none;
 }
 
 /* Specific Button Types */
 .connect-btn {
-    background-color: #28a745;
-    color: #ffffff;
+    background-color: var(--action-success-bg);
+    color: var(--action-success-text);
     border: none;
 }
 
 .connect-btn:hover:enabled {
-    background-color: #218838;
+    background-color: var(--action-success-hover-bg);
+    color: var(--action-success-hover-text);
 }
 
 .disconnect-btn {
-    background-color: #dc3545;
-    color: #ffffff;
+    background-color: var(--action-danger-bg);
+    color: var(--action-danger-text);
     border: none;
 }
 
 .disconnect-btn:hover:enabled {
-    background-color: #b52a37;
+    background-color: var(--action-danger-hover-bg);
+    color: var(--action-danger-hover-text);
 }
 
 /* Layout Sections */
@@ -709,8 +734,8 @@ button:disabled {
     flex: 0 0 auto;
     white-space: nowrap;
     padding-inline: 8px;
-    background-color: var(--button-info-bg, var(--button-bg-color));
-    color: var(--button-info-text-color, var(--button-text-color));
+    background-color: var(--action-info-bg);
+    color: var(--action-info-text);
 }
 
 .protocol-settings-btn-icon {
@@ -731,7 +756,7 @@ button:disabled {
     line-height: 1.6;
     text-align: center;
     white-space: nowrap;
-    opacity: 0.9;
+    opacity: 1;
 }
 
 .protocol-settings-count[hidden] {
@@ -740,8 +765,13 @@ button:disabled {
 
 .protocol-settings-count[data-warning="true"] {
     border-color: var(--button-danger-bg, #dc3545);
-    background: color-mix(in srgb, var(--button-danger-bg, #dc3545) 18%, transparent);
+    background: color-mix(in srgb, var(--button-danger-bg, #dc3545) 6%, transparent);
     opacity: 1;
+}
+
+.protocol-settings-btn:disabled .protocol-settings-count {
+    background: transparent;
+    color: inherit;
 }
 
 /* Warning-only alert. It is hidden outright when nothing is wrong, so the
@@ -1061,6 +1091,7 @@ button:disabled {
 
 .protocol-settings-done {
     min-width: 92px;
+    border: 1px solid var(--dialog-button-bg);
 }
 
 /* Explicit certificate-verification bypass is a warning-level control. */
@@ -1391,19 +1422,13 @@ pre#logs::-webkit-scrollbar-thumb {
 }
 
 .dialog-button {
-    background-color: var(--button-bg);
-    color: var(--button-text);
     border: 1px solid var(--button-border);
     padding: 6px 14px;
     border-radius: 4px;
     font-size: 0.9rem;
     font-weight: 500;
     cursor: pointer;
-    transition: background-color 0.2s ease;
-}
-
-.dialog-button:hover {
-    background-color: var(--button-hover-bg);
+    transition: box-shadow 0.2s ease;
 }
 
 @media (max-width: 900px) {

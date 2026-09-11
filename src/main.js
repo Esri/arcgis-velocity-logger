@@ -150,13 +150,44 @@ let clientSocket;
 let udpSocket;
 let currentConnectionDetails = null;
 
-const { generateToken, generateOAuthToken, getVelocityApiUrl, listOutputs, getOutputDetails, TokenManager } = require('./velocity-api.js');
+const { jsonRequest, TokenManager } = require('./velocity-rest-client.js');
+const { apiUrl } = require('./velocity-endpoints.js');
+const { VelocitySession } = require('./velocity-session.js');
+const { VelocityOutputSession } = require('./velocity-output-session.js');
+const { registerVelocityLoginIpc } = require('./velocity-login-ipc.js');
+const { buildVelocityConnectionOptions } = require('./velocity-connection-options.js');
 const { shouldSendVelocityTokenByDefault } = require('./velocity-auth-utils.js');
-const velocityTokenManager = new TokenManager();
+const velocityRequest = (url, options = {}) => jsonRequest(url, { ...options, onLog: velocityLog });
+const velocityTokenManager = new TokenManager({ request: velocityRequest, onLog: velocityLog });
+const velocitySession = new VelocitySession({ tokenManager: velocityTokenManager, request: velocityRequest, onLog: velocityLog });
 let velocitySendAuthToken = false;
+let velocityAuthRevision = null;
+let velocityLoginPending = 0;
+let transportState = 'disconnected';
+const velocityOutputs = new VelocityOutputSession({
+  session: velocitySession,
+  request: velocityRequest,
+  apiUrl,
+  canApply: () => transportState === 'disconnected',
+  requestStreamService: async (url, options, context, token) => {
+    const serviceUrl = new URL(url);
+    const sameOrigin = serviceUrl.origin === new URL(context.apiBaseUrl).origin;
+    Object.entries(options.query || {}).forEach(([key, value]) => serviceUrl.searchParams.set(key, value));
+    velocityLog('info', `[API] Reading StreamServer information from ${serviceUrl.origin}${serviceUrl.pathname}`);
+    try {
+      return await velocityRequest(serviceUrl.href, sameOrigin ? { token } : {});
+    } catch (error) {
+      if (!sameOrigin) {
+        throw new Error(`${error.message} Portal credentials are not forwarded to this different-origin StreamServer; ask the administrator for a reachable public descriptor or a same-origin public stream service.`);
+      }
+      throw error;
+    }
+  },
+});
 
 function getVelocityAuthTokenForConnection() {
-  return velocitySendAuthToken && velocityTokenManager.isAuthenticated ? velocityTokenManager.token : null;
+  return !velocityLoginPending && velocityAuthRevision === velocitySession.state.authRevision
+    && velocitySendAuthToken && velocityTokenManager.isAuthenticated ? velocityTokenManager.token : null;
 }
 
 function normalizeThemeName(themeName) {
@@ -217,15 +248,22 @@ function broadcastThemeToSecondaryWindows(theme) {
   sendThemeToWindow(configWindow, theme);
   sendThemeToWindow(errorWindow, theme);
   sendThemeToWindow(launchConfigWindow, theme);
+  sendThemeToWindow(velocityLoginWindow, theme);
   referenceWindowManager.updateTheme(theme);
 }
 
 function hotSwapVelocityAuthToken() {
+  if (!velocitySendAuthToken) {
+    if (grpcTransport) grpcTransport.authToken = null;
+    if (httpTransport) httpTransport.authToken = null;
+    return;
+  }
+  if (velocityLoginPending || velocityAuthRevision !== velocitySession.state.authRevision) return;
   const token = getVelocityAuthTokenForConnection();
-  if (grpcTransport && grpcTransport.authToken !== undefined) {
+  if (grpcTransport && grpcTransport.velocityAuthRevision === velocityAuthRevision && grpcTransport.authToken !== undefined) {
     grpcTransport.authToken = token;
   }
-  if (httpTransport && httpTransport.authToken !== undefined) {
+  if (httpTransport && httpTransport.velocityAuthRevision === velocityAuthRevision && httpTransport.authToken !== undefined) {
     httpTransport.authToken = token;
   }
   // WS transport cannot change upgrade headers mid-session; the toggle applies on reconnect.
@@ -235,7 +273,7 @@ function sendVelocityTokenState(reason = 'updated') {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('velocity:token-state', {
       hasToken: velocityTokenManager.isAuthenticated,
-      tokenSendingEnabled: velocitySendAuthToken,
+      tokenSendingEnabled: velocitySendAuthToken && velocityAuthRevision === velocitySession.state.authRevision,
       expires: velocityTokenManager.expires || 0,
       reason,
     });
@@ -1833,6 +1871,7 @@ ipcMain.handle('save-logs', async (event, content) => {
 });
 
 function updateUdpButtonStates(connectionState) {
+    transportState = connectionState;
     // connectionState: 'connected' | 'disconnected' | 'connecting' | 'disconnecting'
     mainWindow.webContents.send('udp-set-connect-enabled', connectionState === 'disconnected');
     mainWindow.webContents.send('udp-set-disconnect-enabled', connectionState === 'connected' || connectionState === 'connecting');
@@ -1840,6 +1879,7 @@ function updateUdpButtonStates(connectionState) {
 }
 
 function updateTcpButtonStates(connectionState) {
+    transportState = connectionState;
     // connectionState: 'connected' | 'disconnected' | 'connecting' | 'disconnecting'
     mainWindow.webContents.send('tcp-set-connect-enabled', connectionState === 'disconnected');
     mainWindow.webContents.send('tcp-set-disconnect-enabled', connectionState === 'connected' || connectionState === 'connecting');
@@ -2148,6 +2188,7 @@ const { createGrpcServerTransport, createGrpcClientTransport } = require('./grpc
 let grpcTransport = null;
 
 function updateGrpcButtonStates(connectionState) {
+    transportState = connectionState;
     mainWindow.webContents.send('tcp-set-connect-enabled', connectionState === 'disconnected');
     mainWindow.webContents.send('tcp-set-disconnect-enabled', connectionState === 'connected' || connectionState === 'connecting');
     mainWindow.webContents.send('tcp-connection-state', connectionState);
@@ -2183,6 +2224,7 @@ ipcMain.on('connect-grpc', (event, { type, port, host, grpcSerialization, grpcSe
         const onClientMetadata = (line) => sendMetadataLine(line);
         const onClientStatus = (line) => sendMetadataLine(line);
         grpcTransport = createGrpcClientTransport({ ip: host, port, grpcSerialization, grpcSendMethod, headerPathKey, headerPath, useTls, tlsCaPath, tlsCertPath, tlsKeyPath, allowUnverifiedTls, authToken: getVelocityAuthTokenForConnection(), onData, onMetadata: onClientMetadata, onStatus: onClientStatus, onLog: (level, message) => velocityLog(level, message) });
+        grpcTransport.velocityAuthRevision = velocitySession.state.authRevision;
         grpcTransport.connect().then((result) => {
             mainWindow.webContents.send('grpc-status', `gRPC Client connected to ${result.address} [${ser}] ${headerPathKey}=${headerPath}\n  ${result.tlsInfo || 'tls=off'}`);
             updateGrpcButtonStates('connected');
@@ -2223,6 +2265,7 @@ const { createHttpClientTransport, createHttpServerTransport, FORMAT_CONTENT_TYP
 let httpTransport = null;
 
 function updateHttpButtonStates(connectionState) {
+    transportState = connectionState;
     mainWindow.webContents.send('tcp-set-connect-enabled', connectionState === 'disconnected');
     mainWindow.webContents.send('tcp-set-disconnect-enabled', connectionState === 'connected' || connectionState === 'connecting');
     mainWindow.webContents.send('tcp-connection-state', connectionState);
@@ -2255,6 +2298,7 @@ ipcMain.on('connect-http', (event, { type, port, host, httpFormat, httpTls, http
         });
     } else { // client
         httpTransport = createHttpClientTransport({ ip: host, port, httpFormat, httpPath, httpTls, httpTlsCaPath, httpTlsCertPath, httpTlsKeyPath, httpAllowUnverifiedTls, authToken: getVelocityAuthTokenForConnection(), onData, onLog: (level, message) => velocityLog(level, message) });
+        httpTransport.velocityAuthRevision = velocitySession.state.authRevision;
         httpTransport.connect().then((result) => {
             mainWindow.webContents.send('http-status', `HTTP Client connected to ${result.address} [${httpFormat}] Content-Type: ${contentType}\n  ${result.tlsInfo || 'tls=off'}`);
             updateHttpButtonStates('connected');
@@ -2290,14 +2334,17 @@ ipcMain.on('disconnect-http', async () => {
 const { createWsClientTransport, createWsServerTransport } = require('./ws-transport.js');
 const { FORMAT_CONTENT_TYPES: WS_CONTENT_TYPES } = require('./format-utils.js');
 let wsTransport = null;
+let wsConnectionAttempt = 0;
 
 function updateWsButtonStates(connectionState) {
+    transportState = connectionState;
     mainWindow.webContents.send('tcp-set-connect-enabled', connectionState === 'disconnected');
     mainWindow.webContents.send('tcp-set-disconnect-enabled', connectionState === 'connected' || connectionState === 'connecting');
     mainWindow.webContents.send('tcp-connection-state', connectionState);
 }
 
-ipcMain.on('connect-ws', (event, { type, port, host, wsFormat, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsPath, wsSubscriptionMsg, wsIgnoreFirstMsg, wsHeaders, wsAllowUnverifiedTls }) => {
+ipcMain.on('connect-ws', async (event, { type, port, host, wsFormat, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsPath, wsSubscriptionMsg, wsIgnoreFirstMsg, wsHeaders, wsAllowUnverifiedTls }) => {
+    const attempt = ++wsConnectionAttempt;
     currentConnectionDetails = { protocol: 'ws', type, port, host, wsFormat, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsPath, wsAllowUnverifiedTls };
     updateWsButtonStates('connecting');
 
@@ -2333,27 +2380,39 @@ ipcMain.on('connect-ws', (event, { type, port, host, wsFormat, wsTls, wsTlsCaPat
             wsTransport = createWsServerTransport({ ip: host, port, wsFormat, wsPath, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, onData, onStateChange: makeOnStateChange('server') });
             activeTransport = wsTransport;
             wsTransport.connect().then((result) => {
+                if (attempt !== wsConnectionAttempt || wsTransport !== activeTransport) return;
                 const scheme = wsTls ? 'wss' : 'ws';
                 mainWindow.webContents.send('ws-status', `WebSocket Server listening on ${scheme}://${result.address.address}:${result.address.port}${wsPath || '/'} [${wsFormat}] Content-Type: ${contentType}\n  ${result.tlsInfo || 'tls=off'}`);
                 updateWsButtonStates('connected');
             }).catch((err) => {
+                if (attempt !== wsConnectionAttempt || wsTransport !== activeTransport) return;
                 mainWindow.webContents.send('ws-error', `WebSocket Server error: ${err.message}`);
                 wsTransport = null;
+                currentConnectionDetails = null;
                 updateWsButtonStates('disconnected');
             });
         } else {
-            wsTransport = createWsClientTransport({ ip: host, port, wsFormat, wsPath, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsSubscriptionMsg, wsIgnoreFirstMsg, wsHeaders, wsAllowUnverifiedTls, authToken: getVelocityAuthTokenForConnection(), onData, onStateChange: makeOnStateChange('client') });
+            const streamAuth = velocitySendAuthToken
+                ? await velocityOutputs.streamConnection({ host, port, wsTls, wsPath })
+                : null;
+            if (attempt !== wsConnectionAttempt || !mainWindow || mainWindow.isDestroyed()) return;
+            wsTransport = createWsClientTransport({ ip: host, port, wsFormat, wsPath, wsTls, wsTlsCaPath, wsTlsCertPath, wsTlsKeyPath, wsSubscriptionMsg, wsIgnoreFirstMsg, wsHeaders, wsAllowUnverifiedTls, authToken: streamAuth ? null : getVelocityAuthTokenForConnection(), authQueryToken: streamAuth?.authQueryToken, onData, onStateChange: makeOnStateChange('client') });
             activeTransport = wsTransport;
             wsTransport.connect().then((result) => {
+                if (attempt !== wsConnectionAttempt || wsTransport !== activeTransport) return;
                 mainWindow.webContents.send('ws-status', `WebSocket Client connected to ${result.address} [${wsFormat}] Content-Type: ${contentType}\n  ${result.tlsInfo || 'tls=off'}`);
                 updateWsButtonStates('connected');
             }).catch((err) => {
+                if (attempt !== wsConnectionAttempt || wsTransport !== activeTransport) return;
                 mainWindow.webContents.send('ws-error', `WebSocket Client error: ${err.message}`);
                 wsTransport = null;
+                currentConnectionDetails = null;
                 updateWsButtonStates('disconnected');
             });
         }
     } catch (err) {
+        if (attempt !== wsConnectionAttempt) return;
+        currentConnectionDetails = null;
         mainWindow.webContents.send('ws-error', `WebSocket error: ${err.message}`);
         updateWsButtonStates('disconnected');
     }
@@ -2363,6 +2422,7 @@ ipcMain.on('connect-ws', (event, { type, port, host, wsFormat, wsTls, wsTlsCaPat
 // and reports 'disconnected' only once teardown has finished. That ordering is
 // what lets the user rebind the same port immediately after the status arrives.
 ipcMain.on('disconnect-ws', async () => {
+    wsConnectionAttempt += 1;
     updateWsButtonStates('disconnecting');
     if (wsTransport) {
         const active = wsTransport;
@@ -2511,7 +2571,8 @@ async function showVelocityLoginDialog() {
   }
   if (!mainWindow) return;
 
-  const currentTheme = await mainWindow.webContents.executeJavaScript('localStorage.getItem("theme");', true);
+  const currentTheme = await getRenderedTheme();
+  const currentThemeHref = await getRenderedThemeHref(currentTheme);
 
   const loginDialogSaved = (appConfig.dialogSizes && appConfig.dialogSizes.velocityLogin) || {};
 
@@ -2536,12 +2597,8 @@ async function showVelocityLoginDialog() {
 
   velocityLoginWindow.setMenuBarVisibility(false);
   velocityLoginWindow.setMenu(null);
-  velocityLoginWindow.loadFile(path.join(__dirname, 'velocity-login.html'));
-
-  velocityLoginWindow.webContents.on('did-finish-load', () => {
-    if (currentTheme) {
-      velocityLoginWindow.webContents.executeJavaScript(`document.documentElement.setAttribute('data-theme', '${currentTheme}');`);
-    }
+  velocityLoginWindow.loadFile(path.join(__dirname, 'velocity-login.html'), {
+    query: { theme: currentTheme, themeHref: currentThemeHref },
   });
 
   const saveLoginDialogBounds = () => {
@@ -2576,79 +2633,45 @@ ipcMain.on('velocity:hide-login', () => {
 
 ipcMain.on('velocity:open-login', () => { showVelocityLoginDialog(); });
 
-ipcMain.handle('velocity:login', async (event, { portalUrl, username, password }) => {
-  velocityLog('info', `[Auth] Sign-in attempt (password) to ${portalUrl} as "${username}"`);
-  try {
-    velocitySendAuthToken = false;
-    const tokenResult = await generateToken(portalUrl, username, password);
-    const velocityUrl = await getVelocityApiUrl(portalUrl, tokenResult.token);
-    await velocityTokenManager.loginWithPassword(portalUrl, username, password);
-    velocityLog('info', `[Auth] Sign-in successful. Velocity URL: ${velocityUrl}`);
-    velocityLog('debug', `[Auth] Token: ${tokenResult.token}`);
-    return { token: tokenResult.token, expires: tokenResult.expires, velocityUrl };
-  } catch (err) {
-    velocityLog('error', `[Auth] Sign-in failed: ${err.message}`);
-    return { error: err.message };
-  }
-});
-
-ipcMain.handle('velocity:login-oauth', async (event, { portalUrl, clientId, clientSecret }) => {
-  velocityLog('info', `[Auth] OAuth sign-in attempt to ${portalUrl} with client "${clientId}"`);
-  try {
-    velocitySendAuthToken = false;
-    const tokenResult = await generateOAuthToken(portalUrl, clientId, clientSecret);
-    const velocityUrl = await getVelocityApiUrl(portalUrl, tokenResult.token);
-    await velocityTokenManager.loginWithOAuth(portalUrl, clientId, clientSecret);
-    velocityLog('info', `[Auth] OAuth sign-in successful. Velocity URL: ${velocityUrl}`);
-    velocityLog('debug', `[Auth] Token: ${tokenResult.token}`);
-
-    return { token: tokenResult.token, expires: tokenResult.expires, velocityUrl };
-  } catch (err) {
-    velocityLog('error', `[Auth] OAuth sign-in failed: ${err.message}`);
-    return { error: err.message };
-  }
-});
-
-ipcMain.handle('velocity:list-items', async (event, { velocityUrl, token, adminScope }) => {
-  velocityLog('info', `[API] Listing outputs from ${velocityUrl} (scope: ${adminScope ? 'org' : 'my'})`);
-  try {
-    const results = await listOutputs(velocityUrl, token, adminScope);
-    velocityLog('info', `[API] Listed ${Array.isArray(results) ? results.length : 0} output(s)`);
-    return results;
-  } catch (err) {
-    velocityLog('error', `[API] List outputs failed: ${err.message}`);
-    return { error: err.message };
-  }
-});
-
-ipcMain.handle('velocity:get-item-details', async (event, { velocityUrl, outputId, token }) => {
-  try { return await getOutputDetails(velocityUrl, outputId, token); }
-  catch (err) { return { error: err.message }; }
-});
-
-ipcMain.handle('velocity:store-credentials', async (event, creds) => {
-  try { fs.writeFileSync(velocityCredsFile, JSON.stringify(creds, null, 2)); return { success: true }; }
-  catch (err) { return { error: err.message }; }
-});
-
-ipcMain.handle('velocity:get-stored-credentials', async () => {
-  try {
-    if (fs.existsSync(velocityCredsFile)) return JSON.parse(fs.readFileSync(velocityCredsFile, 'utf8'));
-    return null;
-  } catch (_) { return null; }
-});
-
-ipcMain.on('velocity:apply-item', (event, item) => {
-  velocitySendAuthToken = shouldSendVelocityTokenByDefault(item);
-  hotSwapVelocityAuthToken();
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('velocity:output-applied', item);
-  }
-  sendVelocityTokenState('item-applied');
+registerVelocityLoginIpc({
+  ipcMain,
+  session: velocitySession,
+  outputs: velocityOutputs,
+  credentialsFile: velocityCredsFile,
+  getLoginWindow: () => velocityLoginWindow,
+  onLoginStart: () => { velocityLoginPending += 1; },
+  onLoginEnd: () => { velocityLoginPending -= 1; sendVelocityTokenState('sign-in'); },
+  onState: () => sendVelocityTokenState('session-updated'),
+  onApplied: (item) => {
+    if (!item.tokenOnly && item.outputType !== 'xmpp') {
+      item = {
+        ...item,
+        connectionOptions: buildVelocityConnectionOptions({
+          ...item,
+          outputType: item.transportType || item.outputType,
+        }),
+      };
+      if (item.outputType === 'stream-lyr-new') {
+        Object.assign(item.connectionOptions, { wsHeaders: '', wsSubscriptionMsg: '', wsIgnoreFirstMsg: false });
+      }
+    }
+    velocityAuthRevision = velocitySession.state.authRevision;
+    velocitySendAuthToken = shouldSendVelocityTokenByDefault(item);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('velocity:output-applied', item);
+    }
+    sendVelocityTokenState('item-applied');
+  },
+  log: velocityLog,
 });
 
 ipcMain.on('velocity:set-token-sending', (event, enabled) => {
+  if (event.sender !== mainWindow?.webContents) return;
   velocitySendAuthToken = !!enabled;
+  if (enabled && velocityAuthRevision !== velocitySession.state.authRevision) {
+    velocityLog('warn', '[Auth] Apply settings or Use Token Only for the current Velocity session before enabling token sending.');
+    velocitySendAuthToken = false;
+  }
   hotSwapVelocityAuthToken();
   sendVelocityTokenState('user-toggle');
 });

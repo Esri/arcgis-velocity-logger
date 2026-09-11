@@ -33,6 +33,13 @@ The ArcGIS Velocity Logger uses two separate configuration systems:
 
 App Config controls how the application *looks*. Launch Config controls what the application *does*.
 
+ArcGIS Velocity sign-in preferences are separate from both systems. **Remember
+me** stores the Portal identity and Portal-specific endpoint choices in
+`velocity-credentials.json`, not in App Config or Launch Config. See
+[Credential storage](velocity-login.md#credential-storage) for the saved
+fields and [ArcGIS Velocity REST API](velocity-rest-api.md) for endpoint
+discovery and override workflows.
+
 | Aspect | App config | Launch config |
 | --- | --- | --- |
 | **File** | `config.json` (platform data dir) | `launch-config*.json` (any path) |

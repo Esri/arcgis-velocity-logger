@@ -1,0 +1,105 @@
+/* Semantic button pairs resolve where Logger's theme palette lives. */
+body {
+  --action-button-bg: var(--button-bg);
+  --action-button-text: var(--button-text);
+  --action-button-hover-bg: var(--button-hover-bg);
+  --action-button-hover-text: var(--button-text);
+  --action-button-disabled-bg: var(--surface-color);
+  --action-button-disabled-text: var(--text-color);
+
+  --action-primary-bg: var(--button-primary-bg);
+  --action-primary-text: var(--button-text);
+  --action-primary-hover-bg: var(--action-button-hover-bg);
+  --action-primary-hover-text: var(--action-button-hover-text);
+  --action-success-bg: #28a745;
+  --action-success-text: #000;
+  --action-success-hover-bg: #218838;
+  --action-success-hover-text: #000;
+  --action-danger-bg: #dc3545;
+  --action-danger-text: #fff;
+  --action-danger-hover-bg: #b52a37;
+  --action-danger-hover-text: #fff;
+  --action-warning-bg: var(--button-warning-bg);
+  --action-warning-text: var(--button-warning-text);
+  --action-warning-hover-bg: var(--action-warning-bg);
+  --action-warning-hover-text: var(--action-warning-text);
+  --action-info-bg: var(--button-info-bg);
+  --action-info-text: var(--button-info-text-color, var(--button-text));
+  --action-info-hover-bg: var(--action-button-hover-bg);
+  --action-info-hover-text: var(--action-button-hover-text);
+  --action-toggle-bg: var(--button-toggle-on-bg);
+  --action-toggle-text: var(--button-toggle-on-text, var(--button-text));
+  --action-toggle-hover-bg: var(--action-toggle-bg);
+  --action-toggle-hover-text: var(--action-toggle-text);
+  --action-neutral-hover-text: var(--text-color);
+
+  --dialog-button-bg: var(--action-button-bg);
+  --dialog-button-text: var(--action-button-text);
+  --dialog-button-hover-bg: var(--action-button-hover-bg);
+  --dialog-button-hover-text: var(--action-button-hover-text);
+  --dialog-button-disabled-bg: var(--action-button-disabled-bg);
+  --dialog-button-disabled-text: var(--action-button-disabled-text);
+}
+
+body.theme-blue {
+  --action-button-hover-text: var(--text-color);
+}
+
+body.theme-dark-gray {
+  --action-button-hover-text: #000;
+  --action-info-text: #000;
+  --action-toggle-text: var(--text-color-inverse);
+}
+
+body.theme-green {
+  --action-button-text: #000;
+  --action-info-text: #000;
+  --action-toggle-text: #000;
+}
+
+body.theme-ocean {
+  --action-button-text: var(--text-color-inverse);
+  --action-button-hover-text: #fff;
+  --action-info-text: var(--text-color-inverse);
+  --action-toggle-text: var(--text-color-inverse);
+}
+
+body.theme-rose {
+  --action-button-text: #000;
+  --action-button-hover-text: var(--background-color);
+  --action-info-text: var(--text-color-inverse);
+  --action-toggle-text: #000;
+}
+
+body.theme-dark {
+  --action-info-text: var(--text-color-inverse);
+  --action-toggle-text: var(--text-color-inverse);
+}
+
+body.theme-color-blind,
+body.theme-midnight {
+  --action-toggle-text: var(--text-color-inverse);
+}
+
+body.theme-light {
+  --action-primary-text: var(--header-color);
+  --action-info-text: var(--header-color);
+  --action-toggle-text: var(--header-color);
+}
+
+body.theme-mocha {
+  --action-neutral-hover-text: color-mix(in srgb, var(--text-color) 90%, #fff 10%);
+}
+
+@media (prefers-color-scheme: light) {
+  body.theme-system {
+    --action-info-text: var(--header-color);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  body.theme-system {
+    --action-info-text: var(--text-color-inverse);
+    --action-toggle-text: var(--text-color-inverse);
+  }
+}

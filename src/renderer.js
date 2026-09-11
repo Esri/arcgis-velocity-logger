@@ -1767,12 +1767,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function describeVelocityOutput(item) {
+        return [item.serverName, item.analyticName, item.label || item.outputId || item.id || 'Selected output']
+            .filter(Boolean).join(' / ');
+    }
+
     function updateAuthFromVelocityItem(item) {
         const tokenSendingEnabled = shouldSendVelocityTokenByDefault(item);
         updateAuthBadge({
             hasToken: true,
             tokenSendingEnabled,
-            contextLabel: item.tokenOnly ? 'Custom connection settings (no output selected)' : (item.label || item.id || 'Selected output'),
+            contextLabel: item.tokenOnly ? 'Custom connection settings (no output selected)' : describeVelocityOutput(item),
             authType: item.authType || (tokenSendingEnabled ? 'token' : 'none'),
             error: '',
         });
@@ -2474,6 +2479,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.electronAPI.on('velocity:output-applied', (item) => {
         if (!item) return;
+        if (currentAppStatusState !== 'disconnected') {
+            setStatus('Disconnect before applying Velocity settings.', { category: 'auth' });
+            return;
+        }
         updateAuthFromVelocityItem(item);
 
         // Token-only mode: authenticate without changing connection settings
@@ -2488,48 +2497,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const hostInput = document.getElementById('host');
         const portInput = document.getElementById('port');
 
-        if (type === 'grpc') {
-            connectionType.value = 'grpc-client';
-            connectionType.dispatchEvent(new Event('change'));
-            if (item.url) {
-                hostInput.value = item.url.replace(/^https?:\/\//, '').split(':')[0].split('/')[0];
-                portInput.value = '443';
-            }
-            const headerPathInput = document.getElementById('grpc-header-path');
-            if (headerPathInput && item.headerPath) headerPathInput.value = item.headerPath;
-            const grpcTls = document.getElementById('grpc-tls');
-            if (grpcTls) { grpcTls.checked = true; grpcTls.dispatchEvent(new Event('change')); }
-        } else if (type === 'http') {
-            connectionType.value = 'http-client';
-            connectionType.dispatchEvent(new Event('change'));
-            if (item.url) {
-                try {
-                    const u = new URL(item.url);
-                    hostInput.value = u.hostname;
-                    portInput.value = u.port || (u.protocol === 'https:' ? '443' : '80');
-                    if (httpPathInput) httpPathInput.value = u.pathname || '/';
-                    if (httpTlsCheckbox) httpTlsCheckbox.checked = u.protocol === 'https:';
-                } catch (_) { hostInput.value = item.url; }
-            }
-        } else if (type === 'websocket') {
-            connectionType.value = 'ws-client';
-            connectionType.dispatchEvent(new Event('change'));
-            if (item.url) {
-                try {
-                    const u = new URL(item.url);
-                    hostInput.value = u.hostname;
-                    portInput.value = u.port || (u.protocol === 'wss:' ? '443' : '80');
-                    const wsPathInput = document.getElementById('ws-path');
-                    const wsTlsCheckbox = document.getElementById('ws-tls');
-                    if (wsPathInput) wsPathInput.value = u.pathname || '/';
-                    if (wsTlsCheckbox) wsTlsCheckbox.checked = u.protocol === 'wss:';
-                } catch (_) { hostInput.value = item.url; }
-            }
-        } else if (type === 'tcp') {
-            connectionType.value = 'tcp-client';
-            connectionType.dispatchEvent(new Event('change'));
-            if (item.host) hostInput.value = item.host;
-            if (item.port) portInput.value = item.port;
+        if (item.connectionOptions) {
+            const options = item.connectionOptions;
+            setPresetControlValue('connectionType', options.connectionType);
+            Object.entries(options).forEach(([field, value]) => {
+                if (field !== 'connectionType') setPresetControlValue(field === 'ip' ? 'host' : field, value);
+            });
+            setPresetControlValue('port', options.port);
+            markConnectionFieldsModified();
+            updateProtocolVisibility();
+            renderConnectionSummary();
+            refreshTlsBadge();
         } else if (type === 'xmpp') {
             appliedXmppCredentialsRequired = true;
             connectionType.value = 'xmpp-client';
@@ -2573,11 +2551,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 protocolSettingsAlert.hidden = false;
             }
             setStatus('XMPP output applied; enter the required XMPP account credentials before connecting. Stored secrets cannot be recovered.', { category: 'auth' });
+        } else {
+            setStatus('The selected output has no validated connection settings. Refresh and select it again.', { category: 'auth' });
+            return;
         }
 
         addLog(appliedXmppCredentialsRequired
-            ? `✓ XMPP output applied - credentials required before connecting (${item.label || item.id})`
-            : `✓ Output applied - ready to connect (${item.label || item.id})`);
+            ? `✓ XMPP output applied - credentials required before connecting (${describeVelocityOutput(item)})`
+            : `✓ Output applied - ready to connect (${describeVelocityOutput(item)})`);
     });
 
     window.electronAPI.on('velocity:token-refreshed', (state) => {

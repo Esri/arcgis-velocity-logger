@@ -16,7 +16,7 @@ const aboutScriptSource = fs.readFileSync(path.join(SRC, 'about.js'), 'utf8');
 
 function injectScriptSource(html, scriptPath, source) {
   const pattern = new RegExp(`<script src="${scriptPath}"></script>`, 'g');
-  return html.replace(pattern, `<script>${source}</script>`);
+  return html.replace(pattern, () => `<script>${source}</script>`);
 }
 
 function removeExternalScripts(html, scriptPaths) {
@@ -26,12 +26,17 @@ function removeExternalScripts(html, scriptPaths) {
   }, html);
 }
 
-function buildHtml(fileName, { includeAboutScript = false } = {}) {
+function buildHtml(fileName, { includeAboutScript = false, includeLoginScripts = false } = {}) {
   const htmlPath = path.join(SRC, fileName);
   let html = fs.readFileSync(htmlPath, 'utf8');
   html = injectScriptSource(html, '\\./themes/theme-loader\\.js', themeLoaderSource);
   if (includeAboutScript) {
     html = injectScriptSource(html, 'about\\.js', aboutScriptSource);
+  }
+  if (includeLoginScripts) {
+    for (const name of ['velocity-endpoint-ui', 'velocity-login-renderer']) {
+      html = injectScriptSource(html, `${name}\\.js`, fs.readFileSync(path.join(SRC, `${name}.js`), 'utf8'));
+    }
   }
   return removeExternalScripts(html, [
     '\\./tooltip-utils\\.js',
@@ -72,6 +77,13 @@ function createDom(fileName, theme, options = {}) {
     url: `file://${path.join(SRC, fileName)}?theme=${encodeURIComponent(theme)}&themeHref=${encodeURIComponent(themeHref)}`,
     beforeParse(window) {
       window.electronAPI = api;
+      if (options.includeLoginScripts) {
+        window.velocityApi = {
+          getStoredCredentials: async () => null,
+          getSessionState: async () => ({ authenticated: false, servers: [], revision: 0, authRevision: 0, selectedServerId: 'all' }),
+          onLoadSavedTheme: (callback) => api.on('load-saved-theme', callback),
+        };
+      }
       window.navigator.clipboard = {
         writeText: async () => {},
       };
@@ -210,6 +222,23 @@ async function run() {
     assertTheme(document, 'green');
     api.emit('load-saved-theme', 'sunset');
     assertTheme(document, 'sunset');
+  });
+
+  await test('Velocity sign-in initializes from the rendered theme and receives live changes', async () => {
+    const { api, dom, document } = createDom('velocity-login.html', 'ocean', { includeLoginScripts: true });
+    try {
+      await flush();
+      assertTheme(document, 'ocean');
+      api.emit('load-saved-theme', 'high-contrast');
+      assertTheme(document, 'high-contrast');
+      api.emit('load-saved-theme', 'system');
+      assertTheme(document, 'system');
+    } finally {
+      dom.window.close();
+    }
+    const main = fs.readFileSync(path.join(SRC, 'main.js'), 'utf8');
+    assert.match(main, /sendThemeToWindow\(velocityLoginWindow, theme\)/);
+    assert.match(main, /velocityLoginWindow\.loadFile[\s\S]*?query: \{ theme: currentTheme, themeHref: currentThemeHref \}/);
   });
 
   console.log(`All ${passed} window theme contract tests passed.`);

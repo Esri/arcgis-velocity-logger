@@ -20,6 +20,7 @@ purpose and audience.
 - [Get started with configuration](docs/configuration.md).
 - [Run without the UI](docs/headless.md).
 - [Use the command line](docs/command-line.md).
+- [Understand ArcGIS Velocity REST API URLs](docs/velocity-rest-api.md).
 - [Configure XMPP receiving](docs/xmpp.md).
 - [Develop, test, and debug](docs/developer-guide.md).
 - [Build and release](docs/build-and-release.md).

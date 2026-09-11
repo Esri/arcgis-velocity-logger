@@ -40,6 +40,7 @@ const path = require('path');
 const fs = require('fs');
 const grpc = require('@grpc/grpc-js');
 const protoLoader = require('@grpc/proto-loader');
+const { formatNetworkAuthority } = require('./network-address-utils');
 
 const PROTO_DIR = path.join(__dirname, 'proto');
 const { getSystemRootCertificates, formatTlsCertSummary, resolveClientTlsVerification, generateSelfSignedCert } = require('./tls-utils');
@@ -367,7 +368,7 @@ class GrpcServerTransportProtobuf {
         if (self.onRawHeaders) {
           let peer = '?';
           try { peer = call.getPeer ? call.getPeer() : '?'; } catch (_) { /* ignore */ }
-          const prefix = `protocol=gRPC mode=server serialization=protobuf rpc=Send remote=${peer} local=${self.ip}:${self._boundPort || self.port}`;
+          const prefix = `protocol=gRPC mode=server serialization=protobuf rpc=Send remote=${peer} local=${formatNetworkAuthority(self.ip, self._boundPort || self.port)}`;
           self.onRawHeaders(formatCallHeaders(call, prefix));
         }
         const request = call.request;
@@ -384,7 +385,7 @@ class GrpcServerTransportProtobuf {
         if (self.onRawHeaders) {
           let peer = '?';
           try { peer = call.getPeer ? call.getPeer() : '?'; } catch (_) { /* ignore */ }
-          const prefix = `protocol=gRPC mode=server serialization=protobuf rpc=Stream remote=${peer} local=${self.ip}:${self._boundPort || self.port}`;
+          const prefix = `protocol=gRPC mode=server serialization=protobuf rpc=Stream remote=${peer} local=${formatNetworkAuthority(self.ip, self._boundPort || self.port)}`;
           self.onRawHeaders(formatCallHeaders(call, prefix));
         }
         call.on('data', (request) => {
@@ -401,7 +402,7 @@ class GrpcServerTransportProtobuf {
       },
     });
 
-    const address = this.ip + ':' + this.port;
+    const address = formatNetworkAuthority(this.ip, this.port);
     return new Promise((resolve, reject) => {
       const { credentials: serverCreds, tlsInfo: serverTlsInfo } = buildServerCredentials(this);
       this.server.bindAsync(address, serverCreds, (error, boundPort) => {
@@ -461,7 +462,7 @@ class GrpcClientTransportProtobuf {
   async connect() {
     const loaded = loadVelocityProto();
     const proto = loaded.esri.realtime.core.grpc;
-    const address = this.ip + ':' + this.port;
+    const address = formatNetworkAuthority(this.ip, this.port);
     const { credentials, tlsInfo } = buildChannelCredentials(this);
     this.client = new proto.GrpcFeed(address, credentials);
     return new Promise((resolve, reject) => {
@@ -570,7 +571,7 @@ class GrpcServerTransportInternal {
         if (self.onRawHeaders) {
           let peer = '?';
           try { peer = call.getPeer ? call.getPeer() : '?'; } catch (_) { /* ignore */ }
-          const prefix = `protocol=gRPC mode=server serialization=${self.grpcSerialization} rpc=execute remote=${peer} local=${self.ip}:${self._boundPort || self.port}`;
+          const prefix = `protocol=gRPC mode=server serialization=${self.grpcSerialization} rpc=execute remote=${peer} local=${formatNetworkAuthority(self.ip, self._boundPort || self.port)}`;
           self.onRawHeaders(formatCallHeaders(call, prefix));
         }
         const request = call.request;
@@ -583,7 +584,7 @@ class GrpcServerTransportInternal {
         if (self.onRawHeaders) {
           let peer = '?';
           try { peer = call.getPeer ? call.getPeer() : '?'; } catch (_) { /* ignore */ }
-          const prefix = `protocol=gRPC mode=server serialization=${self.grpcSerialization} rpc=executeMulti remote=${peer} local=${self.ip}:${self._boundPort || self.port}`;
+          const prefix = `protocol=gRPC mode=server serialization=${self.grpcSerialization} rpc=executeMulti remote=${peer} local=${formatNetworkAuthority(self.ip, self._boundPort || self.port)}`;
           self.onRawHeaders(formatCallHeaders(call, prefix));
         }
         call.on('data', (request) => {
@@ -597,7 +598,7 @@ class GrpcServerTransportInternal {
       },
     });
 
-    const address = this.ip + ':' + this.port;
+    const address = formatNetworkAuthority(this.ip, this.port);
     return new Promise((resolve, reject) => {
       const { credentials: serverCreds, tlsInfo: serverTlsInfo } = buildServerCredentials(this);
       this.server.bindAsync(address, serverCreds, (error, boundPort) => {
@@ -657,7 +658,7 @@ class GrpcClientTransportInternal {
   async connect() {
     const loaded = loadFeatureServiceProto();
     const proto = loaded.grpc;
-    const address = this.ip + ':' + this.port;
+    const address = formatNetworkAuthority(this.ip, this.port);
     const { credentials, tlsInfo } = buildChannelCredentials(this);
     this.client = new proto.GrpcFeatureService(address, credentials);
     return new Promise((resolve, reject) => {

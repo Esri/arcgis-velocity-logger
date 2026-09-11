@@ -125,15 +125,16 @@ const sheetCache = new Map();
 function loadSheet(relativePath) {
   if (!sheetCache.has(relativePath)) {
     const css = fs.readFileSync(path.join(SRC, relativePath), 'utf8');
-    sheetCache.set(relativePath, parseCss(css, relativePath));
+    const imported = [...stripComments(css).matchAll(/@import\s+url\(['"]?([^'")]+)['"]?\)/g)]
+      .flatMap((match) => loadSheet(path.posix.join(path.posix.dirname(relativePath), match[1])));
+    sheetCache.set(relativePath, [...imported, ...parseCss(css, relativePath)]);
   }
   return sheetCache.get(relativePath);
 }
 
 /** themes.css pulls every theme in through `@import`, ahead of its own rules. */
 function loadThemesCss() {
-  const imported = THEME_FILES.flatMap((name) => loadSheet(`themes/theme-${name}.css`));
-  return imported.concat(loadSheet('themes.css'));
+  return loadSheet('themes.css');
 }
 
 const DOCUMENTS = {
@@ -213,6 +214,10 @@ function createResolver(documentName, theme, colorScheme = 'light') {
   const rules = DOCUMENTS[documentName]();
   const bodyClasses = [`theme-${theme}`];
   if (documentName === 'protocolSettings') bodyClasses.push('protocol-settings-window');
+  return createRuleResolver(rules, theme, colorScheme, bodyClasses);
+}
+
+function createRuleResolver(rules, theme, colorScheme = 'light', bodyClasses = [`theme-${theme}`]) {
   const html = { tag: 'html', classes: [] };
   const body = { tag: 'body', classes: bodyClasses };
   const maps = {
@@ -297,7 +302,7 @@ function createResolver(documentName, theme, colorScheme = 'light') {
     },
     /** The declared value of a property for a selector, unresolved. */
     declarationFor(selector, property) {
-      const rule = DOCUMENTS[documentName]()
+      const rule = rules
         .filter((entry) => mediaApplies(entry.media, colorScheme))
         .reverse()
         .find((entry) => splitTopLevel(entry.selector, ',').some((part) => part.trim() === selector)
@@ -675,8 +680,14 @@ if (require.main === module) {
 }
 
 module.exports = {
+  composite,
   contrastRatio,
+  createRuleResolver,
   createResolver,
+  loadSheet,
+  mediaApplies,
+  parseCss,
   parseColor,
   relativeLuminance,
+  splitTopLevel,
 };

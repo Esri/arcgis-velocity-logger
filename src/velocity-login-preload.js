@@ -25,11 +25,19 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('velocityApi', {
   login: (params) => ipcRenderer.invoke('velocity:login', params),
   loginOAuth: (params) => ipcRenderer.invoke('velocity:login-oauth', params),
+  getSessionState: () => ipcRenderer.invoke('velocity:get-session-state'),
+  detectEndpoint: (params) => ipcRenderer.invoke('velocity:detect-endpoint', params),
+  applyEndpoint: (params) => ipcRenderer.invoke('velocity:apply-endpoint', params),
+  selectServer: (serverId) => ipcRenderer.invoke('velocity:select-server', { serverId }),
   listItems: (params) => ipcRenderer.invoke('velocity:list-items', params),
   getItemDetails: (params) => ipcRenderer.invoke('velocity:get-item-details', params),
-  applyItem: (item) => ipcRenderer.send('velocity:apply-item', item),
+  applyItem: (item) => ipcRenderer.invoke('velocity:apply-item', item),
   getStoredCredentials: () => ipcRenderer.invoke('velocity:get-stored-credentials'),
   storeCredentials: (creds) => ipcRenderer.invoke('velocity:store-credentials', creds),
   hideWindow: () => ipcRenderer.send('velocity:hide-login'),
+  onLoadSavedTheme: (callback) => {
+    const listener = (_event, theme) => callback(theme);
+    ipcRenderer.on('load-saved-theme', listener);
+    return () => ipcRenderer.removeListener('load-saved-theme', listener);
+  },
 });
-

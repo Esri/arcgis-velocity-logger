@@ -29,6 +29,7 @@ by purpose and audience.
 | ⌘ | [Keyboard shortcuts](keyboard-shortcuts.md) | Lists global, dialog, context-menu, and navigation shortcuts. | Users |
 | 🔐 | [TLS and SSL security](tls.md) | Explains certificates, trust stores, mTLS, self-signed TLS, and protocol settings. | Users and developers |
 | 🔑 | [ArcGIS Velocity login](velocity-login.md) | Explains sign-in, output selection, token handling, and auto-configuration. | Users |
+| 🔗 | [ArcGIS Velocity REST API](velocity-rest-api.md) | Explains portal, public REST API, and data endpoint URLs and their current application support. | Users and integrators |
 | 🔄 | [WebSocket transport](websocket.md) | Documents WebSocket modes, formats, TLS, subscriptions, and headers. | Users and developers |
 | 💬 | [XMPP transport](xmpp.md) | Documents receive-oriented XMPP, STARTTLS, Direct and MUC delivery, controls, and ArcGIS mapping. | Users and developers |
 
@@ -60,6 +61,7 @@ maintained guides. Keep each topic in the guide that owns it:
 | [Command-line reference](command-line.md) | The complete option reference, defaults, and help layouts. |
 | [Headless mode](headless.md) | No-UI capture workflows, stop conditions, and automation. |
 | [Configuration](configuration.md) | Persisted settings and launch configuration files. |
+| [ArcGIS Velocity REST API](velocity-rest-api.md) | Portal, public REST API, and data endpoint URL conventions and current application support. |
 | [Developer guide](developer-guide.md) | Local development, testing, debugging, and extension patterns. |
 | [Build and release](build-and-release.md) | Packaging, signing, and publishing releases. |
 
