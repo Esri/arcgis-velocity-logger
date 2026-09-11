@@ -15,9 +15,11 @@
  */
 
 const { parseOutputItem } = require('./velocity-api');
+const { buildVelocityConnectionOptions } = require('./velocity-connection-options');
 
 const ANALYTIC_KINDS = ['realtime', 'bigdata'];
 const STREAM_TYPE = 'stream-lyr-new';
+const ENDPOINT_OUTPUT_TYPES = new Set(['tcp', 'tcp-client', 'tcp-server', 'udp-client', 'udp-server', 'http']);
 const TEMPORARY_QUERY_KEYS = /^(?:token|access_token|authorization)$/i;
 
 function requireIdentity(value, label) {
@@ -72,11 +74,22 @@ function parseAnalyticOutput(analytic, analyticKind, output, source = {}) {
     item.supported = Boolean(item.streamServiceItemId);
     item.detailRequired = item.supported;
     item.unsupportedReason = item.supported ? '' : 'This Stream Layer has no stream service item ID.';
+  } else if (ENDPOINT_OUTPUT_TYPES.has(parsed.outputType)) {
+    try {
+      const options = buildVelocityConnectionOptions(item);
+      item.supported = true;
+      item.format = options.tcpFormat || options.udpFormat || options.httpFormat;
+      if (options.tcpFormat || options.udpFormat) {
+        item.host = options.ip;
+        item.port = options.port;
+      }
+    } catch (error) {
+      item.supported = false;
+      item.unsupportedReason = error.message;
+    }
   } else if (parsed.outputType !== 'xmpp') {
     item.supported = false;
-    item.unsupportedReason = ['http', 'grpc', 'websocket', 'tcp', 'tcp-client', 'udp-client'].includes(parsed.outputType)
-      ? 'This output sends to a destination; it does not expose a supported Logger subscription.'
-      : 'This output has no verified Logger subscription endpoint. Configure a compatible transport manually.';
+    item.unsupportedReason = 'This output has no verified Logger connection settings. Configure a compatible transport manually.';
     delete item.url;
     delete item.headerPath;
   }

@@ -202,8 +202,9 @@ disabled interaction combinations, selected toggles, read-only settings,
 populated count badges, and clickable authentication and TLS indicators.
 The measurements resolve imported styles, inline styles, nested labels,
 opacity, transparent surfaces, and gradient stops. Button text must reach
-4.5:1 contrast; disabled controls retain opaque, readable colors and a dashed
-border or inset outline.
+4.5:1 contrast; disabled controls retain opaque, readable colors and a subtle
+solid border. Use `--action-button-disabled-border` or its dialog alias rather
+than patterned outlines, and preserve enabled keyboard-focus indicators.
 
 Run the smallest suite that covers your change first, then `npm test` before
 committing.

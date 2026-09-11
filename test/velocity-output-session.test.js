@@ -95,5 +95,21 @@ const { VelocityOutputSession } = require('../src/velocity-output-session');
   assert.strictEqual(filtered.items.length, 1);
   assert.strictEqual(filtered.items[0].serverId, 'second');
   assert.strictEqual(filtered.errors.length, 0);
+  const socketOutput = {
+    id: 'socket', name: 'tcp-server', label: 'TCP events', formatName: 'geo-json',
+    properties: { 'tcp-server.port': 9010 },
+  };
+  analytic.outputs.push(socketOutput);
+  const socketList = await browser.list({ revision: 2 });
+  const socketItem = socketList.items.find((item) => item.outputId === 'socket');
+  assert.strictEqual(socketItem.supported, true);
+  assert.strictEqual(socketItem.host, 'second.example.com');
+  socketOutput.properties['tcp-server.port'] = 9011;
+  const appliedSocket = await browser.apply({ id: socketItem.id, revision: 2 });
+  assert.strictEqual(appliedSocket.port, 9011);
+  assert.strictEqual(appliedSocket.serverId, 'second');
+  assert.strictEqual(sourceRequests.at(-1), 'second');
+  socketOutput.properties['tcp-server.port'] = 0;
+  await assert.rejects(() => browser.apply({ id: socketItem.id, revision: 2 }), /port/i);
   console.log('velocity-output-session tests passed');
 })().catch((error) => { console.error(error); process.exitCode = 1; });

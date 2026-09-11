@@ -86,7 +86,10 @@ function measurements(view, theme, scheme) {
     return mediaApplies(media, scheme);
   };
   const compiled = rules.filter((rule) => matchesMedia(rule.media)).flatMap((rule, order) => {
-    const declarations = rule.declarations.filter(({ property }) => ['color', 'background', 'background-color', 'background-image', 'opacity'].includes(property));
+    const declarations = rule.declarations.filter(({ property }) => [
+      'color', 'background', 'background-color', 'background-image', 'opacity',
+      'border', 'border-style', 'outline', 'outline-style',
+    ].includes(property));
     if (!declarations.length) return [];
     return splitTopLevel(rule.selector, ',').filter((selector) => !selector.includes('::')).map((selector) => ({
       query: selector.replace(/:(hover|focus-visible|focus|active)\b/g, '[data-contrast-$1]'),
@@ -102,7 +105,10 @@ function measurements(view, theme, scheme) {
       const important = /\s*!important\s*$/.test(value);
       const rank = weight + (important ? 1e15 : 0);
       const raw = value.replace(/\s*!important\s*$/, '');
-      const entries = property === 'background'
+      const stroke = ['border', 'outline'].includes(property);
+      const entries = stroke
+        ? [[`${property}-style`, resolver.evaluate(raw)?.match(/\b(?:none|hidden|dotted|dashed|solid|double|groove|ridge|inset|outset)\b/)?.[0] || 'none']]
+        : property === 'background'
         ? [
           ['background-color', resolver.evaluate(raw)?.startsWith('linear-gradient(') ? 'transparent' : raw],
           ['background-image', resolver.evaluate(raw)?.startsWith('linear-gradient(') || raw === 'inherit' ? raw : 'none'],
@@ -132,7 +138,11 @@ function measurements(view, theme, scheme) {
     if (image && !['none', 'inherit'].includes(image)) {
       backgrounds = backgroundColors(image, color).flatMap((item) => backgrounds.map((backdrop) => composite(item, backdrop)));
     }
-    return { color, backgrounds, opacity: Number(value('opacity') ?? 1) };
+    return {
+      color, backgrounds, opacity: Number(value('opacity') ?? 1),
+      borderStyle: value('border-style') || 'none',
+      outlineStyle: value('outline-style') || 'none',
+    };
   };
   const ancestors = (element) => {
     if (!element) return canvas;
@@ -172,6 +182,10 @@ function measurements(view, theme, scheme) {
               }
               const parent = ancestors(button.parentElement);
               const paint = colorOf(button, parent);
+              if (state.disabled) {
+                assert.strictEqual(paint.borderStyle, 'solid', `${button.id || button.className}: disabled border must be solid`);
+                assert.strictEqual(paint.outlineStyle, 'none', `${button.id || button.className}: disabled outline must be absent`);
+              }
               const role = button.id === 'connect-btn' ? 'success' : button.id === 'disconnect-btn' ? 'danger'
                 : button.matches('.control-button') ? (selected ? 'toggle' : 'info')
                   : button.id === 'protocol-settings-btn' ? 'info' : null;

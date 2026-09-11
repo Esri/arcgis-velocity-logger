@@ -8,6 +8,7 @@ const {
 } = require('../src/velocity-output-api');
 const facade = require('../src/velocity-api');
 const restClient = require('../src/velocity-rest-client');
+const { buildVelocityConnectionOptions } = require('../src/velocity-connection-options');
 
 const stream = {
   id: 'output-1',
@@ -57,11 +58,77 @@ const analytic = { id: 'analytic/one', label: 'Vehicle positions', outputs: [str
   await assert.rejects(() => listAnalyticOutputs(async () => [{ name: 'connector-definition' }]), /Analytic ID/);
   await assert.rejects(() => listAnalyticOutputs(async () => [{ ...analytic, outputs: [stream, stream] }]), /duplicate/);
   const outbound = parseAnalyticOutput(analytic, 'realtime', {
-    id: 'http-output', name: 'http', properties: { 'http.url': 'https://destination.example.com/receive' },
+    id: 'http-output', name: 'http', formatName: 'json',
+    properties: { 'http.url': 'https://destination.example.com:7443/receive?tenant=demo' },
   });
-  assert.strictEqual(outbound.supported, false);
-  assert.strictEqual(outbound.url, undefined);
-  assert.match(outbound.unsupportedReason, /destination/);
+  assert.strictEqual(outbound.supported, true);
+  assert.deepStrictEqual(buildVelocityConnectionOptions(outbound), {
+    connectionType: 'http-server', ip: 'destination.example.com', port: 7443,
+    httpTls: true, httpPath: '/receive?tenant=demo', httpFormat: 'json',
+  });
+  const socketTypes = ['tcp', 'tcp-client', 'tcp-server', 'udp-client', 'udp-server'];
+  const formats = ['delimited', 'json', 'geo-json', 'esri-json', 'json'];
+  const socketSource = { id: 'socket-server', label: 'Socket server', apiBaseUrl: 'https://public.example.com:7443/team/velocity' };
+  for (const [index, name] of socketTypes.entries()) {
+    const isServer = name.endsWith('-server');
+    const protocol = name.startsWith('tcp') ? 'tcp' : 'udp';
+    const config = {
+      id: `valid-${name}`, name, formatName: formats[index],
+      properties: {
+        [`${name}.port`]: String(9010 + index),
+        ...(isServer ? {} : { [`${name}.hostname`]: 'destination.example.com' }),
+      },
+    };
+    const item = parseAnalyticOutput(analytic, 'realtime', config, socketSource);
+    assert.strictEqual(item.supported, true, item.unsupportedReason);
+    assert.strictEqual(item.host, isServer ? 'public.example.com' : 'destination.example.com');
+    assert.strictEqual(item.port, 9010 + index);
+    assert.strictEqual(item.serverId, socketSource.id);
+    assert.strictEqual(item.serverApiUrl, socketSource.apiBaseUrl);
+    assert.strictEqual(item.analyticId, analytic.id);
+    assert.deepStrictEqual(buildVelocityConnectionOptions(item), {
+      connectionType: `${protocol}-${isServer ? 'client' : 'server'}`,
+      ip: item.host, port: item.port, [`${protocol}Format`]: formats[index],
+    });
+    for (const port of [0, 65536, 'invalid']) {
+      const invalid = parseAnalyticOutput(analytic, 'realtime', {
+        ...config, properties: { ...config.properties, [`${name}.port`]: port },
+      }, socketSource);
+      assert.strictEqual(invalid.supported, false);
+      assert.match(invalid.unsupportedReason, /port/i);
+    }
+    const xml = parseAnalyticOutput(analytic, 'realtime', { ...config, formatName: 'xml' }, socketSource);
+    assert.strictEqual(xml.supported, false);
+    assert.match(xml.unsupportedReason, /XML/);
+    if (!isServer) {
+      for (const hostname of ['', 'invalid host', 'destination.example.com:9010', '[not-an-ipv6-address]']) {
+        const invalid = parseAnalyticOutput(analytic, 'realtime', {
+          ...config, properties: { ...config.properties, [`${name}.hostname`]: hostname },
+        }, socketSource);
+        assert.strictEqual(invalid.supported, false, `Invalid socket hostname accepted: ${hostname}`);
+        assert.match(invalid.unsupportedReason, /host/i);
+      }
+    }
+    if (isServer) {
+      assert.strictEqual(parseAnalyticOutput(analytic, 'realtime', config).supported, false);
+      const second = parseAnalyticOutput(analytic, 'realtime', config, {
+        ...socketSource, id: 'second', apiBaseUrl: 'https://second.example.com/arcgis',
+      });
+      assert.notStrictEqual(item.id, second.id);
+      assert.strictEqual(second.host, 'second.example.com');
+    }
+  }
+  assert.strictEqual(parseAnalyticOutput(analytic, 'realtime', {
+    id: 'legacy', name: 'tcp', properties: { 'tcp.host': 'legacy.example.com', 'tcp.port': 9000 },
+  }).supported, true);
+  for (const url of ['', 'https://user:secret@example.com/receive', 'https://example.com/receive?token=secret']) {
+    const invalid = parseAnalyticOutput(analytic, 'realtime', {
+      id: 'bad-http', name: 'http', properties: { 'http.url': url },
+    });
+    assert.strictEqual(invalid.supported, false);
+    assert.ok(invalid.unsupportedReason);
+    assert.ok(!JSON.stringify(invalid).includes('secret'));
+  }
   for (const name of ['udp-client', 'udp-server', 'tcp-client', 'tcp-server', 'feat-lyr-new']) {
     const item = parseAnalyticOutput(analytic, 'realtime', {
       id: `out-${name}`, name, label: name, properties: { [`${name}.port`]: 9000 },

@@ -2,7 +2,6 @@
  * Tests for http-transport.js
  */
 const { createHttpClientTransport, createHttpServerTransport, HTTP_FORMATS, VALID_HTTP_FORMATS, FORMAT_CONTENT_TYPES, HTTP_DEFAULT_PORT, HTTPS_DEFAULT_PORT } = require('../src/http-transport.js');
-const http = require('http');
 
 let passed = 0;
 let failed = 0;
@@ -89,6 +88,7 @@ console.log('\n--- Test 4: HTTP Client connect/disconnect (unsecure) ---');
   assert(s.isConnected() === false, 'server is disconnected after disconnect');
 
   console.log('\n--- Test 6: HTTP Server receives POST data ---');
+  const http = require('http');
   let receivedData = null;
   let receivedMetadata = null;
   const s2 = createHttpServerTransport({
@@ -210,9 +210,8 @@ console.log('\n--- Test 4: HTTP Client connect/disconnect (unsecure) ---');
   await new Promise((resolve) => plainServer.close(resolve));
 
   console.log('\n--- Test 9: An established SSE stream still reconnects when it drops ---');
-  // This is the paired Simulator-server / Logger-client shape: the Simulator
-  // hosts the SSE endpoint and the Logger subscribes, so the subscription must
-  // survive a restart of the sending side.
+  // This is the paired Simulator-server / Logger-client shape: one side hosts
+  // the SSE endpoint, the other subscribes and must survive a restart.
   const pairedPort = 19881;
   const makePairedServer = () => createHttpServerTransport({
     ip: '127.0.0.1', port: pairedPort, httpFormat: 'delimited', httpPath: '/', httpTls: false,
@@ -241,23 +240,31 @@ console.log('\n--- Test 4: HTTP Client connect/disconnect (unsecure) ---');
   await watcher.disconnect();
   await pairedServer.disconnect();
 
-  console.log('\n--- Test 10: SSE watcher connect and disconnect callbacks ---');
-  const watcherEvents = [];
-  const callbackServer = createHttpServerTransport({
-    ip: '127.0.0.1', port: 19882, httpFormat: 'delimited', httpPath: '/', httpTls: false,
-    onClientConnected: () => watcherEvents.push('connected'),
-    onClientDisconnected: () => watcherEvents.push('disconnected'),
+  console.log('\n--- Test 10: HTTP Poller mode serves the latest replay payload ---');
+  const pollingServer = createHttpServerTransport({
+    ip: '127.0.0.1', port: 0, httpFormat: 'json', httpPath: '/poll?site=one',
+    httpPolling: true, httpTls: false,
   });
-  await callbackServer.connect();
-  const callbackWatcher = createHttpClientTransport({
-    ip: '127.0.0.1', port: 19882, httpFormat: 'delimited', httpPath: '/', httpTls: false,
-    onData: () => {},
+  const pollingResult = await pollingServer.connect();
+  const get = () => new Promise((resolve, reject) => {
+    require('http').get({
+      hostname: '127.0.0.1',
+      port: pollingResult.address.port,
+      path: '/poll?site=one',
+    }, response => {
+      let body = '';
+      response.on('data', chunk => { body += chunk; });
+      response.on('end', () => resolve({ status: response.statusCode, type: response.headers['content-type'], body }));
+    }).on('error', reject);
   });
-  await callbackWatcher.connect();
-  await waitFor(() => watcherEvents.includes('connected'), 'an SSE watcher reports onClientConnected');
-  await callbackWatcher.disconnect();
-  await waitFor(() => watcherEvents.includes('disconnected'), 'a departing SSE watcher reports onClientDisconnected');
-  await callbackServer.disconnect();
+  assert(pollingServer.hasRecipients() === true, 'polling mode can accept replay data before the first GET');
+  assert((await get()).status === 204, 'polling mode returns 204 before a replay payload is available');
+  assert((await pollingServer.send('{"id":1}')).delivered === true, 'polling mode stores replay payloads without SSE watchers');
+  const polled = await get();
+  assert(polled.status === 200, 'polling mode returns the latest replay payload');
+  assert(polled.type === 'application/json', 'polling mode uses the selected payload content type');
+  assert(polled.body === '{"id":1}', 'polling mode preserves the latest payload');
+  await pollingServer.disconnect();
 
   console.log(`\n=== Test Results ===`);
   console.log(`✅ Passed: ${passed}`);
@@ -265,4 +272,3 @@ console.log('\n--- Test 4: HTTP Client connect/disconnect (unsecure) ---');
   console.log(`📊 Total: ${passed + failed}`);
   if (failed > 0) process.exit(1);
 })();
-

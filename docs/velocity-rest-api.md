@@ -220,6 +220,7 @@ subscription URL:
 |---|---|
 | HTTP receiver | The advertised URL, method, full path and query, and required authentication. |
 | gRPC receiver | The advertised host and port, TLS requirements, and routing metadata. An HTTP context is not a gRPC method prefix. |
+| TCP or UDP connector | The connector role, explicit socket port, payload format, and destination host or owning server's public hostname. Do not substitute the HTTP API port for the socket port. |
 | Stream Layer | The advertised StreamServer URL, connection URLs, subscription path, and required token. |
 | Outbound connector | Its configured destination and direction. A destination an analytic sends to is not a subscription endpoint. |
 
@@ -255,9 +256,34 @@ clears previous WebSocket upgrade headers, subscription messages, and
 first-message handling so settings from an unrelated connection are not reused.
 
 Supported XMPP output settings retain their receiving identity and
-conversation settings. Configured outbound HTTP, gRPC, WebSocket, and TCP
-destinations are not subscription endpoints the Logger can consume as
-another client, even though the Logger offers those manual transports.
+conversation settings.
+
+TCP and UDP connectors map to the opposite Logger role. A `tcp-client`
+(including legacy `tcp`) or `udp-client` output sends to its configured
+hostname and port, so Logger applies **TCP Server** or **UDP Server**.
+A `tcp-server` or `udp-server` output applies the corresponding Logger
+client, using that output's owning server's public API hostname together with
+the configured socket port. The API's path and HTTPS port are not socket
+connection settings. Source-server identity is preserved when browsing
+several servers.
+
+The output's format selects `tcpFormat` or `udpFormat`. Delimited (CSV) is the
+default; JSON, GeoJSON, and Esri JSON are also accepted. XML and missing or
+invalid required host, port, or source-server settings keep the output
+unavailable rather than reusing previous values. See
+[Data formats](data-formats.md) for framing and validation behavior.
+
+An `http` output with a valid POST destination URL applies **HTTP Server**.
+The URL supplies host, port, path, query, and HTTP/HTTPS mode. Review that the
+listening address belongs to this machine and configure any required firewall
+or forwarding separately. For HTTPS, provide a certificate trusted by the
+sender; an automatically generated self-signed certificate may not be trusted.
+The same listening-address check applies to TCP and UDP server roles.
+
+Generic gRPC and WebSocket output types do not have a verified configured
+connector contract for automatic Apply. Their manual transports remain
+available, but matching a URL scheme alone does not establish compatible
+service methods, serialization, or subscription behavior.
 
 Review the populated settings in
 [Protocol settings and presets](connection-presets.md) before connecting.

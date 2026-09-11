@@ -163,8 +163,8 @@ function parseItem(item, direction) {
     parsed.endpoint = safeDataUrl(properties[`${name}.endpoint`]);
     parsed.entityPath = text(properties[`${name}.${name === 'azure-event-hub' ? 'entityPath' : 'topicName'}`]);
     parsed.sharedAccessKeyName = text(properties[`${name}.sharedAccessKeyName`]);
-  } else if (['tcp', 'udp'].includes(name)) {
-    parsed.host = text(properties[`${name}.host`]);
+  } else if (/^(?:tcp|udp)(?:-(?:client|server))?$/.test(name)) {
+    parsed.host = text(properties[`${name}.hostname`]) || text(properties[`${name}.host`]);
     parsed.port = typeof properties[`${name}.port`] === 'number' ? properties[`${name}.port`] : text(properties[`${name}.port`]);
   }
   if (direction === 'feed' && name === 'websocket') {

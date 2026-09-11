@@ -26,7 +26,7 @@ Use a build whose sign-in dialog includes the **Velocity endpoint** section.
 
 ## Workflow
 
-To configure a supported data subscription:
+To configure a supported receiving connection:
 
 1. Click **Sign In to ArcGIS Velocity** in the toolbar;
 2. enter your complete Portal URL (default:
@@ -39,7 +39,7 @@ To configure a supported data subscription:
 5. use **Server** when multiple ArcGIS Velocity servers are available, or
    leave **All Velocity servers** selected to aggregate outputs. Use
    **Type** to filter outputs, then select an output to retrieve any required
-   subscription details;
+   connection details;
 6. while disconnected, click **Apply** to populate validated connection
    settings. This does not connect or start capture;
 7. check the footer **Token On / Token Off** badge and review the settings;
@@ -85,6 +85,10 @@ The dialog supports two usage modes:
    **Token On**. Basic, none, and unsupported authentication default to
    **Token Off**.
 
+Applied server roles default to **Token Off** because they receive connections
+rather than authenticate to a remote endpoint. Selecting an HTTP output does
+not send the Portal token to its configured destination.
+
 Click the footer badge to change token sending for new client connections.
 Active gRPC and HTTP clients hot-swap refreshed tokens when possible.
 WebSocket upgrade headers are fixed at connect time; reconnect after changing
@@ -97,14 +101,15 @@ The **OAuth 2.0** tab supports client-credentials flow using **Client ID** and
 **Client Secret**. Portal and endpoint selection are shared with the password
 tab. The application's permissions and the deployment determine which
 resources its token can access. Signing in does not grant output access or
-change an unsupported destination into a subscription.
+supply missing transport capabilities or endpoint settings.
 
 ## Unsupported output types
 
 Unsupported types have a **⚠** prefix and muted styling. **Apply** is disabled
 for these items. **Supported** is the default filter; **All** includes
-unsupported types. Configured outbound HTTP, gRPC, WebSocket, and TCP
-destinations are not subscriptions the Logger can consume as another client.
+unsupported types. TCP and UDP output connectors map to the opposite Logger
+role, and an HTTP destination maps to an HTTP Server when its settings are
+valid. Stream Layers and XMPP retain their existing receiving workflows.
 The **Availability** row and disabled Apply tooltip explain why an output
 cannot be used.
 
@@ -131,11 +136,15 @@ icon and a color:
 | Icon | Output type | Color | Supported |
 |---|---|---|---|
 | ◆ | `stream-lyr-new` — Stream Layer | `#00897b` | Requires a usable advertised WebSocket subscription; JSON format. |
-| ● | `xmpp` — XMPP | `#5e35b1` | Yes, when supported subscription settings are available. |
-| ⬡ | `grpc` — gRPC | `#7c4dff` | Not for modern outbound destinations. |
-| ■ | `http` — HTTP | `#0097a7` | Not for modern outbound destinations. |
-| ◆ | `websocket` — WebSocket | `#00897b` | Not for modern outbound destinations. |
-| ◗ | `tcp` — TCP | `#546e7a` | Not for modern outbound destinations. |
+| ● | `xmpp` — XMPP | `#5e35b1` | Yes, when receiving settings are available. |
+| ⬡ | `grpc` — gRPC | `#7c4dff` | No verified configured-output contract for automatic Apply. |
+| ■ | `http` — HTTP | `#0097a7` | HTTP Server with a valid POST destination URL and format. |
+| ◆ | `websocket` — WebSocket | `#00897b` | No verified configured-output contract; Stream Layers use the separate entry above. |
+| ◗ | `tcp` — TCP; `tcp-client` — TCP Client | `#546e7a` | TCP Server with a valid destination host, port, and format. |
+| ◗ | `tcp-server` — TCP Server | `#546e7a` | TCP Client using the owning server's public hostname and configured socket port. |
+| ◗ | `udp-client` — UDP Client | `#546e7a` | UDP Server with a valid destination host, port, and format. |
+| ◗ | `udp-server` — UDP Server | `#546e7a` | UDP Client using the owning server's public hostname and configured socket port. |
+| ◗ | `udp` — UDP | `#546e7a` | No verified role for this legacy type. |
 | ▲ | `kafka` — Kafka | `#e53935` | No. |
 | ◎ | `mqtt` — MQTT | `#f57c00` | No. |
 | ▣ | `file` — File | `#8d6e63` | No. |
@@ -168,8 +177,8 @@ next open. Remove that key to restore the default bounds. See
 The dialog uses the main window's rendered theme when it opens and follows
 theme changes while it remains open or hidden.
 Buttons pair their text and background colors for the selected theme.
-Disabled actions remain fully opaque and readable, with a dashed border
-distinguishing them from available actions.
+Disabled actions remain fully opaque and readable, with a subtle solid border
+and muted background distinguishing them from available actions.
 
 ## UI controls
 
@@ -243,7 +252,7 @@ controls exactly:
 | Apply | Apply the selected output's connection settings to the main window. |
 | Apply before endpoint validation | Sign in or apply the pending endpoint before applying an output. |
 | Apply while resolving details | Loading output details before applying connection settings. |
-| Apply with unsupported output | Cannot apply — this output has no supported data subscription. |
+| Apply with unsupported output | Cannot apply — this output has no supported connection settings. |
 | Close | Close this dialog |
 | Status dismiss | Dismiss this message |
 

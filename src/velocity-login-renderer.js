@@ -109,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ? 'Sign in or apply the pending endpoint before applying an output.'
       : detailsPending ? 'Loading output details before applying connection settings.'
       : reason ? `Cannot apply — ${reason}`
-      : selectedItem && !selectedItem.supported ? 'Cannot apply — this output has no supported data subscription.'
+      : selectedItem && !selectedItem.supported ? 'Cannot apply — this output has no supported connection settings.'
       : "Apply the selected output's connection settings to the main window.");
   }
 
@@ -142,6 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
     'stream-lyr-new': { icon: '\u25C6', label: 'Stream Layer', color: '#00897b' },
     'xmpp':       { icon: '\u25CF', label: 'XMPP',       color: '#5e35b1' },
     'tcp':        { icon: '\u25D7', label: 'TCP',        color: '#546e7a' },
+    'udp':        { icon: '\u25D7', label: 'UDP',        color: '#546e7a' },
     'kafka':      { icon: '\u25B2', label: 'Kafka',      color: '#e53935' },
     'mqtt':       { icon: '\u25CE', label: 'MQTT',       color: '#f57c00' },
     'file':       { icon: '\u25A3', label: 'File',       color: '#8d6e63' },
@@ -149,6 +150,13 @@ document.addEventListener('DOMContentLoaded', () => {
     'azure-service-bus': { icon: '\u2756', label: 'Azure Svc Bus',    color: '#0062ad' },
   };
   function typeMeta(typeKey) {
+    const socket = /^(tcp|udp)-(client|server)$/.exec(typeKey);
+    if (socket) {
+      return {
+        ...TYPE_META[socket[1]],
+        label: `${socket[1].toUpperCase()} ${socket[2] === 'client' ? 'Client' : 'Server'}`,
+      };
+    }
     return TYPE_META[typeKey] || { icon: '\u25EF', label: typeKey, color: '#888' };
   }
 
@@ -331,7 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!available) opt.classList.add('item-option-unsupported');
       opt.title = available
         ? `${label} - ${meta.label} output`
-        : `${label} - ${item.unsupportedReason || 'No supported data subscription'}`;
+        : `${label} - ${item.unsupportedReason || 'No supported connection settings'}`;
       itemSelect.appendChild(opt);
     });
     clearSelection();
@@ -365,7 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const epoch = endpoint.generation;
     const selection = selectionRevision;
     const stillCurrent = () => epoch === endpoint.generation && selection === selectionRevision;
-    setStatus('info', 'Loading output subscription details…');
+    setStatus('info', 'Loading output connection details…');
     try {
       const detail = await window.velocityApi.getItemDetails({
         id: item.id, revision: selectedRevision,
@@ -384,7 +392,7 @@ document.addEventListener('DOMContentLoaded', () => {
       detailsPending = false;
       showInfo(selectedItem);
       setStatus(selectedItem.supported ? 'success' : 'error',
-        selectedItem.supported ? 'Output subscription details loaded.' : selectedItem.unsupportedReason || 'This output has no supported data subscription.');
+        selectedItem.supported ? 'Output connection details loaded.' : selectedItem.unsupportedReason || 'This output has no supported connection settings.');
     } catch (error) {
       if (!stillCurrent()) return;
       detailsPending = false;
@@ -417,8 +425,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const schemaFields = Array.isArray(item.schema) ? item.schema.map(f => f && (f.name || f.fieldName || f)).join(', ') : '-';
     infoSchema.textContent = schemaFields || '-';
     infoAvailability.textContent = item.unsupportedReason
-      || (detailsPending ? 'Resolving subscription details…'
-        : item.supported ? 'Supported data subscription' : 'No supported data subscription');
+      || (detailsPending ? 'Resolving connection details…'
+        : item.supported ? 'Supported connection settings' : 'No supported connection settings');
     infoPanel.classList.remove('hidden');
   }
 

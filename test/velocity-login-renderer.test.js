@@ -248,10 +248,10 @@ test('mismatched or malformed detail responses fail visibly and cannot enable Ap
   }
 });
 
-test('modern outbound destinations show explicit unavailable reasons; XMPP remains selectable', async t => {
-  const items = ['http', 'grpc', 'websocket', 'tcp'].map(outputType => output({
+test('unverified output types show explicit unavailable reasons; XMPP remains selectable', async t => {
+  const items = ['grpc', 'websocket', 'kafka'].map(outputType => output({
     outputId: outputType, outputType, supported: false,
-    unsupportedReason: `${outputType} is an outbound destination, not a data subscription.`,
+    unsupportedReason: `${outputType} has no verified Logger connection settings.`,
   }));
   const xmpp = output({ outputId: 'xmpp', outputType: 'xmpp', xmppLocalJid: 'receiver@example.com' });
   const { element, calls, signIn, select } = await fixture(t, { listItems: async () => catalogue([...items, xmpp]) });
@@ -261,13 +261,34 @@ test('modern outbound destinations show explicit unavailable reasons; XMPP remai
   for (const item of items) {
     await select(item.id);
     assert.equal(element('apply-btn').disabled, true);
-    assert.match(element('apply-btn').dataset.tooltip, /outbound destination/);
+    assert.match(element('apply-btn').dataset.tooltip, /no verified Logger connection/);
     assert.equal(element('info-availability').textContent, item.unsupportedReason);
   }
   await select(xmpp.id);
   element('apply-btn').click();
   await tick();
   assert.deepEqual(calls.find(([name]) => name === 'apply')[1], { id: xmpp.id, revision: 1 });
+});
+
+test('pairable socket and HTTP outputs remain visible and selectable in the supported filter', async t => {
+  const types = [
+    ['tcp', 'TCP'], ['tcp-client', 'TCP Client'], ['tcp-server', 'TCP Server'],
+    ['udp-client', 'UDP Client'], ['udp-server', 'UDP Server'], ['http', 'HTTP'],
+  ];
+  const items = types.map(([outputType]) => output({ outputId: outputType, outputType }));
+  const { element, calls, signIn, select } = await fixture(t, { listItems: async () => catalogue(items) });
+  await signIn();
+  assert.match(element('status-banner-text').textContent, /6 supported of 6 outputs/);
+  assert.equal(element('item-select').options.length, 7);
+  for (const [index, [, label]] of types.entries()) {
+    await select(items[index].id);
+    assert.equal(element('info-type').textContent, label);
+    assert.equal(element('info-availability').textContent, 'Supported connection settings');
+    assert.equal(element('apply-btn').disabled, false);
+    element('apply-btn').click();
+    await tick();
+    assert.deepEqual(calls.filter(([name]) => name === 'apply').at(-1)[1], { id: items[index].id, revision: 1 });
+  }
 });
 
 test('Apply errors remain visible without closing; OAuth uses the shared Portal form', async t => {
