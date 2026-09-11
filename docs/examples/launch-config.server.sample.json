@@ -12,6 +12,8 @@
     "mode": "server",
     "port": 5565,
     "protocol": "tcp",
+    "tcpFormat": "delimited",
+    "udpFormat": "delimited",
     "wsFormat": "delimited",
     "wsPath": "/",
     "wsTls": true

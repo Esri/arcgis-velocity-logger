@@ -80,6 +80,12 @@ function extractFunction(source, name) {
 
 console.log('transport-parity.test.js');
 
+for (const filename of ['payload-format-utils.js', 'socket-payload-receiver.js', 'udp-utils.js']) {
+  compare(`${filename} is byte-identical in both applications`, () => {
+    assert.strictEqual(readLocal(`src/${filename}`), readSimulator(`src/${filename}`));
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Local invariants: these hold whether or not the Simulator is checked out.
 // ---------------------------------------------------------------------------

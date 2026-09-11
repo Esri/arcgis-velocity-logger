@@ -22,11 +22,14 @@ by purpose and audience.
 | 🎚 | [Connection presets](connection-presets.md) | Documents the paired Logger and Simulator presets, what they pre-fill, and the progressive-disclosure layout. | Users and developers |
 | ▤ | [Connection summary and protocol settings](connection-summary.md) | Documents the Protocol Settings dialog, its sections, warning alert, and read-only summary. | Users and developers |
 | ⚙️ | [Configuration](configuration.md) | Covers persisted settings, appearance, and launch configuration files. | Users and developers |
+| 📄 | [Data formats](data-formats.md) | Distinguishes payload formats, record boundaries, validation, and capture containers. | Users and integrators |
 | 🛠️ | [Developer guide](developer-guide.md) | Covers repository structure, local development, testing, debugging, and extension patterns. | Developers |
 | 🔌 | [gRPC transport](grpc.md) | Documents gRPC modes, serialization, TLS, RPC behavior, and metadata. | Users and developers |
 | 🖥️ | [Headless mode](headless.md) | Explains no-UI capture, output formats, completion files, and automation. | Users and developers |
 | 🌐 | [HTTP transport](http.md) | Documents HTTP and HTTPS modes, formats, paths, TLS, and metadata. | Users and developers |
 | ⌘ | [Keyboard shortcuts](keyboard-shortcuts.md) | Lists global, dialog, context-menu, and navigation shortcuts. | Users |
+| 🔌 | [TCP transport](tcp.md) | Documents TCP roles, payload selection, UTF-8 record framing, and limits. | Users and developers |
+| 📡 | [UDP transport](udp.md) | Documents UDP roles, payload selection, datagram boundaries, and limits. | Users and developers |
 | 🔐 | [TLS and SSL security](tls.md) | Explains certificates, trust stores, mTLS, self-signed TLS, and protocol settings. | Users and developers |
 | 🔑 | [ArcGIS Velocity login](velocity-login.md) | Explains sign-in, output selection, token handling, and auto-configuration. | Users |
 | 🔗 | [ArcGIS Velocity REST API](velocity-rest-api.md) | Explains portal, public REST API, and data endpoint URLs and their current application support. | Users and integrators |
@@ -54,7 +57,8 @@ maintained guides. Keep each topic in the guide that owns it:
 
 | Guide | Owns |
 |---|---|
-| Protocol guides (gRPC, HTTP, WebSocket, XMPP) | Transport behavior, UI controls, exact tooltip strings, and transport troubleshooting. |
+| Protocol guides (TCP, UDP, gRPC, HTTP, WebSocket, XMPP) | Transport behavior, UI controls, exact tooltip strings, and transport troubleshooting. |
+| [Data formats](data-formats.md) | Payload-format meanings, validation, and the distinction between records and capture containers. |
 | [Connection presets](connection-presets.md) | The shared Logger/Simulator preset contract and preset field values. |
 | [Connection summary and protocol settings](connection-summary.md) | The Protocol Settings dialog, its sections and editing model, the connection summary row schema, and secret redaction. |
 | [TLS and SSL security](tls.md) | Shared certificate, trust-store, and mTLS concepts referenced by every transport. |

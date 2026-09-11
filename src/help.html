@@ -39,7 +39,7 @@
             <main class="help-content" id="help-content" tabindex="-1">
                 <section class="help-section">
                     <h3>Start receiving data</h3>
-                    <p>ArcGIS Velocity Logger captures network data from TCP, UDP, HTTP/HTTPS, WebSocket, gRPC, and XMPP connections. Use it to inspect ArcGIS Velocity outputs, ArcGIS GeoEvent Server integrations, and compatible custom services.</p>
+                    <p>ArcGIS Velocity Logger captures network data from TCP, UDP, HTTP/HTTPS, WebSocket, gRPC, and XMPP connections. TCP and UDP support Delimited (CSV), JSON, GeoJSON, and Esri JSON payloads. Use it to inspect ArcGIS Velocity outputs, ArcGIS GeoEvent Server integrations, and compatible custom services.</p>
                     <ol>
                         <li>Select a <strong>Preset</strong> for a paired local Logger and ArcGIS Velocity Simulator test, or select a connection type.</li>
                         <li>Confirm the host and port, then select <strong>Settings</strong> for protocol-specific values.</li>
@@ -68,7 +68,7 @@
                             <tr><th>Transport</th><th>Use it when</th><th>Details</th></tr>
                         </thead>
                         <tbody>
-                            <tr><td>TCP / UDP</td><td>You need a direct stream or datagrams.</td><td>Server listens; client receives from a remote server.</td></tr>
+                            <tr><td>TCP / UDP</td><td>You need a direct stream or datagrams.</td><td>Server listens; client receives from a remote server. Select the matching payload format in Settings.</td></tr>
                             <tr><td>HTTP</td><td>A sender POSTs data or a remote endpoint exposes a stream.</td><td>Configure format, path, and optional TLS in Settings.</td></tr>
                             <tr><td>WebSocket</td><td>You receive a persistent WS or WSS stream.</td><td>Configure path, format, optional subscription message, first-message handling, and headers.</td></tr>
                             <tr><td>gRPC</td><td>You receive a gRPC stream or host a gRPC endpoint.</td><td>Configure serialization, RPC type, and optional endpoint metadata header.</td></tr>
@@ -76,6 +76,19 @@
                         </tbody>
                     </table>
                     <p>For detailed setup, use the owning guides: <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/http.md" target="_blank" rel="noreferrer">HTTP</a>, <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/websocket.md" target="_blank" rel="noreferrer">WebSocket</a>, <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/grpc.md" target="_blank" rel="noreferrer">gRPC</a>, <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/xmpp.md" target="_blank" rel="noreferrer">XMPP</a>, and <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/tls.md" target="_blank" rel="noreferrer">TLS</a>.</p>
+                </section>
+
+                <section class="help-section">
+                    <h3>TCP and UDP options</h3>
+                    <p><strong>Settings → Basics → Format</strong> selects the expected incoming payload, not an output-file conversion. Delimited (CSV) is the default. The control tooltip begins <code>TCP payload format: </code> or <code>UDP payload format: </code> and uses the selected option's description:</p>
+                    <ul>
+                        <li><strong>Delimited (CSV).</strong> One comma-separated record; quoted fields may contain commas, quotes, and line breaks.</li>
+                        <li><strong>JSON.</strong> A complete JSON object or array.</li>
+                        <li><strong>GeoJSON.</strong> A Feature or FeatureCollection with geometry and properties.</li>
+                        <li><strong>Esri JSON.</strong> An ArcGIS feature or feature set with attributes and geometry.</li>
+                    </ul>
+                    <p>TCP assembles records across network reads, with a 1 MiB incomplete-record limit. UDP requires one complete record or document per datagram, with a 65,507-byte payload limit and no cross-datagram reassembly. Complete invalid payloads remain available with a warning; invalid UTF-8 datagrams are reported and dropped. The Lines Received counter counts these logical records, including records with embedded line breaks.</p>
+                    <p>Use <code>tcpFormat=json</code> or <code>udpFormat=json</code> on the command line. Headless <code>outputFormat</code> still selects the capture envelope. See <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/data-formats.md" target="_blank" rel="noreferrer">data formats</a>, <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/tcp.md" target="_blank" rel="noreferrer">TCP</a>, and <a href="https://github.com/Esri/arcgis-velocity-logger/blob/main/docs/udp.md" target="_blank" rel="noreferrer">UDP</a> for complete setup and tooltip references.</p>
                 </section>
 
                 <section class="help-section">

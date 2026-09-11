@@ -32,7 +32,13 @@ const path = require('path');
 const net = require('net');
 const dgram = require('dgram');
 const { RunLogger } = require('./run-logger.js');
-const { registerUdpClient } = require('./udp-utils.js');
+const { registerUdpClient, isUdpClientRegistrationMessage } = require('./udp-utils.js');
+const {
+  assertSocketPayloadFormat,
+  attachTcpPayloadReceiver,
+  finishTcpPayloadReceiver,
+  createUdpPayloadReceiver,
+} = require('./socket-payload-receiver.js');
 
 /**
  * Exit codes used when headless mode is launched from the terminal or Electron main process.
@@ -51,8 +57,12 @@ function writeDoneFile(doneFile, payload) {
 }
 
 function csvEscape(value) {
-  const normalized = String(value ?? '').replace(/\r?\n/g, ' ');
-  return /[",]/.test(normalized) ? `"${normalized.replace(/"/g, '""')}"` : normalized;
+  const text = String(value ?? '');
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function formatTextRecord(text) {
+  return text.endsWith('\n') ? text : `${text}\n`;
 }
 
 /**
@@ -95,7 +105,7 @@ class RecordSink {
     } else if (this.outputFormat === 'csv') {
       formatted = `${csvEscape(timestamp)},${this.sequence},${csvEscape(line)}\n`;
     } else {
-      formatted = `${line}\n`;
+      formatted = formatTextRecord(line);
     }
     if (this.toStdout) {
       process.stdout.write(formatted);
@@ -123,18 +133,23 @@ function createReceiver(options, { logger, onLine, onError }) {
   let stopped = false;
   const closers = [];
 
-  function emitLines(chunk) {
-    if (stopped) return;
-    const text = chunk.toString('utf8');
-    const lines = text.split(/\r?\n/);
-    // Keep trailing partials simple: if last element is empty, previous lines terminated cleanly;
-    // otherwise we still emit it (best-effort for streaming data).
-    lines.forEach((line) => {
-      if (line.length > 0) onLine(line);
-    });
+  function payloadCallbacks(context) {
+    return {
+      format: options[`${protocol}Format`],
+      isControlDatagram: isUdpClientRegistrationMessage,
+      context,
+      onRecord: (raw) => { if (!stopped) onLine(raw); },
+      onWarning: (message, remote) => {
+        const peer = remote?.address ? ` from ${remote.address}:${remote.port}` : '';
+        logger.warn(`[Transport] ${protocol.toUpperCase()} payload${peer}: ${message}`);
+      },
+    };
   }
 
   const startedPromise = new Promise((resolve, reject) => {
+    if (protocol === 'tcp' || protocol === 'udp') {
+      assertSocketPayloadFormat(options[`${protocol}Format`], `${protocol}Format`);
+    }
     let timeoutHandle = null;
     if (connectTimeoutMs && connectTimeoutMs > 0) {
       timeoutHandle = setTimeout(() => {
@@ -148,7 +163,7 @@ function createReceiver(options, { logger, onLine, onError }) {
       const server = net.createServer((socket) => {
         sockets.push(socket);
         logger.info(`TCP client connected from ${socket.remoteAddress}:${socket.remotePort}`);
-        socket.on('data', emitLines);
+        attachTcpPayloadReceiver(socket, payloadCallbacks({ address: socket.remoteAddress, port: socket.remotePort }));
         socket.on('error', (err) => onError(err));
         socket.on('close', () => {
           const idx = sockets.indexOf(socket);
@@ -162,7 +177,10 @@ function createReceiver(options, { logger, onLine, onError }) {
         resolve();
       });
       closers.push(() => new Promise((res) => {
-        sockets.forEach((s) => { try { s.destroy(); } catch (_) {} });
+        sockets.forEach((s) => {
+          finishTcpPayloadReceiver(s);
+          try { s.destroy(); } catch (_) {}
+        });
         server.close(() => res());
       }));
     } else if (protocol === 'tcp' && mode === 'client') {
@@ -175,7 +193,10 @@ function createReceiver(options, { logger, onLine, onError }) {
       let retryStartTime = Date.now();
 
       closers.push(() => new Promise((res) => {
-        if (activeSocket) { try { activeSocket.destroy(); } catch (_) {} }
+        if (activeSocket) {
+          finishTcpPayloadReceiver(activeSocket);
+          try { activeSocket.destroy(); } catch (_) {}
+        }
         res();
       }));
 
@@ -183,6 +204,7 @@ function createReceiver(options, { logger, onLine, onError }) {
         if (stopped) return;
         const socket = new net.Socket();
         activeSocket = socket;
+        attachTcpPayloadReceiver(socket, payloadCallbacks({ address: ip, port }));
 
         // 'error' must be handled to prevent an unhandled-exception crash.
         // The 'close' event always follows 'error' and is where we decide what to do.
@@ -227,7 +249,6 @@ function createReceiver(options, { logger, onLine, onError }) {
           // Reset the retry start so connectTimeoutMs is measured from the most
           // recent successful connection, not from the very start of the session.
           retryStartTime = Date.now();
-          socket.on('data', emitLines);
           if (!everConnected) {
             clearTimer();
             everConnected = true;
@@ -244,7 +265,7 @@ function createReceiver(options, { logger, onLine, onError }) {
       attempt(resolve, reject);
     } else if (protocol === 'udp' && mode === 'server') {
       const socket = dgram.createSocket('udp4');
-      socket.on('message', (msg) => emitLines(msg));
+      socket.on('message', createUdpPayloadReceiver(payloadCallbacks()));
       socket.on('error', (err) => { clearTimer(); onError(err); reject(err); });
       socket.on('listening', () => {
         clearTimer();
@@ -256,7 +277,7 @@ function createReceiver(options, { logger, onLine, onError }) {
       closers.push(() => new Promise((res) => { try { socket.close(() => res()); } catch (_) { res(); } }));
     } else if (protocol === 'udp' && mode === 'client') {
       const socket = dgram.createSocket('udp4');
-      socket.on('message', (msg) => emitLines(msg));
+      socket.on('message', createUdpPayloadReceiver(payloadCallbacks()));
       socket.on('error', (err) => { clearTimer(); onError(err); reject(err); });
       socket.on('connect', () => {
         registerUdpClient(socket).then(() => {
@@ -493,7 +514,7 @@ async function runHeadlessSession(options, { app = null, logger = null } = {}) {
       sink.write(line);
       linesWritten += 1;
       if (options.stdout && !sinkIsStdout) {
-        process.stdout.write(`${line}\n`);
+        process.stdout.write(formatTextRecord(line));
       }
 
       if (options.maxLogCount && linesWritten >= options.maxLogCount) {

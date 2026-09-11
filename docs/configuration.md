@@ -33,6 +33,12 @@ The ArcGIS Velocity Logger uses two separate configuration systems:
 
 App Config controls how the application *looks*. Launch Config controls what the application *does*.
 
+TCP and UDP payload choices are Launch Config connection fields:
+`connection.tcpFormat` and `connection.udpFormat`, both defaulting to
+`delimited` when omitted. They are not App Config preferences.
+See [data formats](data-formats.md) for the allowed values and their distinction
+from `output.outputFormat`.
+
 ArcGIS Velocity sign-in preferences are separate from both systems. **Remember
 me** stores the Portal identity and Portal-specific endpoint choices in
 `velocity-credentials.json`, not in App Config or Launch Config. See

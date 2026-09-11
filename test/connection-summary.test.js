@@ -258,6 +258,24 @@ test('protocol rows describe formats, paths, serialization, and timings', () => 
   assert.strictEqual(xmpp.xmppTiming.value, 'connect 30000 ms, reply 15000 ms, ping 60000 ms, reconnect 60000 ms');
 });
 
+test('all TCP and UDP format choices appear in Summary and count only nondefaults', () => {
+  const labels = {
+    delimited: 'Delimited (CSV)', json: 'JSON', 'geo-json': 'GeoJSON', 'esri-json': 'Esri JSON',
+  };
+  for (const protocol of ['tcp', 'udp']) {
+    for (const mode of ['client', 'server']) {
+      for (const [format, label] of Object.entries(labels)) {
+        const summary = buildConnectionSummary({
+          ...BASE, connectionType: `${protocol}-${mode}`, [`${protocol}Format`]: format,
+        });
+        assert.strictEqual(rowsByKey(summary).format.value, label);
+        assert.strictEqual(summary.settings.hasSettings, true);
+        assert.strictEqual(summary.settings.shortLabel, format === 'delimited' ? '' : '1');
+      }
+    }
+  }
+});
+
 test('the Logger reports the JID it receives on for both XMPP roles', () => {
   const client = rowsByKey(buildConnectionSummary({
     ...BASE, connectionType: 'xmpp-client', port: 5222, xmppLocalJid: 'velocity-logger@localhost',
@@ -305,10 +323,10 @@ test('the connection state is echoed for every lifecycle value', () => {
 
 test('the chip counts only protocol settings that differ from their defaults', () => {
   const tcp = countConfiguredProtocolSettings({ connectionType: 'tcp-server' });
-  assert.strictEqual(tcp.hasSettings, false);
+  assert.strictEqual(tcp.hasSettings, true);
   assert.strictEqual(tcp.count, 0);
   assert.strictEqual(tcp.shortLabel, '');
-  assert.strictEqual(tcp.label, 'TCP · no protocol settings');
+  assert.strictEqual(tcp.label, 'TCP · defaults');
 
   const httpDefaults = countConfiguredProtocolSettings({
     connectionType: 'http-server', httpFormat: 'delimited', httpTls: true, httpPath: '/',

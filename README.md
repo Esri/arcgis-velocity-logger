@@ -16,6 +16,7 @@ See the [documentation index](docs/README.md) for the complete catalog by
 purpose and audience.
 
 - [Pre-fill a paired local test with connection presets](docs/connection-presets.md).
+- [Choose payload formats](docs/data-formats.md) for [TCP](docs/tcp.md) and [UDP](docs/udp.md) capture.
 - [Review protocol settings and the connection summary](docs/connection-summary.md).
 - [Get started with configuration](docs/configuration.md).
 - [Run without the UI](docs/headless.md).
@@ -43,7 +44,7 @@ purpose and audience.
 
 ## Features
 
-- **Network Protocols**: TCP and UDP server/client modes with real-time data capture
+- **Network Protocols**: TCP and UDP server/client capture with Delimited (CSV), JSON, GeoJSON, and Esri JSON payload selection
 - **XMPP**: Focused in-process C2S server and XMPP client receiving direct or MUC message bodies
 - **Cross-platform**: Native support for macOS, Windows, and Linux
 - **Data Management**: Save logs to files, clear display, and track message counts

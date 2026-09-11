@@ -17,6 +17,8 @@
     "mode": "client",
     "port": 6000,
     "protocol": "udp",
+    "tcpFormat": "delimited",
+    "udpFormat": "delimited",
     "wsFormat": "delimited",
     "wsHeaders": null,
     "wsIgnoreFirstMsg": false,

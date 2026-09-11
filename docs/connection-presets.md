@@ -66,7 +66,7 @@ Each label names which application listens. In this repository:
 
 | Protocol | Values |
 |---|---|
-| TCP, UDP | Host `127.0.0.1`, port `5565`. |
+| TCP, UDP | Host `127.0.0.1`, port `5565`, Delimited (CSV). |
 | gRPC | Host `127.0.0.1`, port `5565`, Text serialization, Client Streaming, TLS off. |
 | HTTP | Host `127.0.0.1`, port `8080`, Delimited (CSV), path `/`, TLS off. |
 | WebSocket | Host `127.0.0.1`, port `8080`, Delimited (CSV), path `/`, TLS off, no subscription message, first message kept. |
@@ -106,13 +106,14 @@ field lives in **Protocol Settings**, grouped into sections:
 
 | Protocol | Basics | Security | Advanced |
 |---|---|---|---|
+| TCP, UDP | Format | — | — |
 | gRPC | Serialization, RPC type | TLS, CA/certificate/key paths, Allow unverified | Endpoint header key and path (client only) |
 | HTTP | Format, path | TLS, CA/certificate/key paths, Allow unverified | — |
 | WebSocket | Format, path | TLS, CA/certificate/key paths, Allow unverified | Subscription message, Skip 1st, headers |
 | XMPP | Domain, conversation, account and room fields | TLS policy, CA/certificate/key paths, Allow unverified, Allow remote | Timing values |
 
-TCP and UDP have no protocol settings, so their Protocol Settings offers only
-the read-only **Summary** section.
+TCP and UDP offer payload Format in **Basics**, plus the read-only **Summary**.
+See [data formats](data-formats.md) for the supported incoming record formats.
 
 No field required to connect is hidden: a failed **Connect** opens Protocol
 Settings, selects the section that owns the offending control, and focuses it.

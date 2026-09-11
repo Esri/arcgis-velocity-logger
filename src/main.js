@@ -22,7 +22,13 @@ const fs = require('fs');
 const { ConfigManager } = require('./config.js');
 const { APP_DEFAULTS, DEFAULT_LOG_LEVEL, parseCommandLineArgs, getCommandLineReferenceData, formatCliStartupErrorOutput } = require('./cli-options.js');
 const { runHeadlessSession, EXIT_CODES } = require('./headless-runner.js');
-const { registerUdpClient } = require('./udp-utils.js');
+const { registerUdpClient, isUdpClientRegistrationMessage } = require('./udp-utils.js');
+const {
+  assertSocketPayloadFormat,
+  attachTcpPayloadReceiver,
+  finishTcpPayloadReceiver,
+  createUdpPayloadReceiver,
+} = require('./socket-payload-receiver.js');
 const { createProtocolSettingsWindowManager } = require('./protocol-settings-window-manager.js');
 const { createReferenceWindowManager } = require('./reference-window-manager.js');
 
@@ -390,6 +396,7 @@ app.on('child-process-gone', (event, details) => {
 function cleanupTcpClientSocket() {
     if (clientSocket) {
         try {
+            finishTcpPayloadReceiver(clientSocket);
             clientSocket.removeAllListeners();
             clientSocket.destroy();
         } catch (err) {
@@ -994,6 +1001,8 @@ async function getCurrentLaunchConfig() {
       const connType = getVal('connection-type') || 'tcp-server';
       const parts = connType.split('-');
       return JSON.stringify({
+        tcpFormat: getVal('tcp-format') || 'delimited',
+        udpFormat: getVal('udp-format') || 'delimited',
         grpcHeaderPath: getVal('grpc-header-path') || 'replace.with.dedicated.uid',
         grpcHeaderPathKey: getVal('grpc-header-path-key') || 'grpc-path',
         grpcSendMethod: getVal('grpc-send-method') || 'stream',
@@ -1041,6 +1050,8 @@ async function getCurrentLaunchConfig() {
       connectRetryIntervalMs: 1000,
       connectTimeoutMs: 0,
       connectWaitForServer: false,
+      tcpFormat: s.tcpFormat,
+      udpFormat: s.udpFormat,
       grpcHeaderPath: s.grpcHeaderPath,
       grpcHeaderPathKey: s.grpcHeaderPathKey,
       grpcSendMethod: s.grpcSendMethod,
@@ -1886,8 +1897,32 @@ function updateTcpButtonStates(connectionState) {
     mainWindow.webContents.send('tcp-connection-state', connectionState);
 }
 
-ipcMain.on('connect-tcp', (event, { type, port, host }) => {
-    currentConnectionDetails = { protocol: 'tcp', type, port, host };
+function reportSocketPayloadWarning(protocol, message, remote) {
+    const peer = remote?.address ? ` from ${remote.address}:${remote.port}` : '';
+    const diagnostic = `[Transport] ${protocol.toUpperCase()} payload${peer}: ${message}`;
+    velocityLog('warn', diagnostic);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(`${protocol}-status`, diagnostic);
+    }
+}
+
+function sendSocketPayloadRecord(raw, metadata) {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    sendMetadataLine(metadata);
+    mainWindow.webContents.send('log-data', raw, { record: true });
+}
+
+ipcMain.on('connect-tcp', (event, { type, port, host, tcpFormat = APP_DEFAULTS.tcpFormat }) => {
+    try {
+        assertSocketPayloadFormat(tcpFormat, 'tcpFormat');
+    } catch (error) {
+        velocityLog('error', `[Transport] TCP configuration: ${error.message}`);
+        mainWindow.webContents.send('tcp-error', error.message);
+        updateTcpButtonStates('disconnected');
+        return;
+    }
+    currentConnectionDetails = { protocol: 'tcp', type, port, host, tcpFormat };
+    velocityLog('info', `[Transport] Starting TCP ${type} receiver with ${tcpFormat} payloads`);
     // Immediately set connecting state
     updateTcpButtonStates('connecting');
     if (type === 'server') {
@@ -1895,13 +1930,17 @@ ipcMain.on('connect-tcp', (event, { type, port, host }) => {
             sockets.push(socket);
             mainWindow.webContents.send('tcp-status', 'client-connected');
             // Don't update button state here; already set on listen
-            socket.on('data', async (data) => {
-                const remoteAddr = socket.remoteAddress || '?';
-                const remotePort = socket.remotePort || '?';
-                const localAddr = socket.localAddress || '?';
-                const localPort = socket.localPort || '?';
-                sendMetadataLine(`[metadata] protocol=TCP mode=server remote=${remoteAddr}:${remotePort} local=${localAddr}:${localPort}`);
-                mainWindow.webContents.send('log-data', data.toString());
+            attachTcpPayloadReceiver(socket, {
+                format: tcpFormat,
+                context: { address: socket.remoteAddress, port: socket.remotePort },
+                onWarning: (message, remote) => reportSocketPayloadWarning('tcp', message, remote),
+                onRecord: (raw) => {
+                    const remoteAddr = socket.remoteAddress || '?';
+                    const remotePort = socket.remotePort || '?';
+                    const localAddr = socket.localAddress || '?';
+                    const localPort = socket.localPort || '?';
+                    sendSocketPayloadRecord(raw, `[metadata] protocol=TCP mode=server remote=${remoteAddr}:${remotePort} local=${localAddr}:${localPort} format=${tcpFormat}`);
+                },
             });
             socket.on('close', () => {
                 mainWindow.webContents.send('tcp-status', 'client-disconnected');
@@ -1933,17 +1972,21 @@ ipcMain.on('connect-tcp', (event, { type, port, host }) => {
             return;
         }
         clientSocket = new net.Socket();
+        const socket = clientSocket;
+        attachTcpPayloadReceiver(socket, {
+            format: tcpFormat,
+            context: { address: host, port },
+            onWarning: (message, remote) => reportSocketPayloadWarning('tcp', message, remote),
+            onRecord: (raw) => {
+                const localAddr = socket.localAddress || '?';
+                const localPort = socket.localPort || '?';
+                sendSocketPayloadRecord(raw, `[metadata] protocol=TCP mode=client remote=${host}:${port} local=${localAddr}:${localPort} format=${tcpFormat}`);
+            },
+        });
 
         clientSocket.connect(port, host, () => {
             mainWindow.webContents.send('tcp-status', `TCP Client connected to ${host}:${port}`);
             updateTcpButtonStates('connected');
-        });
-
-        clientSocket.on('data', async (data) => {
-            const localAddr = clientSocket.localAddress || '?';
-            const localPort = clientSocket.localPort || '?';
-            sendMetadataLine(`[metadata] protocol=TCP mode=client remote=${host}:${port} local=${localAddr}:${localPort}`);
-            mainWindow.webContents.send('log-data', data.toString());
         });
 
         clientSocket.on('close', () => {
@@ -1964,7 +2007,10 @@ ipcMain.on('disconnect-tcp', () => {
     // Immediately set disconnecting state
     updateTcpButtonStates('disconnecting');
     if (server) {
-        sockets.forEach(socket => socket.destroy());
+        sockets.forEach(socket => {
+            finishTcpPayloadReceiver(socket);
+            socket.destroy();
+        });
         server.close(() => {
             mainWindow.webContents.send('tcp-status', `TCP Server on port ${currentConnectionDetails.port} stopped`);
             server = null;
@@ -2033,10 +2079,11 @@ function cleanupUdpSocket() {
     }
 }
 
-ipcMain.on('connect-udp', (event, { type, port, host }) => {
+ipcMain.on('connect-udp', (event, { type, port, host, udpFormat = APP_DEFAULTS.udpFormat }) => {
     try {
         const validatedParams = validateUdpParams(type, port, host);
         const { type: validType, port: validPort, host: validHost } = validatedParams;
+        assertSocketPayloadFormat(udpFormat, 'udpFormat');
 
         if (udpSocket) {
             mainWindow.webContents.send('udp-error', 'A UDP connection is already active. Please disconnect first.');
@@ -2045,7 +2092,17 @@ ipcMain.on('connect-udp', (event, { type, port, host }) => {
 
         // Immediately set connecting state
         updateUdpButtonStates('connecting');
-        currentConnectionDetails = { protocol: 'udp', type: validType, port: validPort, host: validHost };
+        currentConnectionDetails = { protocol: 'udp', type: validType, port: validPort, host: validHost, udpFormat };
+        velocityLog('info', `[Transport] Starting UDP ${validType} receiver with ${udpFormat} payloads`);
+        const receivePayload = createUdpPayloadReceiver({
+            format: udpFormat,
+            isControlDatagram: isUdpClientRegistrationMessage,
+            onWarning: (message, remote) => reportSocketPayloadWarning('udp', message, remote),
+            onRecord: (raw, remote) => {
+                const local = udpSocket.address();
+                sendSocketPayloadRecord(raw, `[metadata] protocol=UDP mode=${validType} remote=${remote.address}:${remote.port} local=${local.address}:${local.port} family=${remote.family} size=${remote.size} format=${udpFormat}`);
+            },
+        });
 
         if (validType === 'server') {
             udpSocket = dgram.createSocket('udp4');
@@ -2063,10 +2120,7 @@ ipcMain.on('connect-udp', (event, { type, port, host }) => {
                         udpClients.add(clientKey);
                         mainWindow.webContents.send('udp-status', `Client connected from ${clientKey}`);
                       }
-                    const localAddr = udpSocket.address();
-                    sendMetadataLine(`[metadata] protocol=UDP mode=server remote=${rinfo.address}:${rinfo.port} local=${localAddr.address}:${localAddr.port} family=${rinfo.family} size=${rinfo.size}`);
-                    const message = msg.toString('utf8');
-                    mainWindow.webContents.send('log-data', message);
+                    receivePayload(msg, rinfo);
                 } catch (err) {
                     mainWindow.webContents.send('udp-error', `Error processing message: ${err.message}`);
                 }
@@ -2110,12 +2164,9 @@ ipcMain.on('connect-udp', (event, { type, port, host }) => {
                 updateUdpButtonStates('disconnected');
             });
 
-            udpSocket.on('message', (msg) => {
+            udpSocket.on('message', (msg, rinfo) => {
                 try {
-                    const localAddr = udpSocket.address();
-                    sendMetadataLine(`[metadata] protocol=UDP mode=client remote=${validHost}:${validPort} local=${localAddr.address}:${localAddr.port} family=IPv4 size=${msg.length}`);
-                    const message = msg.toString('utf8');
-                    mainWindow.webContents.send('log-data', message);
+                    receivePayload(msg, rinfo);
                 } catch (err) {
                     mainWindow.webContents.send('udp-error', `Error processing message: ${err.message}`);
                 }
@@ -2156,6 +2207,7 @@ ipcMain.on('connect-udp', (event, { type, port, host }) => {
         }
 
     } catch (validationErr) {
+        velocityLog('error', `[Transport] UDP configuration: ${validationErr.message}`);
         mainWindow.webContents.send('udp-error', validationErr.message);
         updateUdpButtonStates('disconnected');
     }

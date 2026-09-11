@@ -22,6 +22,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const connectionTypeSelect = document.getElementById('connection-type');
     const connectionPresetSelect = document.getElementById('connection-preset');
     const connectionPresetState = document.getElementById('connection-preset-state');
+    const tcpFormatSelect = document.getElementById('tcp-format');
+    const udpFormatSelect = document.getElementById('udp-format');
     const grpcSerializationSelect = document.getElementById('grpc-serialization');
     const grpcSendMethodSelect = document.getElementById('grpc-send-method');
     const grpcHeaderPathKeyInput = document.getElementById('grpc-header-path-key');
@@ -115,6 +117,21 @@ document.addEventListener('DOMContentLoaded', () => {
         'geo-json': 'HTTP Format: GeoJSON (application/geo+json). Standard GeoJSON per RFC 7946 with FeatureCollection and Feature objects. Use when the receiver expects standard geospatial interchange format.',
         xml: 'HTTP Format: XML (application/xml). Sends data as XML-formatted payloads. Use when the Velocity HTTP Receiver is configured for XML input.',
     };
+
+    function updatePayloadFormatTooltip(select, protocol) {
+        if (!select) return;
+        const description = select.selectedOptions[0]?.dataset.tooltip;
+        if (!description) return;
+        const tooltip = `${protocol} payload format: ${description}`;
+        select.dataset.tooltip = tooltip;
+        select.setAttribute('aria-label', tooltip);
+    }
+
+    for (const [select, protocol] of [[tcpFormatSelect, 'TCP'], [udpFormatSelect, 'UDP']]) {
+        if (!select) continue;
+        select.addEventListener('change', () => updatePayloadFormatTooltip(select, protocol));
+        updatePayloadFormatTooltip(select, protocol);
+    }
 
     function updateGrpcSerializationTooltip() {
         const tooltip = GRPC_SERIALIZATION_TOOLTIPS[grpcSerializationSelect.value] || GRPC_SERIALIZATION_TOOLTIPS.protobuf;
@@ -787,6 +804,8 @@ document.addEventListener('DOMContentLoaded', () => {
             host: hostInput.value,
             port: portInput.value,
             connectionState: connectionLockState,
+            tcpFormat: value('tcp-format') || 'delimited',
+            udpFormat: value('udp-format') || 'delimited',
             preset: {
                 id: activePresetId,
                 label: basePreset ? basePreset.label : 'Custom',
@@ -2150,6 +2169,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (presets.ip !== undefined) hostInput.value = presets.ip;
         if (presets.port !== undefined) portInput.value = presets.port;
+        for (const [key, select] of [['tcpFormat', tcpFormatSelect], ['udpFormat', udpFormatSelect]]) {
+            if (presets[key] !== undefined && select) {
+                select.value = presets[key];
+                select.dispatchEvent(new Event('change'));
+            }
+        }
         if (presets.grpcSerialization !== undefined) grpcSerializationSelect.value = presets.grpcSerialization;
         if (presets.grpcSendMethod !== undefined) grpcSendMethodSelect.value = presets.grpcSendMethod;
         if (presets.grpcHeaderPathKey !== undefined) grpcHeaderPathKeyInput.value = presets.grpcHeaderPathKey;
@@ -2248,6 +2273,13 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             const protocol = connectionType.split('-')[0];
             clearConnectionValidation();
+            if (protocol === 'tcp' || protocol === 'udp') {
+                const select = protocol === 'tcp' ? tcpFormatSelect : udpFormatSelect;
+                if (select && !select.selectedOptions.length) {
+                    reportConnectionValidationError(select, `Select a supported ${protocol.toUpperCase()} payload format.`);
+                    return;
+                }
+            }
             if (['grpc', 'http', 'ws'].includes(protocol) && !validateTlsCertificatePair(protocol)) return;
         }
         setAppStatus(Status.CONNECTING);
@@ -2255,12 +2287,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (connectionType.startsWith('tcp')) {
             const type = connectionType.split('-')[1];
-            setStatus(`Connecting via TCP ${type} to ${host}:${port}...`, { category: 'connection' });
-            window.electronAPI.send('connect-tcp', { type, port, host });
+            const tcpFormat = tcpFormatSelect?.value || 'delimited';
+            setStatus(`Connecting via TCP ${type} to ${host}:${port} [${tcpFormat}]...`, { category: 'connection' });
+            window.electronAPI.send('connect-tcp', { type, port, host, tcpFormat });
         } else if (connectionType.startsWith('udp')) {
             const type = connectionType.split('-')[1];
-            setStatus(`Connecting via UDP ${type} to ${host}:${port}...`, { category: 'connection' });
-            window.electronAPI.send('connect-udp', { type, port, host });
+            const udpFormat = udpFormatSelect?.value || 'delimited';
+            setStatus(`Connecting via UDP ${type} to ${host}:${port} [${udpFormat}]...`, { category: 'connection' });
+            window.electronAPI.send('connect-udp', { type, port, host, udpFormat });
         } else if (connectionType.startsWith('grpc')) {
             const type = connectionType.split('-')[1];
             const serialization = grpcSerializationSelect.value;
@@ -2611,6 +2645,10 @@ document.addEventListener('DOMContentLoaded', () => {
         renderFromBuffer();
     }
 
+    function formatLogEntries(entries) {
+        return entries.map((entry) => entry.endsWith('\n') ? entry : `${entry}\n`).join('');
+    }
+
     function renderFromBuffer() {
         if (!logs) return;
         const entries = listOrder === 'ascending' ? logsBuffer : [...logsBuffer].reverse();
@@ -2622,8 +2660,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             lines.push(entries[i]);
         }
-        logs.textContent = lines.join('\n');
-        if (lines.length) logs.textContent += '\n';
+        logs.textContent = formatLogEntries(lines);
         if (autoScroll) {
             logs.scrollTop = listOrder === 'ascending' ? logs.scrollHeight : 0;
         }
@@ -2746,8 +2783,10 @@ document.addEventListener('DOMContentLoaded', () => {
         pendingHeader = metadataLine;
     });
 
-    window.electronAPI.on('log-data', (data) => {
-        const lines = data.split('\n').filter(line => line.length > 0);
+    window.electronAPI.on('log-data', (data, recordInfo) => {
+        const lines = recordInfo?.record === true
+            ? [data]
+            : data.split('\n').filter(line => line.length > 0);
         if (lines.length) {
             // Pair the pending metadata with the first line of this batch; remaining lines get null
             logsBuffer.push(...lines);
@@ -2765,7 +2804,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Full re-render needed when metadata is shown to interleave correctly
                     renderFromBuffer();
                 } else {
-                    logs.textContent += lines.join('\n') + '\n';
+                    logs.textContent += formatLogEntries(lines);
                 }
             }
             if (autoScroll) logs.scrollTop = logs.scrollHeight;

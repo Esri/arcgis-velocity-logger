@@ -46,6 +46,8 @@ src/
 ├── protocol-settings-preload.js        # Narrowly scoped preload for the detached window
 ├── tls-utils.js            # Shared certificate and trust-store helpers
 ├── format-utils.js         # Shared data-format constants and helpers
+├── payload-format-utils.js # Shared payload codec, validation, and bounded record framing
+├── socket-payload-receiver.js # Shared TCP/UDP receive lifecycle and warning adapter
 ├── tooltip-utils.js        # Shared custom tooltip system
 ├── velocity-*.js           # ArcGIS Velocity sign-in, API, and output selection
 ├── *.html / *.css          # Main window, dialog, and detached window templates and styles
@@ -74,6 +76,18 @@ place that serializes and replays the authoritative Protocol Settings dialog,
 so the detached window in `protocol-settings-window.js` never owns a form rule
 of its own — see the parity contract in [`AGENTS.md`](../AGENTS.md). See
 [Connection summary and protocol settings](connection-summary.md).
+
+`payload-format-utils.js` and `socket-payload-receiver.js` are shared byte-for-byte
+with ArcGIS Velocity Simulator. The codec owns the socket format vocabulary,
+payload validation, UTF-8 handling, record framing, and the common byte limits.
+The receiver adapter owns socket lifecycle and callback delivery; each
+application injects its UDP control-packet predicate and diagnostic callbacks.
+Logger supplies the exact registration predicate from `udp-utils.js` in both
+main and headless receivers. Do not put a separate parser in either receive path.
+The renderer receives complete TCP/UDP records through the existing
+`log-data` event with `{ record: true }` as the second argument, so embedded
+line breaks do not split records or inflate the counter.
+See [data formats](data-formats.md) for user-facing semantics.
 
 ArcGIS Velocity management requests use `velocity-endpoints.js` for public
 context validation and URL joining, `velocity-rest-client.js` for requests and
@@ -148,6 +162,8 @@ node test/velocity-output-session.test.js
 node test/velocity-login-ipc.test.js
 node test/velocity-stream-connect.test.js
 node test/format-utils.test.js
+node test/payload-format-utils.test.js
+node test/socket-payload-receiver.test.js
 node test/external-sign.test.js
 node test/sign-lock.test.js
 node test/protocol-settings-window.test.js

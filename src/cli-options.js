@@ -36,6 +36,8 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { formatDidYouMean } = require('./cli-suggestions');
+const { SOCKET_PAYLOAD_FORMAT_SET, DEFAULT_SOCKET_PAYLOAD_FORMAT } = require('./payload-format-utils.js');
+const SOCKET_PAYLOAD_FORMAT_VALUES = [...SOCKET_PAYLOAD_FORMAT_SET];
 
 const IS_WINDOWS_CONSOLE = os.platform() === 'win32';
 const CLI_SYMBOLS = {
@@ -71,6 +73,8 @@ const CLI_OPTION_KEYS = new Set([
   'mode',
   'ip',
   'port',
+  'tcpFormat',
+  'udpFormat',
   'autoConnect',
   'connectTimeoutMs',
   'connectRetryIntervalMs',
@@ -164,6 +168,8 @@ const APP_DEFAULTS = {
   mode: 'server',
   ip: '127.0.0.1',
   port: 5565,
+  tcpFormat: DEFAULT_SOCKET_PAYLOAD_FORMAT,
+  udpFormat: DEFAULT_SOCKET_PAYLOAD_FORMAT,
   grpcHeaderPath: 'replace.with.dedicated.uid',
   grpcHeaderPathKey: 'grpc-path',
   grpcSerialization: 'protobuf',
@@ -329,7 +335,7 @@ const CLI_PARAMETER_DEFINITIONS = [
     options: ['regex string', 'omitted'],
     example: 'exclude=^heartbeat',
     requiredInHeadless: 'No',
-    purpose: 'Drop lines matching this JavaScript regular expression (applied after filter).',
+    purpose: 'Drop records matching this JavaScript regular expression (applied after filter).',
   },
   {
     key: 'explain',
@@ -353,7 +359,7 @@ const CLI_PARAMETER_DEFINITIONS = [
     options: ['regex string', 'omitted'],
     example: 'filter=ERROR|WARN',
     requiredInHeadless: 'No',
-    purpose: 'Only capture/write lines matching this JavaScript regular expression.',
+    purpose: 'Only capture/write records matching this JavaScript regular expression.',
   },
   {
     key: 'help',
@@ -465,7 +471,7 @@ const CLI_PARAMETER_DEFINITIONS = [
     options: ['text', 'jsonl', 'csv'],
     example: 'outputFormat=jsonl',
     requiredInHeadless: 'No',
-    purpose: 'Serialization of each captured record: raw text lines, JSON-lines with timestamp/sequence metadata, or CSV.',
+    purpose: 'Capture container for received record text: plain text, JSON-lines with timestamp/sequence metadata, or CSV. Does not convert the payload.',
   },
   {
     key: 'port',
@@ -499,6 +505,14 @@ const CLI_PARAMETER_DEFINITIONS = [
     requiredInHeadless: 'Only when using the normal app entry point',
     purpose: 'Select startup mode. No parameters means the app opens in normal UI mode and restores saved UI behavior from configuration (theme, fonts, window state, opacity, etc.).',
   },
+  ...['tcp', 'udp'].map((protocol) => ({
+    key: `${protocol}Format`,
+    defaultValue: DEFAULT_SOCKET_PAYLOAD_FORMAT,
+    options: SOCKET_PAYLOAD_FORMAT_VALUES,
+    example: `${protocol}Format=json`,
+    requiredInHeadless: 'No',
+    purpose: `Expected incoming ${protocol.toUpperCase()} payload format. Delimited (CSV) is the default. Controls record extraction and inspection, not outputFormat or payload conversion. Applies in client and server mode.`,
+  })),
   {
     key: 'grpcHeaderPath',
     defaultValue: DEFAULT_HEADLESS_OPTIONS.grpcHeaderPath,
@@ -892,7 +906,7 @@ function getHelpRows() {
     ['example', 'headless TCP client with retry', '-', '-', 'electron . runMode=headless protocol=tcp mode=client ip=192.168.1.10 port=5565 connectWaitForServer=true connectRetryIntervalMs=2000 connectTimeoutMs=60000', 'TCP client mode that waits up to 60 seconds for the server to become available, retrying every 2 seconds.'],
     ['example', 'UI default', '-', '-', 'electron .', 'Launch the app in normal UI mode.'],
     ['example', 'headless to stdout', '-', '-', 'electron . runMode=headless protocol=tcp mode=server ip=0.0.0.0 port=5565', 'Headless TCP server writing captured records to the console (no outputFile).'],
-    ['example', 'headless TCP server', '-', '-', 'electron . runMode=headless outputFile=./captured.log protocol=tcp mode=server ip=0.0.0.0 port=5565 maxLogCount=10000 doneFile=./run.done.json', 'Headless TCP server listening beyond localhost, capturing up to 10000 lines.'],
+    ['example', 'headless TCP server', '-', '-', 'electron . runMode=headless outputFile=./captured.log protocol=tcp mode=server ip=0.0.0.0 port=5565 maxLogCount=10000 doneFile=./run.done.json', 'Headless TCP server listening beyond localhost, capturing up to 10000 records.'],
     ['example', 'headless UDP client', '-', '-', 'electron . runMode=headless outputFile=./captured.jsonl outputFormat=jsonl protocol=udp mode=client ip=192.168.1.25 port=6000 durationMs=60000', 'Headless UDP client capturing for one minute.'],
     ['example', 'config override', '-', '-', 'electron . runMode=headless config=docs/examples/launch-config.server.sample.json outputFile=./custom.log runId=manual-override', 'Headless run using a config file plus CLI overrides.'],
     ['example', 'help only', '-', '-', 'electron . help=true', 'Print compact help and exit without running the app.'],
@@ -911,7 +925,7 @@ function getParameterComment(entry) {
     case 'runMode': return 'Use runMode=headless (or runMode=silent) only when switching from the normal launcher.';
     case 'ip': return '127.0.0.1 is local-only; 0.0.0.0 is commonly used for server-mode listening on all interfaces. host=<value> is an alias.';
     case 'outputFile': return 'Optional in headless mode. When omitted, captured records are written to the console (stdout) using the selected outputFormat. Parent directories are created if missing.';
-    case 'outputFormat': return 'text writes raw lines; jsonl writes {timestamp, seq, data} per line; csv writes timestamp,seq,data with standard CSV escaping.';
+    case 'outputFormat': return 'text writes raw records; jsonl writes {timestamp, seq, data} per line with received text in data; csv writes timestamp,seq,data with standard CSV escaping.';
     case 'filter': return 'Applied before exclude. Invalid regex causes a configuration error.';
     case 'exclude': return 'Applied after filter. Invalid regex causes a configuration error.';
     case 'config': return 'CLI values override config-file values.';
@@ -1250,6 +1264,18 @@ function parseRawArgs(rawArgs) {
   return { values, positional, helpLayout, unknownFlags };
 }
 
+function validateSocketFormats(values, target, errors) {
+  for (const key of ['tcpFormat', 'udpFormat']) {
+    if (values[key] === undefined) continue;
+    const format = String(values[key]).trim().toLowerCase();
+    if (!SOCKET_PAYLOAD_FORMAT_SET.has(format)) {
+      errors.push(`Invalid ${key} '${values[key]}'. Use ${SOCKET_PAYLOAD_FORMAT_VALUES.join(', ')}.`);
+    } else {
+      target[key] = format;
+    }
+  }
+}
+
 function validateHeadlessOptions(values, errors, warnings) {
   const options = { ...DEFAULT_HEADLESS_OPTIONS };
   const normalized = normalizeKnownKeys(values);
@@ -1403,6 +1429,8 @@ function validateHeadlessOptions(values, errors, warnings) {
   ['allowUnverifiedTls', 'httpAllowUnverifiedTls', 'wsAllowUnverifiedTls'].forEach((key) => {
     if (normalized[key] !== undefined) options[key] = parseBoolean(normalized[key], key, errors);
   });
+
+  validateSocketFormats(normalized, options, errors);
 
   // --- HTTP params ---
   if (normalized.httpFormat !== undefined) {
@@ -1804,7 +1832,7 @@ function parseCommandLineArgs(rawArgv, { isPackaged = false } = {}) {
   if (!headlessRequested && errors.length === 0) {
     // Keys that can prepopulate the UI when passed in UI mode.
     const uiPresetKeys = new Set([
-      'protocol', 'mode', 'ip', 'port', 'grpcSerialization', 'grpcSendMethod',
+      'protocol', 'mode', 'ip', 'port', 'tcpFormat', 'udpFormat', 'grpcSerialization', 'grpcSendMethod',
       'grpcHeaderPath', 'grpcHeaderPathKey', 'useTls', 'tlsCaPath', 'tlsCertPath', 'tlsKeyPath',
       'allowUnverifiedTls', 'httpAllowUnverifiedTls', 'wsAllowUnverifiedTls',
       'httpFormat', 'httpTls', 'httpPath', 'httpTlsCaPath', 'httpTlsCertPath', 'httpTlsKeyPath',
@@ -1832,6 +1860,7 @@ function parseCommandLineArgs(rawArgv, { isPackaged = false } = {}) {
         presets[key] = mergedValues[key];
       }
     }
+    validateSocketFormats(mergedValues, presets, errors);
     // host alias
     if (mergedValues.host !== undefined && presets.ip === undefined) {
       presets.ip = mergedValues.host;
@@ -1925,6 +1954,8 @@ function formatExplainOutput(cliOptions) {
       ['mode', (presets && presets.mode) || `(default: ${d.mode})`],
       ['ip', (presets && presets.ip) || `(default: ${d.ip})`],
       ['port', (presets && presets.port) || `(default: ${d.port})`],
+      ['tcpFormat', (presets && presets.tcpFormat) || `(default: ${d.tcpFormat})`],
+      ['udpFormat', (presets && presets.udpFormat) || `(default: ${d.udpFormat})`],
       ['grpcSerialization', (presets && presets.grpcSerialization) || `(default: ${d.grpcSerialization})`],
       ['grpcSendMethod', (presets && presets.grpcSendMethod) || `(default: ${d.grpcSendMethod})`],
       ['grpcHeaderPath', (presets && presets.grpcHeaderPath) || `(default: ${d.grpcHeaderPath})`],
@@ -1987,6 +2018,8 @@ function formatExplainOutput(cliOptions) {
       ['mode', h.mode],
       ['ip', h.ip],
       ['port', h.port],
+      ['tcpFormat', h.tcpFormat],
+      ['udpFormat', h.udpFormat],
       ['autoConnect', h.autoConnect],
       ['connectWaitForServer', h.connectWaitForServer],
       ['connectRetryIntervalMs', `${h.connectRetryIntervalMs}ms`],

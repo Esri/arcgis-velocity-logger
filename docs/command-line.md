@@ -85,7 +85,7 @@ All headless parameters are optional because documented defaults are applied aut
 
 ## Parameter reference
 
-The tables below mirror the in-app Command Line Interface dialog columns. The first table lists parameters that apply regardless of transport; the sections that follow list parameters specific to gRPC, HTTP, WebSocket, and XMPP.
+The tables below mirror the in-app Command Line Interface dialog columns. The first table lists parameters that apply regardless of transport; the sections that follow list parameters specific to TCP, UDP, gRPC, HTTP, WebSocket, and XMPP.
 
 | Name | Supported values | Default | Required in headless mode | Example | Purpose |
 | --- | --- | --- | --- | --- | --- |
@@ -97,10 +97,10 @@ The tables below mirror the in-app Command Line Interface dialog columns. The fi
 | `connectWaitForServer` | `true`, `false` | `false` | No | `connectWaitForServer=true` | In client mode, retry on connection failure until the server is available. When `false` (default), a failed attempt aborts the run. Only applies to TCP client mode; ignored in server mode and UDP client mode. Use `connectTimeoutMs` for a deadline and `connectRetryIntervalMs` for retry spacing. |
 | `doneFile` | path | `(none)` | No | `doneFile=./logs/run.done.json` | JSON success/failure artifact. |
 | `durationMs` | `integer >= 1`, `null` | `(none)` | No | `durationMs=60000` | Stop after N ms of elapsed time. |
-| `exclude` | regex string | `(none)` | No | `exclude=^heartbeat` | Drop lines matching this regex (applied after `filter`). |
+| `exclude` | regex string | `(none)` | No | `exclude=^heartbeat` | Drop records matching this regex (applied after `filter`). |
 | `explain` | `true`, `false` | `true` | No | `explain=false` | Print a detailed startup explanation showing how the app will run based on the resolved parameters, including a "UI Configuration" or "Headless Configuration" section, a "Behavior Summary" section, and warnings for ignored options. Set to `false` to suppress. |
 | `exitOnComplete` | `true`, `false` | `true` | No | `exitOnComplete=false` | Exit after a termination trigger (`maxLogCount`, `durationMs`, or `idleTimeoutMs`). Has no effect when no termination trigger is configured. |
-| `filter` | regex string | `(none)` | No | `filter=ERROR\|WARN` | Only capture lines matching this regex. |
+| `filter` | regex string | `(none)` | No | `filter=ERROR\|WARN` | Only capture records matching this regex. |
 | `help` | `true`, `false` | `false` | No | `help=true` | Print the compact 4-column parameter summary (name, supported values, default, purpose) without the example column, then exit. Also available as `--help`, `-h`, or `h`. |
 | `help-detailed` | `true`, `false` | `false` | No | `help-detailed=true` | Print the full verbose parameter-by-parameter help listing with all details, then exit. |
 | `help-table-narrow` | `true`, `false` | `false` | No | `help-table-narrow=true` | Print CLI help in a narrower ASCII table layout for smaller terminals, then exit. |
@@ -114,12 +114,24 @@ The tables below mirror the in-app Command Line Interface dialog columns. The fi
 | `mode` | `server`, `client` | `server` | No | `mode=client` | Logger binds locally as a receiver server or dials a remote sender as a client. |
 | `onError` | `exit`, `continue`, `pause` | `exit` | No | `onError=continue` | How transport errors are handled. |
 | `outputFile` | path | `(none)` | No | `outputFile=./captured.log` | Destination file for captured records. When omitted/empty, records are written to the console (stdout) in the selected `outputFormat`. |
-| `outputFormat` | `text`, `jsonl`, `csv` | `text` | No | `outputFormat=jsonl` | Raw text lines, JSON-lines with timestamp/seq, or CSV. Applies to both file output and stdout-only mode. |
+| `outputFormat` | `text`, `jsonl`, `csv` | `text` | No | `outputFormat=jsonl` | Capture received record text as plain text, JSON-lines with timestamp/seq, or CSV. Does not convert the payload. Applies to file output and stdout-only mode. |
 | `port` | `1-65535` | `5565` | No | `port=6000` | Target or bind port. XMPP defaults to `5222` instead of `5565` when `port` is omitted and `protocol=xmpp`. |
 | `protocol` | `tcp`, `udp`, `grpc`, `http`, `ws`, `xmpp` | `tcp` | No | `protocol=udp` | Network transport to listen on or connect to. XMPP defaults to server mode when selected. See the [gRPC parameters](#grpc-parameters), [HTTP parameters](#http-parameters), [WebSocket parameters](#websocket-parameters), and [XMPP parameters](#xmpp-parameters) sections below, and the dedicated [gRPC guide](grpc.md), [HTTP guide](http.md), [WebSocket guide](websocket.md), and [XMPP guide](xmpp.md). |
 | `runId` | string | `(none)` | No | `runId=nightly-01` | Identifier stamped into logs and done file. |
 | `runMode` | `ui`, `headless`, `silent` | `ui` | Only when using the normal launcher to enter headless mode | `runMode=headless` | Select startup mode. No parameters means normal UI mode with saved behavior restored. |
 | `stdout` | `true`, `false` | `true` | No | `stdout=false` | Echo captured records to stdout when `outputFile` is set. Ignored when `outputFile` is omitted (records always go to stdout in that case). |
+
+### TCP and UDP parameters
+
+These options select the expected incoming payload, not a capture-file
+conversion. They apply in both client and server mode and are restored by
+Launch Config. See [data formats](data-formats.md), [TCP](tcp.md), and
+[UDP](udp.md) for record boundaries and validation.
+
+| Name | Supported values | Default | Required in headless mode | Example | Purpose |
+| --- | --- | --- | --- | --- | --- |
+| `tcpFormat` | `delimited`, `json`, `geo-json`, `esri-json` | `delimited` | No | `tcpFormat=json` | Expected TCP payload format; controls record extraction and inspection. |
+| `udpFormat` | `delimited`, `json`, `geo-json`, `esri-json` | `delimited` | No | `udpFormat=geo-json` | Expected format of one complete record or document per UDP datagram. |
 
 ### gRPC parameters
 

@@ -141,6 +141,26 @@
                     </div>
                     <div class="protocol-settings-panels">
                         <div id="protocol-settings-panel-basics" class="protocol-settings-panel" role="tabpanel" tabindex="0" aria-labelledby="protocol-settings-tab-basics">
+                            <div class="protocol-settings-group" data-protocol="tcp" data-section="basics">
+                                <label class="protocol-settings-field" data-tooltip="Payload format for the TCP connection" aria-label="TCP payload format">Format
+                                    <select id="tcp-format" data-tooltip="TCP payload format. Must match the peer. Delimited (CSV) is the default." aria-label="TCP payload format">
+                                        <option value="delimited" selected data-tooltip="Delimited (CSV). One comma-separated record; quoted fields may contain commas, quotes, and line breaks.">Delimited (CSV)</option>
+                                        <option value="json" data-tooltip="JSON. A complete JSON object or array.">JSON</option>
+                                        <option value="geo-json" data-tooltip="GeoJSON. A Feature or FeatureCollection with geometry and properties.">GeoJSON</option>
+                                        <option value="esri-json" data-tooltip="Esri JSON. An ArcGIS feature or feature set with attributes and geometry.">Esri JSON</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <div class="protocol-settings-group" data-protocol="udp" data-section="basics">
+                                <label class="protocol-settings-field" data-tooltip="Payload format for the UDP connection" aria-label="UDP payload format">Format
+                                    <select id="udp-format" data-tooltip="UDP payload format. Must match the peer. Delimited (CSV) is the default." aria-label="UDP payload format">
+                                        <option value="delimited" selected data-tooltip="Delimited (CSV). One comma-separated record; quoted fields may contain commas, quotes, and line breaks.">Delimited (CSV)</option>
+                                        <option value="json" data-tooltip="JSON. A complete JSON object or array.">JSON</option>
+                                        <option value="geo-json" data-tooltip="GeoJSON. A Feature or FeatureCollection with geometry and properties.">GeoJSON</option>
+                                        <option value="esri-json" data-tooltip="Esri JSON. An ArcGIS feature or feature set with attributes and geometry.">Esri JSON</option>
+                                    </select>
+                                </label>
+                            </div>
                             <div class="protocol-settings-group" data-protocol="grpc" data-section="basics">
                                 <label class="protocol-settings-field" data-tooltip="Feature serialization used by the gRPC connection" aria-label="gRPC serialization">Serialization
                                     <select id="grpc-serialization">
@@ -274,7 +294,7 @@
                             </div>
                         </div>
                         <div id="protocol-settings-panel-summary" class="protocol-settings-panel protocol-settings-summary" role="tabpanel" tabindex="0" aria-labelledby="protocol-settings-tab-summary" hidden>
-                            <p id="protocol-settings-empty" class="protocol-settings-empty" hidden>TCP has no protocol settings. Connection type, host, and port stay in the connection row.</p>
+                            <p id="protocol-settings-empty" class="protocol-settings-empty" hidden>Connection type, host, and port stay in the connection row.</p>
                             <dl id="protocol-settings-summary-rows" class="connection-summary-rows"></dl>
                             <div class="protocol-settings-summary-actions">
                                 <button id="connection-summary-copy" type="button" class="connection-summary-action" aria-label="Copy the connection summary" data-tooltip="Copy the connection summary as text. Passwords are never copied." data-tooltip-icon="⧉" data-tooltip-kind="info">Copy summary</button>

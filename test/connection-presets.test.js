@@ -166,6 +166,25 @@ test('describes the Custom, applied, and modified preset states', () => {
 // Renderer behavior
 // ---------------------------------------------------------------------------
 
+test('TCP and UDP guides preserve every payload control tooltip verbatim', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.html'), 'utf8');
+  const dom = new JSDOM(html);
+  try {
+    for (const protocol of ['tcp', 'udp']) {
+      const guide = fs.readFileSync(path.join(__dirname, '..', 'docs', `${protocol}.md`), 'utf8');
+      const select = dom.window.document.getElementById(`${protocol}-format`);
+      const label = select.closest('label');
+      for (const control of [label, select, ...select.options]) {
+        const tooltip = control.getAttribute('data-tooltip') || control.getAttribute('title');
+        assert.ok(tooltip, `${protocol} ${control.tagName} has a tooltip`);
+        assert.ok(guide.includes(tooltip), `${protocol} guide omits: ${tooltip}`);
+      }
+    }
+  } finally {
+    dom.window.close();
+  }
+});
+
 async function withRenderer(run) {
   const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.html'), 'utf8')
     .replace(/<script[\s\S]*?<\/script>/g, '');
@@ -209,6 +228,57 @@ async function uiTest(name, fn) {
 }
 
 (async () => {
+  await uiTest('framed records preserve embedded newlines, count once, and reverse atomically', async ({ document, listeners, window }) => {
+    const csv = '1,"a\nb"\r\n';
+    const json = '{\n  "name": "雪"\n}';
+    const receive = listeners.get('log-data');
+    receive(csv, { record: true });
+    receive(json, { record: true });
+    const logs = document.getElementById('logs');
+    assert.strictEqual(window.lineCount, 2);
+    assert.strictEqual(logs.textContent, `${csv}${json}\n`);
+    document.getElementById('toggle-order-btn').click();
+    assert.strictEqual(logs.textContent, `${json}\n${csv}`);
+    document.getElementById('toggle-order-btn').click();
+    assert.strictEqual(logs.textContent, `${csv}${json}\n`);
+    receive('legacy\nlines\n');
+    assert.strictEqual(window.lineCount, 4);
+    assert.strictEqual(logs.textContent, `${csv}${json}\nlegacy\nlines\n`);
+  });
+
+  for (const protocol of ['tcp', 'udp']) {
+    await uiTest(`${protocol.toUpperCase()} format lives in Basics, tracks presets, and reaches Connect`, async ({ document, window, sent, listeners }) => {
+      const preset = document.getElementById('connection-preset');
+      preset.value = `local-${protocol}-logger-server`;
+      preset.dispatchEvent(new window.Event('change'));
+      const format = document.getElementById(`${protocol}-format`);
+      assert.deepStrictEqual([...format.options].map((option) => option.value), ['delimited', 'json', 'geo-json', 'esri-json']);
+      assert.strictEqual(format.options[0].textContent, 'Delimited (CSV)');
+      assert.strictEqual(format.value, 'delimited');
+      assert.strictEqual(format.closest('.protocol-settings-group').dataset.section, 'basics');
+      assert.strictEqual(format.closest('.protocol-settings-group').hidden, false);
+      assert.strictEqual(document.getElementById('protocol-settings-tab-basics').hidden, false);
+      format.value = 'geo-json';
+      format.dispatchEvent(new window.Event('change', { bubbles: true }));
+      assert.match(format.dataset.tooltip, /GeoJSON/);
+      assert.strictEqual(format.getAttribute('aria-label'), format.dataset.tooltip);
+      assert.strictEqual(preset.value, 'custom');
+      assert.strictEqual(document.getElementById('protocol-settings-count').textContent, '1');
+      document.getElementById('connect-btn').click();
+      assert.strictEqual(sent.find(({ channel }) => channel === `connect-${protocol}`).payload[`${protocol}Format`], 'geo-json');
+      assert.strictEqual(format.disabled, true);
+      listeners.get('tcp-connection-state')('disconnected');
+      assert.strictEqual(format.disabled, false);
+      listeners.get('cli-presets')({ [`${protocol}Format`]: 'esri-json' });
+      assert.strictEqual(format.value, 'esri-json');
+      assert.match(format.dataset.tooltip, /Esri JSON/);
+      format.value = 'xml';
+      document.getElementById('connect-btn').click();
+      assert.strictEqual(format.getAttribute('aria-invalid'), 'true');
+      assert.match(document.getElementById('protocol-settings-alert').textContent, /supported.*payload format/);
+    });
+  }
+
   await uiTest('preset dropdown offers Custom plus the twelve shared presets', async ({ document }) => {
     const select = document.getElementById('connection-preset');
     assert.ok(select, 'connection-preset must exist next to connection-type');

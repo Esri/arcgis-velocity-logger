@@ -75,6 +75,8 @@
     connectionType: { elementId: 'connection-type', kind: 'value' },
     host: { elementId: 'host', kind: 'value' },
     port: { elementId: 'port', kind: 'value' },
+    tcpFormat: { elementId: 'tcp-format', kind: 'value' },
+    udpFormat: { elementId: 'udp-format', kind: 'value' },
 
     grpcSerialization: { elementId: 'grpc-serialization', kind: 'value' },
     grpcSendMethod: { elementId: 'grpc-send-method', kind: 'value' },
@@ -137,6 +139,8 @@
     connectionType: 'tcp-server',
     host: CONNECTION_PRESET_HOST,
     port: 5565,
+    tcpFormat: 'delimited',
+    udpFormat: 'delimited',
 
     grpcSerialization: 'protobuf',
     grpcSendMethod: 'stream',

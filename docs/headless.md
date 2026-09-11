@@ -78,7 +78,7 @@ Headless mode has **no required parameters**. The only parameter that may be req
 | --- | --- |
 | `runMode=headless` (or `silent`) | Only when launching through the normal `electron .` / `npm start` entry point instead of `npm run start:headless`. |
 
-All other parameters have defaults. See [command-line reference](command-line.md) for the full list, including protocol-specific parameters for gRPC, HTTP, WebSocket, and XMPP.
+All other parameters have defaults. See [command-line reference](command-line.md) for the full list, including protocol-specific parameters for TCP, UDP, gRPC, HTTP, WebSocket, and XMPP.
 
 ## Output sink
 
@@ -93,7 +93,7 @@ When `outputFile` is omitted the `stdout` flag and `appendOutput` flag are not a
 
 | `outputFormat` | Content per record |
 | --- | --- |
-| `text` (default) | Raw line as received. |
+| `text` (default) | Raw record text. |
 | `jsonl` | `{"timestamp":"...","seq":N,"data":"..."}` per line. |
 | `csv` | `timestamp,seq,data` with standard CSV escaping; header row written once at the start of the run (both for files and stdout). |
 
@@ -102,6 +102,17 @@ Formats apply to **both** the file sink and the stdout sink, so `outputFormat=js
 ```bash
 npm run start:headless -- outputFormat=jsonl | jq .
 ```
+
+For TCP and UDP, `tcpFormat` and `udpFormat` select the expected incoming
+payload. They do not change the output envelope above. A quoted multiline
+CSV record or complete JSON document counts once toward `maxLogCount`;
+filters and capture output receive the complete record. The `text` sink adds
+a record-ending newline only when the received text does not already have one.
+CSV capture quotes multiline data rather than replacing line breaks with spaces.
+The existing done-file fields `summary.linesReceived` and `summary.linesWritten`
+report these logical record counts for TCP and UDP.
+See [data formats](data-formats.md), [TCP framing](tcp.md#record-framing), and
+[UDP boundaries](udp.md#datagram-boundaries-and-size).
 
 ## HTTP and WebSocket capture
 

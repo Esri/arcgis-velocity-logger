@@ -151,6 +151,7 @@ test('every protocol-specific control lives in the dialog exactly once', () => {
   const { document } = new JSDOM(indexHtml).window;
   const dialog = document.getElementById('protocol-settings-dialog');
   const protocolControlIds = [
+    'tcp-format', 'udp-format',
     'grpc-serialization', 'grpc-send-method', 'grpc-header-path-key', 'grpc-header-path',
     'grpc-tls', 'grpc-tls-ca-path', 'grpc-tls-cert-path', 'grpc-tls-key-path', 'grpc-allow-unverified',
     'http-format', 'http-tls', 'http-path', 'http-tls-ca-path', 'http-tls-cert-path', 'http-tls-key-path', 'http-allow-unverified',
@@ -304,11 +305,10 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
     select('connection-type', 'tcp-server');
     assert.deepStrictEqual(
       tabState().filter((tab) => !tab.hidden).map((tab) => tab.section),
-      ['summary'],
-      'TCP has no protocol settings',
+      ['basics', 'summary'],
+      'TCP offers payload format in Basics',
     );
-    assert.strictEqual(document.getElementById('protocol-settings-empty').hidden, false);
-    assert.match(document.getElementById('protocol-settings-empty').textContent, /^TCP has no protocol settings/);
+    assert.strictEqual(document.getElementById('protocol-settings-empty').hidden, true);
 
     select('connection-type', 'http-server');
     assert.deepStrictEqual(
@@ -438,9 +438,12 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
     const chip = document.getElementById('protocol-settings-count');
     const button = document.getElementById('protocol-settings-btn');
     select('connection-type', 'tcp-client');
-    assert.strictEqual(chip.textContent, '', 'a protocol with no settings shows no chip');
+    assert.strictEqual(chip.textContent, '', 'untouched TCP defaults show no chip');
     assert.strictEqual(chip.hidden, true);
-    assert.match(button.getAttribute('aria-label'), /TCP · no protocol settings$/);
+    assert.match(button.getAttribute('aria-label'), /TCP · defaults$/);
+    select('tcp-format', 'json');
+    assert.strictEqual(chip.textContent, '1');
+    assert.strictEqual(chip.hidden, false);
 
     select('connection-type', 'http-client');
     assert.strictEqual(chip.textContent, '', 'untouched defaults show no chip');
@@ -639,7 +642,7 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
     assert.strictEqual(document.getElementById('protocol-settings-dialog').open, false);
   });
 
-  await uiTest('the empty-settings note describes the protocol, not the lock state', async ({ document, select, listeners }) => {
+  await uiTest('protocols with settings never show the empty-settings note while locked', async ({ document, select, listeners }) => {
     const note = document.getElementById('protocol-settings-empty');
     select('connection-type', 'ws-server');
     assert.strictEqual(note.hidden, true);
@@ -649,8 +652,10 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
     listeners.get('tcp-connection-state')('disconnected');
 
     select('connection-type', 'udp-server');
-    assert.strictEqual(note.hidden, false);
-    assert.match(note.textContent, /^UDP has no protocol settings/);
+    assert.strictEqual(note.hidden, true, 'UDP offers payload format in Basics');
+    listeners.get('udp-connection-state')('connected');
+    document.getElementById('protocol-settings-btn').click();
+    assert.strictEqual(note.hidden, true, 'UDP retains settings while connected');
   });
 
   await uiTest('credential-bearing WebSocket fields never reach a summary surface', async ({ document, select, type, rows, sent }) => {

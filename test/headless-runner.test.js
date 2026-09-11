@@ -73,6 +73,21 @@ async function sendLines(port, lines) {
   });
 }
 
+async function sendChunks(port, chunks) {
+  return new Promise((resolve, reject) => {
+    const socket = net.createConnection(port, '127.0.0.1', async () => {
+      socket.setNoDelay(true);
+      for (const chunk of chunks) {
+        socket.write(chunk);
+        await new Promise((next) => setImmediate(next));
+      }
+      socket.end();
+    });
+    socket.on('error', reject);
+    socket.on('close', resolve);
+  });
+}
+
 function baseOptions(overrides) {
   return {
     ...DEFAULT_HEADLESS_OPTIONS,
@@ -143,6 +158,79 @@ function baseOptions(overrides) {
     assert.ok(typeof first.timestamp === 'string');
 
     fs.unlinkSync(outFile);
+  });
+
+  await test('TCP JSON framing preserves coalesced documents and split UTF-8 in capture', async () => {
+    const port = await pickFreePort();
+    const outFile = tmpFile('jsonl');
+    const doneFile = tmpFile('done.json');
+    const records = ['{"first":1}', '[\n  1,\n  2\n]', '{"name":"雪"}'];
+    const bytes = Buffer.from(records.join(''));
+    const split = bytes.indexOf(Buffer.from('雪')) + 1;
+    const run = runHeadlessSession(baseOptions({
+      port, tcpFormat: 'json', outputFile: outFile, outputFormat: 'jsonl',
+      maxLogCount: records.length, doneFile, durationMs: 1500,
+    }));
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await sendChunks(port, [bytes.subarray(0, split), bytes.subarray(split)]);
+      assert.strictEqual(await run, EXIT_CODES.success);
+      const entries = fs.readFileSync(outFile, 'utf8').trim().split('\n').map(JSON.parse);
+      assert.deepStrictEqual(entries.map((entry) => entry.data), records);
+      const summary = JSON.parse(fs.readFileSync(doneFile)).summary;
+      assert.strictEqual(summary.linesReceived, 3);
+      assert.strictEqual(summary.linesWritten, 3);
+      assert.strictEqual(summary.stopReason, 'maxLogCount');
+    } finally {
+      await run;
+      for (const filename of [outFile, doneFile]) {
+        if (fs.existsSync(filename)) fs.unlinkSync(filename);
+      }
+    }
+  });
+
+  await test('TCP delimited framing captures quoted multiline rows as individual records', async () => {
+    const port = await pickFreePort();
+    const outFile = tmpFile('jsonl');
+    const rows = ['id,"first\nsecond ""quoted"""', 'last,value'];
+    const run = runHeadlessSession(baseOptions({
+      port, outputFile: outFile, outputFormat: 'jsonl',
+      maxLogCount: 2, durationMs: 1500,
+    }));
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await sendChunks(port, ['id,"first\n', 'second ""quoted"""', '\r', '\nlast,value\n']);
+      assert.strictEqual(await run, EXIT_CODES.success);
+      const entries = fs.readFileSync(outFile, 'utf8').trim().split('\n').map(JSON.parse);
+      assert.deepStrictEqual(entries.map((entry) => entry.data), rows);
+    } finally {
+      await run;
+      if (fs.existsSync(outFile)) fs.unlinkSync(outFile);
+    }
+  });
+
+  await test('TCP incomplete EOF is retained as raw text with a diagnostic', async () => {
+    const port = await pickFreePort();
+    const outFile = tmpFile('jsonl');
+    const logFile = tmpFile('log');
+    const raw = '{"unfinished":';
+    const run = runHeadlessSession(baseOptions({
+      port, tcpFormat: 'json', outputFile: outFile, outputFormat: 'jsonl',
+      logFile, logLevel: 'warn', maxLogCount: 1, durationMs: 1500,
+    }));
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await sendChunks(port, [raw]);
+      assert.strictEqual(await run, EXIT_CODES.success);
+      assert.strictEqual(JSON.parse(fs.readFileSync(outFile, 'utf8')).data, raw);
+      assert.match(fs.readFileSync(logFile, 'utf8'), /\[Transport\].*TCP/);
+      assert.match(fs.readFileSync(logFile, 'utf8'), /incomplete/i);
+    } finally {
+      await run;
+      for (const filename of [outFile, logFile]) {
+        if (fs.existsSync(filename)) fs.unlinkSync(filename);
+      }
+    }
   });
 
   await test('csv format writes header + escaped rows', async () => {
@@ -217,6 +305,69 @@ function baseOptions(overrides) {
       assert.strictEqual(fs.readFileSync(outFile, 'utf8'), `${expected}\n`);
     } finally {
       await new Promise((resolve) => server.close(resolve));
+      if (fs.existsSync(outFile)) fs.unlinkSync(outFile);
+    }
+  });
+
+  await test('UDP JSON records retain datagram boundaries and exclude control or invalid UTF-8 packets', async () => {
+    const port = await pickFreeUdpPort();
+    const outFile = tmpFile('jsonl');
+    const logFile = tmpFile('log');
+    const doneFile = tmpFile('done.json');
+    const records = ['{"id":', '1}', '{\n  "name": "雪"\n}'];
+    const socket = dgram.createSocket('udp4');
+    const run = runHeadlessSession(baseOptions({
+      protocol: 'udp', mode: 'server', port, udpFormat: 'json',
+      outputFile: outFile, outputFormat: 'jsonl', logFile, logLevel: 'warn',
+      doneFile, maxLogCount: records.length, durationMs: 1500,
+    }));
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      for (const packet of [
+        Buffer.from(UDP_CLIENT_REGISTRATION_MESSAGE),
+        Buffer.from([0xc3, 0x28]),
+        ...records.map((record) => Buffer.from(record)),
+      ]) {
+        await new Promise((resolve, reject) => socket.send(packet, port, '127.0.0.1',
+          (error) => error ? reject(error) : resolve()));
+      }
+      assert.strictEqual(await run, EXIT_CODES.success);
+      const entries = fs.readFileSync(outFile, 'utf8').trim().split('\n').map(JSON.parse);
+      assert.deepStrictEqual(entries.map((entry) => entry.data), records);
+      assert.strictEqual(JSON.parse(fs.readFileSync(doneFile)).summary.stopReason, 'maxLogCount');
+      const diagnostics = fs.readFileSync(logFile, 'utf8');
+      assert.match(diagnostics, /\[Transport\].*UDP/);
+      assert.match(diagnostics, /UTF-8/);
+      assert.match(diagnostics, /JSON/);
+    } finally {
+      await new Promise((resolve) => socket.close(resolve));
+      await run;
+      for (const filename of [outFile, logFile, doneFile]) {
+        if (fs.existsSync(filename)) fs.unlinkSync(filename);
+      }
+    }
+  });
+
+  await test('CSV capture envelopes preserve multiline UDP payloads without changing field contents', async () => {
+    const port = await pickFreeUdpPort();
+    const outFile = tmpFile('csv');
+    const payload = '{\n  "name": "two\\nlines",\n  "value": 1\n}';
+    const socket = dgram.createSocket('udp4');
+    const run = runHeadlessSession(baseOptions({
+      protocol: 'udp', mode: 'server', port, udpFormat: 'json',
+      outputFile: outFile, outputFormat: 'csv', maxLogCount: 1, durationMs: 1500,
+    }));
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await new Promise((resolve, reject) => socket.send(Buffer.from(payload), port, '127.0.0.1',
+        (error) => error ? reject(error) : resolve()));
+      assert.strictEqual(await run, EXIT_CODES.success);
+      const captured = fs.readFileSync(outFile, 'utf8');
+      assert.ok(captured.startsWith('timestamp,seq,data\n'));
+      assert.ok(captured.endsWith(`,1,"${payload.replace(/"/g, '""')}"\n`));
+    } finally {
+      await new Promise((resolve) => socket.close(resolve));
+      await run;
       if (fs.existsSync(outFile)) fs.unlinkSync(outFile);
     }
   });

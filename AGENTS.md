@@ -91,7 +91,8 @@ documentation is added, renamed, or updated.
 
   | Guide | Owns |
   |---|---|
-  | Protocol guides (`grpc.md`, `http.md`, `websocket.md`, `xmpp.md`) | Transport behavior, UI controls, exact tooltip strings, and transport troubleshooting. |
+  | Protocol guides (`tcp.md`, `udp.md`, `grpc.md`, `http.md`, `websocket.md`, `xmpp.md`) | Transport behavior, UI controls, exact tooltip strings, and transport troubleshooting. |
+  | `data-formats.md` | Payload-format meanings, validation, and the distinction between records and capture containers. |
   | `tls.md` | Shared certificate, trust-store, and mTLS concepts used by every transport. |
   | `command-line.md` | The complete option reference, defaults, and help layouts. |
   | `headless.md` | No-UI capture workflows, stop conditions, and automation. |
@@ -634,6 +635,7 @@ data flow or from a control that only one application has.
 | Identity defaults | `xmppResource` and `xmppNickname` default to `velocity-simulator`. | `xmppResource` defaults to `velocity-logger`, `xmppNickname` to `logger`, and `xmppExternalUsername` to `velocity-client`. |
 | Host control id | The pre-existing host input is `ip-address`. | The pre-existing host input is `host`. |
 | Inline-only controls | File selection, the lines and interval rate fields, and the playback actions stay inline. | The log controls stay inline. |
+| TCP/UDP source conversion | Source-file header and field/geometry mapping controls generate outgoing payloads. | No source-file conversion controls; Format selects incoming framing and validation. |
 | Server identity output | None. | `xmpp-receiving-jid` reports the JID the running server receives on. |
 
 Anything else — element ids, section names, row keys, labels, defaults, tooltip

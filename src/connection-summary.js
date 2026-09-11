@@ -97,9 +97,9 @@
   const MODE_LABELS = Object.freeze({ client: 'Client', server: 'Server' });
 
   /** Protocols that own a Protocol Settings dialog section. */
-  const DIALOG_PROTOCOLS = Object.freeze(['http', 'ws', 'grpc', 'xmpp']);
+  const DIALOG_PROTOCOLS = Object.freeze(['tcp', 'udp', 'http', 'ws', 'grpc', 'xmpp']);
 
-  /** Data format display names shared by the HTTP and WebSocket transports. */
+  /** Data format display names shared by the payload-selectable transports. */
   const FORMAT_LABELS = Object.freeze({
     delimited: 'Delimited (CSV)',
     json: 'JSON',
@@ -145,8 +145,8 @@
    * controls exist?".
    */
   const PROTOCOL_SETTING_FIELDS = Object.freeze({
-    tcp: Object.freeze([]),
-    udp: Object.freeze([]),
+    tcp: Object.freeze([{ field: 'tcpFormat', defaultValue: 'delimited' }]),
+    udp: Object.freeze([{ field: 'udpFormat', defaultValue: 'delimited' }]),
     grpc: Object.freeze([
       { field: 'grpcSerialization', defaultValue: 'protobuf' },
       { field: 'grpcSendMethod', defaultValue: 'stream' },
@@ -545,6 +545,13 @@
 
   function buildProtocolRows(state, protocol, mode) {
     const rows = [];
+    if (protocol === 'tcp' || protocol === 'udp') {
+      const formatValue = state[`${protocol}Format`] || 'delimited';
+      rows.push(row('format', 'Format', FORMAT_LABELS[formatValue] || FORMAT_LABELS.delimited, {
+        isDefault: formatValue === 'delimited',
+      }));
+      return rows;
+    }
     if (protocol === 'grpc') {
       rows.push(row('grpcSerialization', 'Serialization', GRPC_SERIALIZATION_LABELS[state.grpcSerialization] || GRPC_SERIALIZATION_LABELS.protobuf, {
         isDefault: (state.grpcSerialization || 'protobuf') === 'protobuf',

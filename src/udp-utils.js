@@ -15,6 +15,11 @@
  */
 
 const UDP_CLIENT_REGISTRATION_MESSAGE = 'UDP Client connected';
+const UDP_CLIENT_REGISTRATION_BYTES = Buffer.from(UDP_CLIENT_REGISTRATION_MESSAGE);
+
+function isUdpClientRegistrationMessage(message) {
+  return Buffer.isBuffer(message) && message.equals(UDP_CLIENT_REGISTRATION_BYTES);
+}
 
 /**
  * Announces a receiving UDP client to a server that learns reply endpoints from
@@ -34,5 +39,6 @@ function registerUdpClient(socket) {
 
 module.exports = {
   UDP_CLIENT_REGISTRATION_MESSAGE,
+  isUdpClientRegistrationMessage,
   registerUdpClient,
 };

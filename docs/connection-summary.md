@@ -62,7 +62,7 @@ protocol differ from their documented defaults:
 
 The full sentence stays available as the button's tooltip and accessible name,
 which still read
-`TCP · no protocol settings`, `HTTP · defaults`, `HTTP · 2 changed`, or
+`TCP · defaults`, `TCP · 1 changed`, `HTTP · 2 changed`, or
 `HTTP · 2 changed · 1 warning`.
 
 The chip is persistent: it stays visible and current while disconnected,
@@ -86,13 +86,13 @@ selected protocol and mode are not offered:
 
 | Section | Holds | Offered for |
 |---|---|---|
-| Basics | Format, path, serialization, RPC type, XMPP domain, conversation, account, and room fields. | gRPC, HTTP, WebSocket, XMPP. |
+| Basics | Format, path, serialization, RPC type, XMPP domain, conversation, account, and room fields. | TCP, UDP, gRPC, HTTP, WebSocket, XMPP. |
 | Security | TLS or the STARTTLS policy, certificate verification, the CA, certificate, and key paths, and XMPP **Allow remote**. | gRPC, HTTP, WebSocket, XMPP. |
 | Advanced | gRPC endpoint header, WebSocket subscription message, **Skip 1st**, headers, and the XMPP timing values. | gRPC Client, WebSocket, XMPP. |
 | Summary | Every connection setting as a read-only list, warnings first. | Every mode. |
 
-TCP and UDP have no protocol settings at all, so only **Summary** is offered and
-the panel explains where the connection fields live. HTTP has no Advanced
+TCP and UDP offer **Basics** for payload Format and the read-only **Summary**.
+See [data formats](data-formats.md) for the format choices. HTTP has no Advanced
 settings, and a gRPC Server has none either because the endpoint header applies
 to client mode only.
 
@@ -219,7 +219,7 @@ destination it sends to.
 | `grpcSerialization` | Serialization | gRPC. |
 | `grpcRpcType` | RPC type | gRPC. |
 | `grpcEndpointHeader` | Endpoint header | gRPC Client. |
-| `format` | Format | HTTP, WebSocket. |
+| `format` | Format | TCP, UDP, HTTP, WebSocket. |
 | `path` | Path | HTTP, WebSocket. |
 | `wsSubscriptionMessage` | Subscription message | WebSocket. Presence only. |
 | `wsSkipFirstMessage` | Skip first message | WebSocket. |

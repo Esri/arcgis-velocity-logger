@@ -36,6 +36,49 @@ test('no args → UI mode', () => {
   assert.strictEqual(r.headless, null);
 });
 
+test('TCP and UDP formats share defaults, validation, and UI/headless values', () => {
+  for (const key of ['tcpFormat', 'udpFormat']) {
+    assert.strictEqual(DEFAULT_HEADLESS_OPTIONS[key], 'delimited');
+    for (const format of ['delimited', 'json', 'geo-json', 'esri-json']) {
+      const ui = parseCommandLineArgs(argv(`${key}=${format.toUpperCase()}`));
+      assert.deepStrictEqual(ui.errors, []);
+      assert.strictEqual(ui.ui.presets[key], format);
+      assert.match(formatExplainOutput(ui), new RegExp(`${key}\\s+${format}`));
+      const headless = parseCommandLineArgs(argv('runMode=headless', `${key}=${format}`));
+      assert.deepStrictEqual(headless.errors, []);
+      assert.strictEqual(headless.headless[key], format);
+      assert.match(formatExplainOutput(headless), new RegExp(`${key}\\s+${format}`));
+    }
+    for (const value of ['xml', 'geojson', '', 'csv']) {
+      for (const mode of ['ui', 'headless']) {
+        const result = parseCommandLineArgs(argv(`runMode=${mode}`, `${key}=${value}`));
+        assert.strictEqual(result.mode, 'error');
+        assert.ok(result.errors.some((error) => error.startsWith(`Invalid ${key}`)));
+      }
+    }
+  }
+});
+
+test('Launch Config preserves TCP/UDP formats and CLI overrides one field', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logger-socket-format-'));
+  const filename = path.join(dir, 'launch.json');
+  try {
+    fs.writeFileSync(filename, JSON.stringify({
+      connection: { protocol: 'tcp', mode: 'server', tcpFormat: 'geo-json', udpFormat: 'esri-json' },
+    }));
+    for (const runMode of ['ui', 'headless']) {
+      const result = parseCommandLineArgs(argv(`runMode=${runMode}`, `config=${filename}`, 'tcpFormat=json'));
+      assert.deepStrictEqual(result.errors, []);
+      const options = runMode === 'ui' ? result.ui.presets : result.headless;
+      assert.strictEqual(options.tcpFormat, 'json');
+      assert.strictEqual(options.udpFormat, 'esri-json');
+    }
+  } finally {
+    fs.unlinkSync(filename);
+    fs.rmdirSync(dir);
+  }
+});
+
 test('help=true → help mode', () => {
   const r = parseCommandLineArgs(argv('help=true'));
   assert.strictEqual(r.mode, 'help');
