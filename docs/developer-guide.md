@@ -342,20 +342,22 @@ Network-facing operations — authentication, API queries, token refresh, and
 transport lifecycle — log through the shared `RunLogger` at `error`, `warn`,
 `info`, or `debug`. The default level is `info`; set `logLevel=debug` for
 verbose output or `logLevel=error` for quiet runs, in both UI and headless
-modes. Diagnostics go to the console by default; add `logFile=./logs/run.log` to
-mirror them to a file. Diagnostic output is always separate from captured data,
-which goes to stdout or `outputFile`.
+modes. Diagnostics go to the console and the default file below; use
+`logFile=./logs/run.log` to select a different path. Development launches use
+`./logs`, while packaged launches use the platform directory below. Diagnostic
+output is always separate from captured data, which goes to stdout or
+`outputFile`.
 
 Prefix each message with a context tag such as `[Auth]`, `[API]`, `[Token]`,
 `[Transport]`, or `[Startup]`. Log the operation on entry and its outcome on
 completion. Never log passwords; tokens, usernames, and client IDs are
 acceptable debugging context.
 
-Packaged builds write diagnostics to:
-
-- macOS — `~/Library/Logs/arcgis-velocity-logger/`
-- Windows — `%APPDATA%\arcgis-velocity-logger\logs\`
-- Linux — `~/.config/arcgis-velocity-logger/logs/`
+Packaged applications resolve their default log directory independently of the
+process working directory. Development launches continue to use `./logs`, and
+an explicit `logFile=<path>` always takes precedence. See
+[Installing and running the application](installation.md#find-diagnostic-logs)
+for deployed paths on macOS, Windows, and Linux.
 
 ## Common failures
 
@@ -508,6 +510,7 @@ Two rules keep it working:
 - [Connection summary and protocol settings](connection-summary.md) — Protocol Settings and the summary surfaces
 - [Command-line reference](command-line.md) — every CLI parameter and its defaults
 - [Headless mode](headless.md) — no-UI capture workflows and automation
+- [Installation](installation.md) — release package installation, deployed logs, and startup troubleshooting
 - [Configuration](configuration.md) — persisted settings and launch configuration
 - [Build and release](build-and-release.md) — packaging, signing, and publishing
 - [Repository overview](../README.md)

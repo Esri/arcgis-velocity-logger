@@ -271,5 +271,6 @@ See [Command-line reference](command-line.md) for the full parameter reference a
 
 - [Connection presets](connection-presets.md) — paired Logger and Simulator field presets
 - [Headless mode](headless.md) — headless launch-config examples and supported keys
+- [Installation](installation.md) — release package installation and deployed log locations
 - [Command-line reference](command-line.md) — full CLI parameter reference
 - [Repository overview](../README.md)

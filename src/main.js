@@ -63,13 +63,16 @@ const cliOptions = parseCommandLineArgs(process.argv, { isPackaged: app.isPackag
 // Initialised immediately after CLI parsing so every subsequent print — including
 // startup warnings, help text, and error output — is captured in the log file.
 const { RunLogger } = require('./run-logger.js');
+const { resolveAppLogFile } = require('./app-log-path.js');
 
-const appLogFile = cliOptions.logFile || (() => {
-  const ts = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, '');
-  const logDir = path.resolve('./logs');
-  fs.mkdirSync(logDir, { recursive: true });
-  return path.join(logDir, `velocity-logger-${ts}.log`);
-})();
+const appLogFile = resolveAppLogFile({
+  explicitLogFile: cliOptions.logFile,
+  appSlug: 'arcgis-velocity-logger',
+  filePrefix: 'velocity-logger',
+  isPackaged: app.isPackaged,
+  homePath: app.getPath('home'),
+  userDataPath: path.join(app.getPath('appData'), 'arcgis-velocity-logger'),
+});
 
 const appLogger = new RunLogger({
   logLevel: cliOptions.logLevel,

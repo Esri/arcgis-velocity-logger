@@ -216,6 +216,9 @@ npm run package:mac
 `scripts/release.sh` picks up the same variables — export them in your shell or
 source them from a local, git-ignored file before invoking the script.
 
+Users installing an unsigned test package should follow
+[Installing and running the application](installation.md#unsigned-package-workaround).
+
 ### Windows signing
 
 Without signing, SmartScreen shows "Windows protected your PC" on first run. EV
@@ -432,12 +435,14 @@ prefixed with `v`, for example `v1.2.3`.
 | `gh` errors while publishing | Run `gh auth login`, then resume with `./scripts/release.sh --upload-only`. |
 | External signing appears to hang | Check the nested signing log for lock acquisition and heartbeat lines. Tune `VELOCITY_SIGN_PROGRESS_INTERVAL_MS`, or raise `VELOCITY_SIGN_TIMEOUT_MS`. Interactive prompts fail rather than hang because stdin is closed. |
 | Windows artifacts are unsigned | Export `WIN_CSC_LINK` and `WIN_CSC_KEY_PASSWORD`, or pass `--sign-script` with a readable script path. |
-| Gatekeeper or SmartScreen warns on launch | The build is unsigned. See [Code signing](#code-signing). |
+| Gatekeeper reports that the application is damaged or cannot be checked | The macOS build is unsigned or not notarized. Use a signed and notarized package for distribution. User launch troubleshooting belongs in [Installing and running the application](installation.md#troubleshooting). |
+| SmartScreen warns on launch | The Windows build is unsigned. See [Code signing](#code-signing). |
 | A parallel build's output is unreadable | Rebuild with `npm run package:seq` or release with `--seq`. |
 
 ## Related documentation
 
 - [Developer guide](developer-guide.md) — local development, testing, and debugging
+- [Installation](installation.md) — release packages, first launch, deployed logs, and startup troubleshooting
 - [Command-line reference](command-line.md) — CLI parameters for the packaged app
 - [Configuration](configuration.md) — persisted settings and launch configuration
 - [Repository overview](../README.md)

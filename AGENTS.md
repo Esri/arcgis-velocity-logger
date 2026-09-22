@@ -96,9 +96,10 @@ documentation is added, renamed, or updated.
   | `tls.md` | Shared certificate, trust-store, and mTLS concepts used by every transport. |
   | `command-line.md` | The complete option reference, defaults, and help layouts. |
   | `headless.md` | No-UI capture workflows, stop conditions, and automation. |
+  | `installation.md` | Release package selection, installation, first launch, Gatekeeper and SmartScreen guidance, deployed log locations, and startup troubleshooting. |
   | `configuration.md` | Persisted settings and launch configuration files. |
   | `velocity-rest-api.md` | Portal, public REST API, and data endpoint URL conventions and current application support. |
-  | `developer-guide.md` | Local development, testing, debugging, and extension patterns. |
+  | `developer-guide.md` | Local development, testing, debugging, logging implementation, and extension patterns. |
   | `build-and-release.md` | Build prerequisites, packaging, signing, and releases. |
 
 - The maintained set is the root `README.md` and `AGENTS.md`, the guides listed

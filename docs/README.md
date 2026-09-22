@@ -26,6 +26,7 @@ by purpose and audience.
 | 🛠️ | [Developer guide](developer-guide.md) | Covers repository structure, local development, testing, debugging, and extension patterns. | Developers |
 | 🔌 | [gRPC transport](grpc.md) | Documents gRPC modes, serialization, TLS, RPC behavior, and metadata. | Users and developers |
 | 🖥️ | [Headless mode](headless.md) | Explains no-UI capture, output formats, completion files, and automation. | Users and developers |
+| 💻 | [Installation](installation.md) | Install and run release packages, handle first-launch security checks, find deployed logs, and troubleshoot startup. | Users |
 | 🌐 | [HTTP transport](http.md) | Documents HTTP and HTTPS modes, formats, paths, TLS, and metadata. | Users and developers |
 | ⌘ | [Keyboard shortcuts](keyboard-shortcuts.md) | Lists global, dialog, context-menu, and navigation shortcuts. | Users |
 | 🔌 | [TCP transport](tcp.md) | Documents TCP roles, payload selection, UTF-8 record framing, and limits. | Users and developers |
@@ -64,6 +65,7 @@ maintained guides. Keep each topic in the guide that owns it:
 | [TLS and SSL security](tls.md) | Shared certificate, trust-store, and mTLS concepts referenced by every transport. |
 | [Command-line reference](command-line.md) | The complete option reference, defaults, and help layouts. |
 | [Headless mode](headless.md) | No-UI capture workflows, stop conditions, and automation. |
+| [Installation](installation.md) | Release package selection, installation, first launch, deployed logs, and startup troubleshooting. |
 | [Configuration](configuration.md) | Persisted settings and launch configuration files. |
 | [ArcGIS Velocity REST API](velocity-rest-api.md) | Portal, public REST API, and data endpoint URL conventions and current application support. |
 | [Developer guide](developer-guide.md) | Local development, testing, debugging, and extension patterns. |

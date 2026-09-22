@@ -20,6 +20,7 @@ purpose and audience.
 - [Review protocol settings and the connection summary](docs/connection-summary.md).
 - [Get started with configuration](docs/configuration.md).
 - [Run without the UI](docs/headless.md).
+- [Install and run a release package](docs/installation.md).
 - [Use the command line](docs/command-line.md).
 - [Understand ArcGIS Velocity REST API URLs](docs/velocity-rest-api.md).
 - [Configure XMPP receiving](docs/xmpp.md).
@@ -63,7 +64,13 @@ purpose and audience.
 - [Node.js](https://nodejs.org/) (v18 or later)
 - npm (included with Node.js)
 
-### Installation & Running
+### Run a release package
+
+See [Installing and running the application](docs/installation.md) for package
+selection, platform installation, first-launch security guidance, deployed log
+locations, and startup troubleshooting.
+
+### Development setup
 
 ```bash
 git clone <repository-url>
@@ -100,12 +107,6 @@ Press <kbd>F3</kbd> in the app (or use **Help → Command Line Interface**, the 
 
 See the [command-line reference](docs/command-line.md) for the full parameter
 table and the [headless guide](docs/headless.md) for no-UI guidance.
-
-### Using Pre-built Packages
-Download the appropriate package from the `dist/` directory:
-- **macOS**: `.dmg` or `.zip` file
-- **Windows**: `.exe` installer or portable `.exe`
-- **Linux**: `.AppImage` or `.deb` package
 
 ## Building from Source
 
