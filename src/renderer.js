@@ -134,6 +134,19 @@ document.addEventListener('DOMContentLoaded', () => {
         updatePayloadFormatTooltip(select, protocol);
     }
 
+    function updateUdpRegistrationIntervalTooltip() {
+        if (!udpRegistrationIntervalInput) return;
+        const value = udpRegistrationIntervalInput.value || '30000';
+        const tooltip = `Renew the custom UDP client registration every ${value} milliseconds. Positive values up to 2147483647 are accepted. This does not apply to ArcGIS Velocity UDP outputs.`;
+        udpRegistrationIntervalInput.dataset.tooltip = tooltip;
+        udpRegistrationIntervalInput.setAttribute('aria-label', tooltip);
+    }
+    if (udpRegistrationIntervalInput) {
+        udpRegistrationIntervalInput.addEventListener('input', updateUdpRegistrationIntervalTooltip);
+        udpRegistrationIntervalInput.addEventListener('change', updateUdpRegistrationIntervalTooltip);
+        updateUdpRegistrationIntervalTooltip();
+    }
+
     function updateGrpcSerializationTooltip() {
         const tooltip = GRPC_SERIALIZATION_TOOLTIPS[grpcSerializationSelect.value] || GRPC_SERIALIZATION_TOOLTIPS.protobuf;
         grpcSerializationSelect.title = tooltip;
@@ -2195,6 +2208,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (presets.udpRegistrationIntervalMs !== undefined && udpRegistrationIntervalInput) {
                 udpRegistrationIntervalInput.value = presets.udpRegistrationIntervalMs;
+                updateUdpRegistrationIntervalTooltip();
             }
         }
         if (presets.grpcSerialization !== undefined) grpcSerializationSelect.value = presets.grpcSerialization;

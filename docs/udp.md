@@ -92,6 +92,10 @@ After initialization or a selection change, the select tooltip is
 | Esri JSON | Esri JSON. An ArcGIS feature or feature set with attributes and geometry. |
 
 The Registration renewal label tooltip is `Renew the custom UDP client registration at this interval so a restarted Simulator server can rediscover the reply endpoint. This is not an acknowledgment or delivery check.` The control appears only for UDP Client.
+After initialization or an edit, the input tooltip is `Renew the custom UDP
+client registration every ` followed by the current interval and ` milliseconds.
+Positive values up to 2147483647 are accepted. This does not apply to ArcGIS
+Velocity UDP outputs.`
 
 ## Command-line usage
 

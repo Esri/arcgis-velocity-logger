@@ -1045,6 +1045,11 @@ button[id]:disabled {
     text-align-last: left;
 }
 
+#udp-registration-interval {
+    text-align: right;
+    text-align-last: right;
+}
+
 .protocol-settings-check {
     display: inline-flex;
     align-items: center;
