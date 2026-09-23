@@ -41,6 +41,12 @@ Simulator test, select the matching [connection preset](connection-presets.md)
 in both applications. Start the Simulator server first; a receiving Logger
 client registers before the Simulator begins sending.
 
+For paired Delimited (CSV) publishing, ArcGIS Velocity Simulator LF-terminates
+UDP datagrams by default for compatibility with ArcGIS Velocity sampling and
+newline-framed receivers. Logger has no **Append LF** control: it is
+receive-only and preserves the incoming datagram exactly. See
+[data formats](data-formats.md#transport-boundaries) for framing details.
+
 The Logger UDP Client sends that custom registration packet but does not count
 it as captured data. UDP Server treats every incoming datagram as application
 data, including the same literal text, so ArcGIS Velocity output payloads are
@@ -54,7 +60,9 @@ disconnect or transport failure.
 
 One datagram must contain one complete CSV record or JSON document. Logger
 never combines datagrams, even from the same sender. Embedded newlines inside
-a quoted CSV field or JSON document remain part of that record.
+a quoted CSV field or JSON document remain part of that record. A final LF on
+a Delimited datagram is validated as its record delimiter and remains present
+in the captured raw text.
 
 The application UDP payload limit is 65,507 bytes for both families, measured
 after UTF-8 encoding. This preserves the IPv4 UDP ceiling as one shared bound;

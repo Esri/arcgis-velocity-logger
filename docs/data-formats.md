@@ -66,6 +66,13 @@ UTF-8 characters across reads and assembles CSV records or complete JSON
 documents. UDP keeps each datagram separate and never joins partial documents
 from different datagrams or senders.
 
+For a paired UDP test, ArcGIS Velocity Simulator ensures that Delimited (CSV)
+datagrams end with one LF by default for compatibility with ArcGIS Velocity
+sampling and newline-framed receivers; a record that already ends with LF is
+not given another one. Logger preserves that record-ending LF in the raw capture.
+Structured UDP payloads are not given this delimiter, and Logger does not add
+or remove bytes for any format.
+
 See the [TCP guide](tcp.md#record-framing) and
 [UDP guide](udp.md#datagram-boundaries-and-size) for delimiter, size, and error
 behavior. A pretty-printed JSON document or quoted CSV field may contain

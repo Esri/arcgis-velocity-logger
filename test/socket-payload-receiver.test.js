@@ -186,6 +186,26 @@ test('UDP has no application-specific control policy without an injected predica
   }), /isControlDatagram/);
 });
 
+test('UDP preserves a delimited record-ending LF exactly', () => {
+  const state = capture('delimited');
+  const receive = createUdpPayloadReceiver(state.options);
+  const payload = 'one,café,雪\n';
+  receive(Buffer.from(payload));
+  assert.deepStrictEqual(state.records.map((record) => record.raw), [payload]);
+  assert.deepStrictEqual(state.records.map((record) => Buffer.from(record.raw)), [Buffer.from(payload)]);
+  assert.deepStrictEqual(state.warnings, []);
+});
+
+test('UDP structured payloads remain exact without a framing LF', () => {
+  const state = capture('json');
+  const receive = createUdpPayloadReceiver(state.options);
+  const payload = '{"name":"雪","value":1}';
+  receive(Buffer.from(payload));
+  assert.deepStrictEqual(state.records.map((record) => record.raw), [payload]);
+  assert.deepStrictEqual(state.records.map((record) => Buffer.from(record.raw)), [Buffer.from(payload)]);
+  assert.deepStrictEqual(state.warnings, []);
+});
+
 test('UDP preserves raw documents and sender context without joining datagrams', () => {
   const state = capture('json');
   const receive = createUdpPayloadReceiver(state.options);

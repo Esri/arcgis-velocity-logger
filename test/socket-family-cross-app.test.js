@@ -149,14 +149,20 @@ async function simulatorClientToLoggerServer(protocol, family, directory) {
     await simulator.connect({
       protocol, mode: 'client', ip: host, port,
       tcpAddressFamily: family, udpAddressFamily: family,
-      tcpFormat: 'delimited', udpFormat: 'delimited', udpAppendNewline: false,
+      tcpFormat: 'delimited', udpFormat: 'delimited',
     });
-    const payloads = [`${protocol},${family},雪`, `  café,${family}  `];
+    const payloads = [
+      `${protocol},${family},雪`,
+      protocol === 'udp' ? `  café,${family}  \n` : `  café,${family}  `,
+    ];
     for (const payload of payloads) await simulator.send(payload);
     assert.strictEqual(await loggerRun, EXIT_CODES.success);
     const captured = readCaptured(outputFile);
-    assert.deepStrictEqual(captured, payloads);
-    assert.deepStrictEqual(captured.map(Buffer.from), payloads.map(Buffer.from));
+    const wirePayloads = protocol === 'udp'
+      ? payloads.map((payload) => payload.endsWith('\n') ? payload : `${payload}\n`)
+      : payloads;
+    assert.deepStrictEqual(captured, wirePayloads);
+    assert.deepStrictEqual(captured.map(Buffer.from), wirePayloads.map(Buffer.from));
     assert.deepStrictEqual(unexpectedReplies, []);
   } finally {
     await simulator.disconnect();
@@ -171,7 +177,7 @@ async function simulatorServerToLoggerClient(protocol, family, directory) {
   const connected = await simulator.connect({
     protocol, mode: 'server', ip: host, port: 0,
     tcpAddressFamily: family, udpAddressFamily: family,
-    tcpFormat: 'delimited', udpFormat: 'delimited', udpAppendNewline: false,
+    tcpFormat: 'delimited', udpFormat: 'delimited',
   });
   const port = connected.address.port;
   const outputFile = path.join(directory, `${protocol}-${family}-sim-server.jsonl`);
@@ -180,10 +186,18 @@ async function simulatorServerToLoggerClient(protocol, family, directory) {
   );
   try {
     await waitFor(() => simulator.hasRecipients(), `${protocol}/${family} Simulator did not observe Logger`);
-    const payloads = [`${protocol},${family},first`, `${protocol},${family},第二`];
+    const payloads = [
+      `${protocol},${family},first`,
+      protocol === 'udp' ? `${protocol},${family},第二\n` : `${protocol},${family},第二`,
+    ];
     for (const payload of payloads) await simulator.send(payload);
     assert.strictEqual(await loggerRun, EXIT_CODES.success);
-    assert.deepStrictEqual(readCaptured(outputFile), payloads);
+    assert.deepStrictEqual(
+      readCaptured(outputFile),
+      protocol === 'udp'
+        ? payloads.map((payload) => payload.endsWith('\n') ? payload : `${payload}\n`)
+        : payloads,
+    );
   } finally {
     await Promise.allSettled([loggerRun]);
     await simulator.disconnect();
@@ -195,7 +209,7 @@ async function udpIpv6RenewalSurvivesRestart(directory) {
   const simulator = new TransportManager();
   const connected = await simulator.connect({
     protocol: 'udp', mode: 'server', ip: '::1', port: 0,
-    udpAddressFamily: 'ipv6', udpFormat: 'delimited', udpAppendNewline: false,
+    udpAddressFamily: 'ipv6', udpFormat: 'delimited',
   });
   const port = connected.address.port;
   const outputFile = path.join(directory, 'udp-ipv6-restart.jsonl');
@@ -209,7 +223,7 @@ async function udpIpv6RenewalSurvivesRestart(directory) {
     await wait(140);
     await simulator.connect({
       protocol: 'udp', mode: 'server', ip: '::1', port,
-      udpAddressFamily: 'ipv6', udpFormat: 'delimited', udpAppendNewline: false,
+      udpAddressFamily: 'ipv6', udpFormat: 'delimited',
     });
     await waitFor(
       () => simulator.hasRecipients(),
@@ -218,8 +232,8 @@ async function udpIpv6RenewalSurvivesRestart(directory) {
     await simulator.send('ipv6,after,restart');
     assert.strictEqual(await loggerRun, EXIT_CODES.success);
     assert.deepStrictEqual(readCaptured(outputFile), [
-      'ipv6,before,restart',
-      'ipv6,after,restart',
+      'ipv6,before,restart\n',
+      'ipv6,after,restart\n',
     ]);
   } finally {
     await Promise.allSettled([loggerRun]);

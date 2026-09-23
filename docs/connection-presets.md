@@ -66,7 +66,7 @@ Each label names which application listens. In this repository:
 
 | Protocol | Values |
 |---|---|
-| TCP, UDP | Host `127.0.0.1`, port `5565`, Delimited (CSV). |
+| TCP, UDP | Host `127.0.0.1`, port `5565`, Delimited (CSV). Simulator LF-terminates paired delimited UDP publishing by default; see [data formats](data-formats.md#transport-boundaries). |
 | gRPC | Host `127.0.0.1`, port `5565`, Text serialization, Client Streaming, TLS off. |
 | HTTP | Host `127.0.0.1`, port `8080`, Delimited (CSV), path `/`, TLS off. |
 | WebSocket | Host `127.0.0.1`, port `8080`, Delimited (CSV), path `/`, TLS off, no subscription message, first message kept. |

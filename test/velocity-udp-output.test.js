@@ -79,6 +79,10 @@ async function verifyVelocityOutput(outputType, family) {
     await new Promise((resolve) => setTimeout(resolve, 25));
 
     assert.deepStrictEqual(received, [whitespacePayload, UDP_CLIENT_REGISTRATION_MESSAGE]);
+    assert.deepStrictEqual(
+      received.map((payload) => Buffer.from(payload)),
+      [Buffer.from(whitespacePayload), Buffer.from(UDP_CLIENT_REGISTRATION_MESSAGE)],
+    );
     assert.deepStrictEqual(warnings, []);
     assert.strictEqual(unexpectedOutboundPackets, 0);
   } finally {
