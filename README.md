@@ -148,7 +148,7 @@ For build options, compression, artifact names, signing, and publishing with
 - **TCP Server**: Listen for incoming TCP connections on specified port
 - **TCP Client**: Connect to a remote TCP server
 - **UDP Server**: Listen for UDP packets on specified port
-- **UDP Client**: Send UDP packets to a remote server
+- **UDP Client**: Receive UDP packets from a compatible custom server after announcing the local reply endpoint
 - **XMPP Server**: Host a focused C2S service and receive direct or room messages
 - **XMPP Client**: Connect to an XMPP service and receive direct or room messages
 

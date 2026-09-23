@@ -309,7 +309,7 @@ function baseOptions(overrides) {
     }
   });
 
-  await test('UDP JSON records retain datagram boundaries and exclude control or invalid UTF-8 packets', async () => {
+  await test('UDP server preserves all datagrams including the client registration literal', async () => {
     const port = await pickFreeUdpPort();
     const outFile = tmpFile('jsonl');
     const logFile = tmpFile('log');
@@ -319,7 +319,7 @@ function baseOptions(overrides) {
     const run = runHeadlessSession(baseOptions({
       protocol: 'udp', mode: 'server', port, udpFormat: 'json',
       outputFile: outFile, outputFormat: 'jsonl', logFile, logLevel: 'warn',
-      doneFile, maxLogCount: records.length, durationMs: 1500,
+      doneFile, maxLogCount: records.length + 1, durationMs: 1500,
     }));
     try {
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -333,7 +333,10 @@ function baseOptions(overrides) {
       }
       assert.strictEqual(await run, EXIT_CODES.success);
       const entries = fs.readFileSync(outFile, 'utf8').trim().split('\n').map(JSON.parse);
-      assert.deepStrictEqual(entries.map((entry) => entry.data), records);
+      assert.deepStrictEqual(entries.map((entry) => entry.data), [
+        UDP_CLIENT_REGISTRATION_MESSAGE,
+        ...records,
+      ]);
       assert.strictEqual(JSON.parse(fs.readFileSync(doneFile)).summary.stopReason, 'maxLogCount');
       const diagnostics = fs.readFileSync(logFile, 'utf8');
       assert.match(diagnostics, /\[Transport\].*UDP/);

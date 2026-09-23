@@ -2099,7 +2099,7 @@ ipcMain.on('connect-udp', (event, { type, port, host, udpFormat = APP_DEFAULTS.u
         velocityLog('info', `[Transport] Starting UDP ${validType} receiver with ${udpFormat} payloads`);
         const receivePayload = createUdpPayloadReceiver({
             format: udpFormat,
-            isControlDatagram: isUdpClientRegistrationMessage,
+            isControlDatagram: validType === 'client' ? isUdpClientRegistrationMessage : undefined,
             onWarning: (message, remote) => reportSocketPayloadWarning('udp', message, remote),
             onRecord: (raw, remote) => {
                 const local = udpSocket.address();

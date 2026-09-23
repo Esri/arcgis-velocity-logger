@@ -265,7 +265,10 @@ function createReceiver(options, { logger, onLine, onError }) {
       attempt(resolve, reject);
     } else if (protocol === 'udp' && mode === 'server') {
       const socket = dgram.createSocket('udp4');
-      socket.on('message', createUdpPayloadReceiver(payloadCallbacks()));
+      socket.on('message', createUdpPayloadReceiver({
+        ...payloadCallbacks(),
+        isControlDatagram: undefined,
+      }));
       socket.on('error', (err) => { clearTimer(); onError(err); reject(err); });
       socket.on('listening', () => {
         clearTimer();

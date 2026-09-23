@@ -197,6 +197,21 @@ test('TCP and UDP report that encryption is unavailable without a warning', () =
   });
 });
 
+test('UDP expected destination and routing warning appear in summary and copied text', () => {
+  const routingWarning = 'Confirm that the advertised destination routes to this Logger.';
+  const summary = buildConnectionSummary({
+    ...BASE,
+    connectionType: 'udp-server',
+    expectedDestination: { host: 'logger.example.com', port: 17009 },
+    routingWarning,
+  });
+  assert.strictEqual(rowsByKey(summary).expectedDestination.value, 'logger.example.com:17009');
+  assert.strictEqual(summary.warnings[0].key, 'routing');
+  assert.strictEqual(summary.warnings[0].value, routingWarning);
+  assert.match(formatConnectionSummaryText(summary), /Expected destination: logger\.example\.com:17009/);
+  assert.match(formatConnectionSummaryText(summary), /Routing: Confirm that the advertised destination/);
+});
+
 test('certificate verification is reported for every mode whenever TLS applies', () => {
   const osTrust = buildConnectionSummary({ ...BASE, connectionType: 'grpc-client', grpcTls: true });
   assert.strictEqual(rowsByKey(osTrust).certificateVerification.value, 'On (operating system trust store)');

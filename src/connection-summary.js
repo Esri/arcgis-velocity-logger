@@ -427,6 +427,14 @@
         'Certificate verification is disabled for every host, not only localhost. Use it only for local self-signed testing.',
       ));
     }
+    if (typeof state.routingWarning === 'string' && state.routingWarning.trim()) {
+      warnings.push(warningRow(
+        'routing',
+        'Routing',
+        state.routingWarning.trim(),
+        'Confirm that the advertised destination routes to this application.',
+      ));
+    }
     if (protocol === 'xmpp' && String(state.xmppTlsPolicy || 'required') === 'preferred') {
       warnings.push(warningRow(
         'opportunisticTls',
@@ -550,6 +558,15 @@
       rows.push(row('format', 'Format', FORMAT_LABELS[formatValue] || FORMAT_LABELS.delimited, {
         isDefault: formatValue === 'delimited',
       }));
+      if (protocol === 'udp' && state.expectedDestination
+          && typeof state.expectedDestination === 'object') {
+        rows.push(row(
+          'expectedDestination',
+          'Expected destination',
+          formatEndpoint(state.expectedDestination.host, state.expectedDestination.port),
+          { group: 'Connection', kind: 'endpoint' },
+        ));
+      }
       return rows;
     }
     if (protocol === 'grpc') {

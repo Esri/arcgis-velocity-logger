@@ -17,20 +17,30 @@ limits, and the UDP controls. Select the same payload format in both peers.
 
 ## Connection modes
 
-**UDP Server** binds the selected host and port and receives datagrams from
-senders. **UDP Client** connects its socket to a remote server and announces its
-receiving address using the existing registration control packet.
-The announcement is the exact UTF-8 text `UDP Client connected`, without a
-newline, regardless of the selected payload format.
+**UDP Server** binds the selected local host and port and receives datagrams
+from senders. Both ArcGIS Velocity UDP output types send to a preconfigured
+destination, so applying either output selects UDP Server. The bind address
+defaults to `127.0.0.1`; choose a local interface that the output's advertised
+destination routes to. Applying an output reports that expected destination
+but does not claim that routing or firewall configuration is reachable.
 
-The default local endpoint is `127.0.0.1:5565`. Select the matching
-[connection preset](connection-presets.md) in both applications. Start the
-server first; a receiving Logger client registers before the Simulator server
-begins sending.
+**UDP Client** is available for compatible custom servers. It connects its
+socket to a remote server and announces its receiving address using the exact
+UTF-8 text `UDP Client connected`, without a newline, regardless of the
+selected payload format. This registration packet is a Logger/Simulator
+pairing convention, not part of the ArcGIS Velocity UDP output contract.
 
-Registration packets are control traffic, not data records. They bypass payload
-validation and capture counting. UDP connections here are unsecure and do not
-provide delivery, ordering, or retransmission guarantees.
+The default local endpoint is `127.0.0.1:5565`. For a paired Logger and
+Simulator test, select the matching [connection preset](connection-presets.md)
+in both applications. Start the Simulator server first; a receiving Logger
+client registers before the Simulator begins sending.
+
+The Logger UDP Client sends that custom registration packet but does not count
+it as captured data. UDP Server treats every incoming datagram as application
+data, including the same literal text, so ArcGIS Velocity output payloads are
+never silently removed. A Logger UDP Server does not send a registration
+packet. UDP connections here are unsecure and do not provide delivery,
+ordering, or retransmission guarantees.
 
 ## Datagram boundaries and size
 

@@ -164,7 +164,13 @@ function parseItem(item, direction) {
     parsed.entityPath = text(properties[`${name}.${name === 'azure-event-hub' ? 'entityPath' : 'topicName'}`]);
     parsed.sharedAccessKeyName = text(properties[`${name}.sharedAccessKeyName`]);
   } else if (/^(?:tcp|udp)(?:-(?:client|server))?$/.test(name)) {
-    parsed.host = text(properties[`${name}.hostname`]) || text(properties[`${name}.host`]);
+    const hostKeys = [
+      `${name}.hostName`,
+      `${name}.hostname`,
+      `${name}.host`,
+      ...(direction === 'output' ? [`${name}.publicHostName`, 'publicHostName'] : []),
+    ];
+    parsed.host = hostKeys.map((key) => text(properties[key])).find(Boolean) || '';
     parsed.port = typeof properties[`${name}.port`] === 'number' ? properties[`${name}.port`] : text(properties[`${name}.port`]);
   }
   if (direction === 'feed' && name === 'websocket') {

@@ -66,8 +66,8 @@ const analytic = { id: 'analytic/one', label: 'Vehicle positions', outputs: [str
     connectionType: 'http-server', ip: 'destination.example.com', port: 7443,
     httpTls: true, httpPath: '/receive?tenant=demo', httpFormat: 'json',
   });
-  const socketTypes = ['tcp', 'tcp-client', 'tcp-server', 'udp-client', 'udp-server'];
-  const formats = ['delimited', 'json', 'geo-json', 'esri-json', 'json'];
+  const socketTypes = ['tcp', 'tcp-client', 'tcp-server'];
+  const formats = ['delimited', 'json', 'geo-json'];
   const socketSource = { id: 'socket-server', label: 'Socket server', apiBaseUrl: 'https://public.example.com:7443/team/velocity' };
   for (const [index, name] of socketTypes.entries()) {
     const isServer = name.endsWith('-server');
@@ -96,6 +96,22 @@ const analytic = { id: 'analytic/one', label: 'Vehicle positions', outputs: [str
       }, socketSource);
       assert.strictEqual(invalid.supported, false);
       assert.match(invalid.unsupportedReason, /port/i);
+    }
+    for (const [index, name] of ['udp-client', 'udp-server'].entries()) {
+      const hostKey = index === 0 ? `${name}.hostName` : `${name}.publicHostName`;
+      const config = {
+        id: `valid-${name}`, name, formatName: index === 0 ? 'esri-json' : 'json',
+        properties: { [hostKey]: `destination-${index}.example.com`, [`${name}.port`]: 9020 + index },
+      };
+      const item = parseAnalyticOutput(analytic, 'realtime', config, socketSource);
+      assert.strictEqual(item.supported, true, item.unsupportedReason);
+      assert.strictEqual(item.host, `destination-${index}.example.com`);
+      assert.deepStrictEqual(item.expectedDestination, {
+        host: `destination-${index}.example.com`, port: 9020 + index,
+      });
+      assert.deepStrictEqual(buildVelocityConnectionOptions(item).expectedDestination, item.expectedDestination);
+      assert.strictEqual(buildVelocityConnectionOptions(item).connectionType, 'udp-server');
+      assert.strictEqual(buildVelocityConnectionOptions(item).ip, '127.0.0.1');
     }
     const xml = parseAnalyticOutput(analytic, 'realtime', { ...config, formatName: 'xml' }, socketSource);
     assert.strictEqual(xml.supported, false);

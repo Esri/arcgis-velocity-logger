@@ -199,7 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'tcp-server': 'TCP Server - listens on the specified port and accepts incoming TCP connections from clients.',
         'tcp-client': 'TCP Client - connects to a remote TCP server at the specified host and port to receive data.',
         'udp-server': 'UDP Server - binds to the specified port and receives incoming UDP datagrams.',
-        'udp-client': 'UDP Client - sends UDP datagrams to the specified host and port.',
+        'udp-client': 'UDP Client - receives datagrams from a compatible custom server after announcing its local reply endpoint.',
         'http-client': 'HTTP Client - sends data via HTTP/HTTPS POST requests to a remote endpoint.',
         'http-server': 'HTTP Server - starts a local HTTP/HTTPS server that accepts POST requests from clients.',
         'ws-client': 'WebSocket Client - connects to a remote WebSocket server (ws:// or wss://) and receives data as text frames.',
@@ -229,6 +229,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let activePresetId = CUSTOM_PRESET_ID;
     let modifiedFromPresetId = '';
     let applyingPresetValues = false;
+    let appliedVelocityUdpOutput = null;
 
     function updateConnectionPresetTooltip() {
         if (!connectionPresetSelect || !connectionPresets) return;
@@ -302,6 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!connectionPresets) return false;
         const preset = connectionPresets.getConnectionPreset(presetId);
         if (!preset) return false;
+        appliedVelocityUdpOutput = null;
         const values = connectionPresets.buildConnectionPresetValues(presetId);
         applyingPresetValues = true;
         try {
@@ -516,6 +518,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     connectionTypeSelect.addEventListener('change', updateProtocolVisibility);
+    connectionTypeSelect.addEventListener('change', () => {
+        if (connectionTypeSelect.value !== 'udp-server') {
+            appliedVelocityUdpOutput = null;
+            renderConnectionSummary();
+        }
+    });
     if (xmppConversationSelect) {
         xmppConversationSelect.addEventListener('change', () => {
             updateXmppConversationTooltip();
@@ -860,6 +868,8 @@ document.addEventListener('DOMContentLoaded', () => {
             xmppPingIntervalMs: value('xmpp-ping-interval'),
             xmppReconnectDelayMs: value('xmpp-reconnect-delay'),
             receivingJid: xmppReceivingJidValue,
+            expectedDestination: appliedVelocityUdpOutput?.expectedDestination,
+            routingWarning: appliedVelocityUdpOutput?.routingWarning || '',
         };
     }
 
@@ -2150,6 +2160,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Apply CLI presets for UI prepopulation
     window.electronAPI.on('cli-presets', (presets) => {
         if (!presets) return;
+        appliedVelocityUdpOutput = null;
         // CLI prepopulation is a programmatic fill, not a manual edit, so it
         // must not flip the preset indicator to "Custom (modified)".
         applyingPresetValues = true;
@@ -2526,6 +2537,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const type = item.outputType || '';
+        appliedVelocityUdpOutput = null;
         let appliedXmppCredentialsRequired = false;
         const connectionType = document.getElementById('connection-type');
         const hostInput = document.getElementById('host');
@@ -2533,15 +2545,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (item.connectionOptions) {
             const options = item.connectionOptions;
+            const metadataFields = new Set(['expectedDestination', 'routingWarning']);
+            const velocityUdpOutput = type.startsWith('udp-') && options.connectionType === 'udp-server'
+                && options.expectedDestination && options.routingWarning
+                ? {
+                    expectedDestination: options.expectedDestination,
+                    routingWarning: options.routingWarning,
+                }
+                : null;
             setPresetControlValue('connectionType', options.connectionType);
             Object.entries(options).forEach(([field, value]) => {
-                if (field !== 'connectionType') setPresetControlValue(field === 'ip' ? 'host' : field, value);
+                if (field !== 'connectionType' && !metadataFields.has(field)) {
+                    setPresetControlValue(field === 'ip' ? 'host' : field, value);
+                }
             });
             setPresetControlValue('port', options.port);
+            appliedVelocityUdpOutput = velocityUdpOutput;
             markConnectionFieldsModified();
             updateProtocolVisibility();
             renderConnectionSummary();
             refreshTlsBadge();
+            if (options.routingWarning) {
+                setStatus(options.routingWarning, { category: 'connection' });
+            }
         } else if (type === 'xmpp') {
             appliedXmppCredentialsRequired = true;
             connectionType.value = 'xmpp-client';
@@ -2590,9 +2616,13 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        addLog(appliedXmppCredentialsRequired
+        const appliedMessage = appliedXmppCredentialsRequired
             ? `✓ XMPP output applied - credentials required before connecting (${describeVelocityOutput(item)})`
-            : `✓ Output applied - ready to connect (${describeVelocityOutput(item)})`);
+            : `✓ Output applied - ready to connect (${describeVelocityOutput(item)})`;
+        addLog(appliedMessage);
+        if (item.connectionOptions?.routingWarning) {
+            addLog(`⚠ ${item.connectionOptions.routingWarning}`);
+        }
     });
 
     window.electronAPI.on('velocity:token-refreshed', (state) => {

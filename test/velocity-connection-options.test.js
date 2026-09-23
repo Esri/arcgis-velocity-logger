@@ -53,18 +53,35 @@ test('missing or invalid endpoints fail without fallback', () => {
   assert.throws(() => build({ feedType: 'mqtt', url: 'https://receiver.example.com' }), /supported/);
 });
 
-test('TCP and UDP connector roles are inverted for feeds and outputs', () => {
+test('UDP feeds publish as clients while both UDP outputs receive as servers', () => {
   assert.deepStrictEqual(build({
-    feedType: 'udp-server', serverApiUrl: 'https://velocity.example.com:7143/arcgis',
+    feedType: 'udp-server', host: 'velocity.example.com',
     port: 17009, format: 'json',
   }), {
     connectionType: 'udp-client', ip: 'velocity.example.com', port: 17009, udpFormat: 'json',
+    udpAppendNewline: false,
   });
   assert.deepStrictEqual(build({
-    feedType: 'udp-client', host: 'logger.example.com', port: 17012, format: 'geo-json',
+    feedType: 'udp-client', host: 'velocity.example.com', port: 17012, format: 'delimited',
   }), {
-    connectionType: 'udp-server', ip: 'logger.example.com', port: 17012, udpFormat: 'geo-json',
+    connectionType: 'udp-client', ip: 'velocity.example.com', port: 17012, udpFormat: 'delimited',
+    udpAppendNewline: true,
   });
+  for (const outputType of ['udp-client', 'udp-server']) {
+    const options = build({
+      outputType, host: 'logger.example.com', port: 17013, format: 'geo-json',
+    });
+    assert.strictEqual(options.connectionType, 'udp-server');
+    assert.strictEqual(options.ip, '127.0.0.1');
+    assert.strictEqual(options.port, 17013);
+    assert.strictEqual(options.udpFormat, 'geo-json');
+    assert.deepStrictEqual(options.expectedDestination, { host: 'logger.example.com', port: 17013 });
+    assert.match(options.routingWarning, /choose a local interface/i);
+    assert.match(options.routingWarning, /No registration datagram is sent/);
+  }
+});
+
+test('TCP connector roles remain complementary', () => {
   assert.deepStrictEqual(build({
     feedType: 'tcp-server', serverApiUrl: 'https://velocity.example.com/arcgis',
     port: '17011', format: 'delimited',
@@ -98,9 +115,13 @@ test('TCP and UDP connector roles are inverted for feeds and outputs', () => {
     outputType: 'tcp-client', host: '[2001:db8::2]', port: 17011, format: 'json',
   }).ip, '2001:db8::2');
   assert.throws(() => build({
-    feedType: 'udp-server', serverApiUrl: 'https://[2001:db8::1]/arcgis',
+    feedType: 'udp-server', host: '2001:db8::1',
     port: 17009, format: 'json',
   }), /IPv4/);
+  assert.throws(() => build({
+    outputType: 'udp-server', serverApiUrl: 'https://velocity.example.com/arcgis',
+    port: 17009, format: 'json',
+  }), /advertised destination host/);
 });
 
 test('HTTP Poller and WebSocket feeds map to Simulator server roles', () => {

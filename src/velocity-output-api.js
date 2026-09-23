@@ -79,8 +79,11 @@ function parseAnalyticOutput(analytic, analyticKind, output, source = {}) {
       const options = buildVelocityConnectionOptions(item);
       item.supported = true;
       item.format = options.tcpFormat || options.udpFormat || options.httpFormat;
-      if (options.tcpFormat || options.udpFormat) {
+      if (options.tcpFormat) {
         item.host = options.ip;
+        item.port = options.port;
+      } else if (options.udpFormat) {
+        item.expectedDestination = options.expectedDestination;
         item.port = options.port;
       }
     } catch (error) {

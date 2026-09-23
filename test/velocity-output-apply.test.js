@@ -54,7 +54,7 @@ const { buildVelocityConnectionOptions } = require('../src/velocity-connection-o
     listeners.get('tcp-connection-state')('disconnected');
     listeners.get('velocity:output-applied')({ outputType: 'http', url: 'https://destination.example.com' });
     assert.strictEqual(get('host').value, 'events.example.com');
-    for (const outputType of ['tcp-client', 'tcp-server', 'udp-client', 'udp-server']) {
+    for (const outputType of ['tcp-client', 'tcp-server']) {
       const protocol = outputType.split('-')[0];
       const output = {
         outputType, label: outputType, port: 9010, format: 'geo-json',
@@ -75,6 +75,35 @@ const { buildVelocityConnectionOptions } = require('../src/velocity-connection-o
       assert.strictEqual(request.type, connectionOptions.connectionType.split('-')[1]);
       assert.strictEqual(request[`${protocol}Format`], 'geo-json');
       listeners.get(`${protocol}-connection-state`)('disconnected');
+    }
+    for (const outputType of ['udp-client', 'udp-server']) {
+      const before = sent.filter(([channel]) => channel.startsWith('connect-')).length;
+      const output = {
+        outputType, label: outputType, host: 'logger.example.com', port: 9010, format: 'geo-json',
+      };
+      const connectionOptions = buildVelocityConnectionOptions(output);
+      listeners.get('velocity:output-applied')({ ...output, connectionOptions });
+      assert.strictEqual(sent.filter(([channel]) => channel.startsWith('connect-')).length, before);
+      assert.strictEqual(get('connection-type').value, 'udp-server');
+      assert.strictEqual(get('host').value, '127.0.0.1');
+      assert.strictEqual(get('port').value, '9010');
+      assert.strictEqual(get('udp-format').value, 'geo-json');
+      assert.match(get('connection-summary-rows').textContent, /ensure the advertised destination routes/i);
+      get('host').value = '192.0.2.10';
+      get('host').dispatchEvent(new window.Event('input', { bubbles: true }));
+      assert.match(get('connection-summary-rows').textContent, /ensure the advertised destination routes/i);
+      get('connect-btn').click();
+      const [channel, request] = sent.filter(([name]) => name === 'connect-udp').at(-1);
+      assert.strictEqual(channel, 'connect-udp');
+      assert.strictEqual(request.type, 'server');
+      assert.strictEqual(request.port, 9010);
+      assert.strictEqual(request.host, '192.0.2.10');
+      assert.strictEqual(request.udpFormat, 'geo-json');
+      assert.ok(!JSON.stringify(request).includes('logger.example.com'));
+      listeners.get('udp-connection-state')('disconnected');
+      get('connection-type').value = 'tcp-server';
+      get('connection-type').dispatchEvent(new window.Event('change', { bubbles: true }));
+      assert.strictEqual(get('connection-summary-card').hidden, true);
     }
     const httpOutput = { outputType: 'http', label: 'HTTP output', url: 'http://127.0.0.1:9011/receive?tenant=demo', format: 'json' };
     listeners.get('velocity:output-applied')({
