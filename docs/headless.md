@@ -245,7 +245,10 @@ npm run start:headless -- outputFile=./captured.jsonl outputFormat=jsonl protoco
 
 On startup, a UDP client sends one `UDP Client connected` registration
 datagram. A paired Simulator UDP server uses that datagram to learn the
-client's reply endpoint before replaying records.
+client's reply endpoint before replaying records. Logger renews the
+registration every `udpRegistrationIntervalMs` milliseconds (default `30000`)
+while connected, so a restarted Simulator server can rediscover the endpoint.
+Renewal stops during teardown and does not acknowledge or guarantee delivery.
 
 ### Filter/exclude using regular expressions
 

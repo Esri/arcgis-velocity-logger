@@ -209,11 +209,86 @@ async function simulatorServerToLoggerClient(directory) {
   await assertPortReusable(port);
 }
 
+async function loggerClientSurvivesSimulatorRestart(directory) {
+  const simulator = new TransportManager();
+  let registrationPackets = 0;
+  const countRegistrations = (message) => {
+    if (message.equals(Buffer.from(UDP_CLIENT_REGISTRATION_MESSAGE))) registrationPackets += 1;
+  };
+  const connected = await simulator.connect({
+    protocol: 'udp',
+    mode: 'server',
+    ip: '127.0.0.1',
+    port: 0,
+    udpFormat: 'delimited',
+    udpAppendNewline: false,
+  });
+  const port = connected.address.port;
+  simulator.connection.socket.on('message', countRegistrations);
+  const outputFile = path.join(directory, 'server-restart.jsonl');
+  const doneFile = path.join(directory, 'server-restart.done.json');
+  const loggerRun = runHeadlessSession(loggerOptions({
+    mode: 'client',
+    port,
+    outputFile,
+    doneFile,
+    maxLogCount: 2,
+    durationMs: 5000,
+    udpRegistrationIntervalMs: 40,
+  }));
+
+  try {
+    await waitFor(() => simulator.hasRecipients(), 'Simulator did not learn the Logger before restart');
+    await simulator.send('before,restart');
+    await simulator.disconnect();
+    await delay(140);
+
+    await simulator.connect({
+      protocol: 'udp',
+      mode: 'server',
+      ip: '127.0.0.1',
+      port,
+      udpFormat: 'delimited',
+      udpAppendNewline: false,
+    });
+    simulator.connection.socket.on('message', countRegistrations);
+    await waitFor(
+      () => simulator.hasRecipients(),
+      'Renewal did not register the still-running Logger after Simulator restart',
+      2500,
+    );
+    await simulator.send('after,restart');
+    assert.strictEqual(await loggerRun, EXIT_CODES.success);
+    assert.deepStrictEqual(readCaptured(outputFile), ['before,restart', 'after,restart']);
+    assert.deepStrictEqual(JSON.parse(fs.readFileSync(doneFile, 'utf8')).summary, {
+      linesReceived: 2,
+      linesWritten: 2,
+      byteCount: Buffer.byteLength('before,restart') + Buffer.byteLength('after,restart'),
+      stopReason: 'maxLogCount',
+    });
+    assert.ok(registrationPackets >= 2, 'Expected initial and renewed registration packets');
+
+    const stoppedAt = registrationPackets;
+    await delay(140);
+    assert.strictEqual(
+      registrationPackets,
+      stoppedAt,
+      'Registration packets continued after Logger teardown',
+    );
+  } finally {
+    await Promise.allSettled([loggerRun]);
+    await simulator.disconnect();
+  }
+  assert.strictEqual(simulator.connection, null);
+  await assertPortReusable(port);
+}
+
 (async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'velocity-udp-cross-app-'));
   try {
     await simulatorClientToLoggerServer(directory);
     await simulatorServerToLoggerClient(directory);
+    await loggerClientSurvivesSimulatorRestart(directory);
     console.log('UDP cross-app integration tests passed');
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });

@@ -658,6 +658,33 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
     assert.strictEqual(note.hidden, true, 'UDP retains settings while connected');
   });
 
+  await uiTest('UDP registration renewal is client-only, summarized, validated, and sent', async ({ document, select, type, rows, sent }) => {
+    const renewal = document.getElementById('udp-registration-interval');
+    select('connection-type', 'udp-server');
+    assert.strictEqual(renewal.closest('.udp-client-only').style.display, 'none');
+
+    select('connection-type', 'udp-client');
+    assert.notStrictEqual(renewal.closest('.udp-client-only').style.display, 'none');
+    type('udp-registration-interval', '45000');
+    document.getElementById('protocol-settings-btn').click();
+    document.getElementById('protocol-settings-tab-summary').click();
+    assert.strictEqual(
+      rows('protocol-settings-summary-rows')
+        .find((row) => row.key === 'udpRegistrationInterval').value,
+      '45000 ms',
+    );
+    document.getElementById('connect-btn').click();
+    assert.strictEqual(
+      sent.filter(({ channel }) => channel === 'connect-udp').at(-1).payload.udpRegistrationIntervalMs,
+      45000,
+    );
+    document.getElementById('udp-registration-interval').disabled = false;
+    type('udp-registration-interval', '0');
+    document.getElementById('connect-btn').disabled = false;
+    document.getElementById('connect-btn').click();
+    assert.match(document.getElementById('protocol-settings-alert').textContent, /between 1 and 2147483647/);
+  });
+
   await uiTest('credential-bearing WebSocket fields never reach a summary surface', async ({ document, select, type, rows, sent }) => {
     select('connection-type', 'ws-client');
     type('ws-headers', '{"Authorization":"do-not-print-me"}');

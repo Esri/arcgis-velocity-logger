@@ -146,7 +146,10 @@
    */
   const PROTOCOL_SETTING_FIELDS = Object.freeze({
     tcp: Object.freeze([{ field: 'tcpFormat', defaultValue: 'delimited' }]),
-    udp: Object.freeze([{ field: 'udpFormat', defaultValue: 'delimited' }]),
+    udp: Object.freeze([
+      { field: 'udpFormat', defaultValue: 'delimited' },
+      { field: 'udpRegistrationIntervalMs', defaultValue: 30000, clientOnly: true },
+    ]),
     grpc: Object.freeze([
       { field: 'grpcSerialization', defaultValue: 'protobuf' },
       { field: 'grpcSendMethod', defaultValue: 'stream' },
@@ -558,6 +561,13 @@
       rows.push(row('format', 'Format', FORMAT_LABELS[formatValue] || FORMAT_LABELS.delimited, {
         isDefault: formatValue === 'delimited',
       }));
+      if (protocol === 'udp' && mode === 'client') {
+        const interval = Number(state.udpRegistrationIntervalMs || 30000);
+        rows.push(row('udpRegistrationInterval', 'Registration renewal', `${interval} ms`, {
+          isDefault: interval === 30000,
+          detail: 'Custom Logger/Simulator pairing only; this is not an acknowledgment or delivery check.',
+        }));
+      }
       if (protocol === 'udp' && state.expectedDestination
           && typeof state.expectedDestination === 'object') {
         rows.push(row(

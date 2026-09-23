@@ -268,6 +268,11 @@
                             </div>
                         </div>
                         <div id="protocol-settings-panel-advanced" class="protocol-settings-panel" role="tabpanel" tabindex="0" aria-labelledby="protocol-settings-tab-advanced" hidden>
+                            <div class="protocol-settings-group" id="udp-advanced" data-protocol="udp" data-section="advanced">
+                                <label class="protocol-settings-field udp-client-only" data-tooltip="Renew the custom UDP client registration at this interval so a restarted Simulator server can rediscover the reply endpoint. This is not an acknowledgment or delivery check." aria-label="UDP client registration renewal interval">Registration renewal (ms)
+                                    <input type="number" id="udp-registration-interval" value="30000" min="1" max="2147483647" step="1000" data-tooltip="Renew the custom UDP client registration every 30000 milliseconds. Positive values up to 2147483647 are accepted. This does not apply to ArcGIS Velocity UDP outputs." aria-label="UDP client registration renewal interval in milliseconds">
+                                </label>
+                            </div>
                             <div class="protocol-settings-group" id="grpc-advanced" data-protocol="grpc" data-section="advanced">
                                 <label class="protocol-settings-field" data-tooltip="Metadata header key used to route the gRPC endpoint" aria-label="gRPC endpoint header key">Endpoint header key
                                     <input type="text" id="grpc-header-path-key" value="grpc-path" title="gRPC endpoint header path key" style="display: none;">

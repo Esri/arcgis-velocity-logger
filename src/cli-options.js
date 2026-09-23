@@ -75,6 +75,7 @@ const CLI_OPTION_KEYS = new Set([
   'port',
   'tcpFormat',
   'udpFormat',
+  'udpRegistrationIntervalMs',
   'autoConnect',
   'connectTimeoutMs',
   'connectRetryIntervalMs',
@@ -170,6 +171,7 @@ const APP_DEFAULTS = {
   port: 5565,
   tcpFormat: DEFAULT_SOCKET_PAYLOAD_FORMAT,
   udpFormat: DEFAULT_SOCKET_PAYLOAD_FORMAT,
+  udpRegistrationIntervalMs: 30000,
   grpcHeaderPath: 'replace.with.dedicated.uid',
   grpcHeaderPathKey: 'grpc-path',
   grpcSerialization: 'protobuf',
@@ -312,6 +314,14 @@ const CLI_PARAMETER_DEFINITIONS = [
     example: 'connectWaitForServer=true',
     requiredInHeadless: 'No',
     purpose: 'In client mode, retry the connection on failure until the server is available. When false (the default), a failed connection attempt immediately aborts the run. Only applies to TCP client mode; ignored in server mode and UDP client mode. Covers both initial connection and automatic reconnection after a server restart. Use connectTimeoutMs to set an overall deadline and connectRetryIntervalMs to tune the retry interval.',
+  },
+  {
+    key: 'udpRegistrationIntervalMs',
+    defaultValue: DEFAULT_HEADLESS_OPTIONS.udpRegistrationIntervalMs,
+    options: ['integer 1..2147483647'],
+    example: 'udpRegistrationIntervalMs=30000',
+    requiredInHeadless: 'No',
+    purpose: 'Milliseconds between custom UDP client registration renewals. Applies only to UDP client mode for Logger/Simulator pairing; it is not an acknowledgment, delivery check, or ArcGIS Velocity output option.',
   },
   {
     key: 'doneFile',
@@ -1150,6 +1160,23 @@ function parseInteger(value, key, errors, { min = null, max = null, allowNull = 
   return parsed;
 }
 
+function parseUdpRegistrationInterval(value, errors) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) {
+    errors.push(`Invalid integer value for 'udpRegistrationIntervalMs': '${value}'.`);
+    return null;
+  }
+  if (parsed < 1) {
+    errors.push("'udpRegistrationIntervalMs' must be >= 1.");
+    return null;
+  }
+  if (parsed > 2147483647) {
+    errors.push("'udpRegistrationIntervalMs' must be <= 2147483647.");
+    return null;
+  }
+  return parsed;
+}
+
 function compileRegex(value, key, errors) {
   try {
     return new RegExp(value);
@@ -1320,6 +1347,11 @@ function validateHeadlessOptions(values, errors, warnings) {
   }
   if (normalized.connectWaitForServer !== undefined) {
     options.connectWaitForServer = parseBoolean(normalized.connectWaitForServer, 'connectWaitForServer', errors);
+  }
+  if (normalized.udpRegistrationIntervalMs !== undefined) {
+    options.udpRegistrationIntervalMs = parseUdpRegistrationInterval(
+      normalized.udpRegistrationIntervalMs, errors
+    );
   }
   if (normalized.outputFile !== undefined && normalized.outputFile !== '') {
     options.outputFile = resolvePathValue(normalized.outputFile);
@@ -1832,7 +1864,8 @@ function parseCommandLineArgs(rawArgv, { isPackaged = false } = {}) {
   if (!headlessRequested && errors.length === 0) {
     // Keys that can prepopulate the UI when passed in UI mode.
     const uiPresetKeys = new Set([
-      'protocol', 'mode', 'ip', 'port', 'tcpFormat', 'udpFormat', 'grpcSerialization', 'grpcSendMethod',
+      'protocol', 'mode', 'ip', 'port', 'tcpFormat', 'udpFormat', 'udpRegistrationIntervalMs',
+      'grpcSerialization', 'grpcSendMethod',
       'grpcHeaderPath', 'grpcHeaderPathKey', 'useTls', 'tlsCaPath', 'tlsCertPath', 'tlsKeyPath',
       'allowUnverifiedTls', 'httpAllowUnverifiedTls', 'wsAllowUnverifiedTls',
       'httpFormat', 'httpTls', 'httpPath', 'httpTlsCaPath', 'httpTlsCertPath', 'httpTlsKeyPath',
@@ -1859,6 +1892,11 @@ function parseCommandLineArgs(rawArgv, { isPackaged = false } = {}) {
       if (mergedValues[key] !== undefined) {
         presets[key] = mergedValues[key];
       }
+    }
+    if (mergedValues.udpRegistrationIntervalMs !== undefined) {
+      presets.udpRegistrationIntervalMs = parseUdpRegistrationInterval(
+        mergedValues.udpRegistrationIntervalMs, errors
+      );
     }
     validateSocketFormats(mergedValues, presets, errors);
     // host alias
@@ -1956,6 +1994,8 @@ function formatExplainOutput(cliOptions) {
       ['port', (presets && presets.port) || `(default: ${d.port})`],
       ['tcpFormat', (presets && presets.tcpFormat) || `(default: ${d.tcpFormat})`],
       ['udpFormat', (presets && presets.udpFormat) || `(default: ${d.udpFormat})`],
+      ['udpRegistrationIntervalMs', presets && presets.udpRegistrationIntervalMs !== undefined
+        ? presets.udpRegistrationIntervalMs : `(default: ${d.udpRegistrationIntervalMs})`],
       ['grpcSerialization', (presets && presets.grpcSerialization) || `(default: ${d.grpcSerialization})`],
       ['grpcSendMethod', (presets && presets.grpcSendMethod) || `(default: ${d.grpcSendMethod})`],
       ['grpcHeaderPath', (presets && presets.grpcHeaderPath) || `(default: ${d.grpcHeaderPath})`],
@@ -2020,6 +2060,7 @@ function formatExplainOutput(cliOptions) {
       ['port', h.port],
       ['tcpFormat', h.tcpFormat],
       ['udpFormat', h.udpFormat],
+      ['udpRegistrationIntervalMs', `${h.udpRegistrationIntervalMs}ms`],
       ['autoConnect', h.autoConnect],
       ['connectWaitForServer', h.connectWaitForServer],
       ['connectRetryIntervalMs', `${h.connectRetryIntervalMs}ms`],

@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const connectionPresetState = document.getElementById('connection-preset-state');
     const tcpFormatSelect = document.getElementById('tcp-format');
     const udpFormatSelect = document.getElementById('udp-format');
+    const udpRegistrationIntervalInput = document.getElementById('udp-registration-interval');
     const grpcSerializationSelect = document.getElementById('grpc-serialization');
     const grpcSendMethodSelect = document.getElementById('grpc-send-method');
     const grpcHeaderPathKeyInput = document.getElementById('grpc-header-path-key');
@@ -482,6 +483,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
         }
+        getProtocolGroups('udp').forEach((group) => {
+            group.querySelectorAll('.udp-client-only').forEach((element) => {
+                element.style.display = protocol === 'udp'
+                    && connectionTypeSelect.value.endsWith('-client') ? '' : 'none';
+            });
+        });
         const xmppActions = protocolSettingsDialog?.querySelector('.xmpp-actions');
         if (xmppActions) xmppActions.style.display = isXmppServer ? '' : 'none';
 
@@ -814,6 +821,7 @@ document.addEventListener('DOMContentLoaded', () => {
             connectionState: connectionLockState,
             tcpFormat: value('tcp-format') || 'delimited',
             udpFormat: value('udp-format') || 'delimited',
+            udpRegistrationIntervalMs: Number(value('udp-registration-interval') || 30000),
             preset: {
                 id: activePresetId,
                 label: basePreset ? basePreset.label : 'Custom',
@@ -2185,6 +2193,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 select.value = presets[key];
                 select.dispatchEvent(new Event('change'));
             }
+            if (presets.udpRegistrationIntervalMs !== undefined && udpRegistrationIntervalInput) {
+                udpRegistrationIntervalInput.value = presets.udpRegistrationIntervalMs;
+            }
         }
         if (presets.grpcSerialization !== undefined) grpcSerializationSelect.value = presets.grpcSerialization;
         if (presets.grpcSendMethod !== undefined) grpcSendMethodSelect.value = presets.grpcSendMethod;
@@ -2304,8 +2315,19 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (connectionType.startsWith('udp')) {
             const type = connectionType.split('-')[1];
             const udpFormat = udpFormatSelect?.value || 'delimited';
+            const udpRegistrationIntervalMs = Number(udpRegistrationIntervalInput?.value || 30000);
+            if (type === 'client' && (!Number.isInteger(udpRegistrationIntervalMs)
+                || udpRegistrationIntervalMs < 1 || udpRegistrationIntervalMs > 2147483647)) {
+                reportConnectionValidationError(
+                    udpRegistrationIntervalInput,
+                    'UDP registration renewal must be between 1 and 2147483647 milliseconds.',
+                );
+                return;
+            }
             setStatus(`Connecting via UDP ${type} to ${host}:${port} [${udpFormat}]...`, { category: 'connection' });
-            window.electronAPI.send('connect-udp', { type, port, host, udpFormat });
+            window.electronAPI.send('connect-udp', {
+                type, port, host, udpFormat, udpRegistrationIntervalMs,
+            });
         } else if (connectionType.startsWith('grpc')) {
             const type = connectionType.split('-')[1];
             const serialization = grpcSerializationSelect.value;

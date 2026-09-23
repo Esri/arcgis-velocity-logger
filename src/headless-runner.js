@@ -32,7 +32,11 @@ const path = require('path');
 const net = require('net');
 const dgram = require('dgram');
 const { RunLogger } = require('./run-logger.js');
-const { registerUdpClient, isUdpClientRegistrationMessage } = require('./udp-utils.js');
+const {
+  DEFAULT_UDP_CLIENT_REGISTRATION_INTERVAL_MS,
+  isUdpClientRegistrationMessage,
+  startUdpClientRegistration,
+} = require('./udp-utils.js');
 const {
   assertSocketPayloadFormat,
   attachTcpPayloadReceiver,
@@ -280,14 +284,37 @@ function createReceiver(options, { logger, onLine, onError }) {
       closers.push(() => new Promise((res) => { try { socket.close(() => res()); } catch (_) { res(); } }));
     } else if (protocol === 'udp' && mode === 'client') {
       const socket = dgram.createSocket('udp4');
+      const registrationIntervalMs = options.udpRegistrationIntervalMs
+        ?? DEFAULT_UDP_CLIENT_REGISTRATION_INTERVAL_MS;
+      let registration = null;
+      let registered = false;
       socket.on('message', createUdpPayloadReceiver(payloadCallbacks()));
-      socket.on('error', (err) => { clearTimer(); onError(err); reject(err); });
+      socket.on('error', (err) => {
+        if (registered && err.code === 'ECONNREFUSED') {
+          logger.warn(`UDP endpoint ${ip}:${port} refused a datagram; registration renewal remains active.`);
+          return;
+        }
+        clearTimer();
+        onError(err);
+        reject(err);
+      });
       socket.on('connect', () => {
-        registerUdpClient(socket).then(() => {
+        registration = startUdpClientRegistration(socket, {
+          intervalMs: registrationIntervalMs,
+          onError: (error) => {
+            logger.warn(`UDP registration renewal failed for ${ip}:${port}: ${error.message}`);
+          },
+        });
+        registration.ready.then(() => {
+          if (stopped) return;
           clearTimer();
-          logger.info(`UDP client connected to ${ip}:${port} and registered as a recipient`);
+          registered = true;
+          logger.info(
+            `UDP client connected to ${ip}:${port}; registration renews every ${registrationIntervalMs}ms without acknowledgment`
+          );
           resolve();
         }).catch((error) => {
+          if (stopped) return;
           clearTimer();
           reject(new Error(`UDP client registration failed: ${error.message}`));
         });
@@ -295,6 +322,7 @@ function createReceiver(options, { logger, onLine, onError }) {
       socket.on('listening', () => { try { socket.connect(port, ip); } catch (err) { reject(err); } });
       socket.bind();
       closers.push(() => new Promise((res) => {
+        if (registration) registration.stop();
         try {
           if (typeof socket.remoteAddress === 'string') {
             try { socket.disconnect(); } catch (_) {}

@@ -291,6 +291,23 @@ test('all TCP and UDP format choices appear in Summary and count only nondefault
   }
 });
 
+test('UDP client summary reports registration renewal while UDP server omits it', () => {
+  const client = buildConnectionSummary({
+    ...BASE,
+    connectionType: 'udp-client',
+    udpRegistrationIntervalMs: 45000,
+  });
+  assert.strictEqual(rowsByKey(client).udpRegistrationInterval.value, '45000 ms');
+  assert.strictEqual(client.settings.count, 1);
+  const server = buildConnectionSummary({
+    ...BASE,
+    connectionType: 'udp-server',
+    udpRegistrationIntervalMs: 45000,
+  });
+  assert.strictEqual(rowsByKey(server).udpRegistrationInterval, undefined);
+  assert.strictEqual(server.settings.count, 0);
+});
+
 test('the Logger reports the JID it receives on for both XMPP roles', () => {
   const client = rowsByKey(buildConnectionSummary({
     ...BASE, connectionType: 'xmpp-client', port: 5222, xmppLocalJid: 'velocity-logger@localhost',

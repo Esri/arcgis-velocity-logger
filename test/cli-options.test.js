@@ -59,12 +59,43 @@ test('TCP and UDP formats share defaults, validation, and UI/headless values', (
   }
 });
 
+test('UDP registration renewal interval is validated for UI and headless modes', () => {
+  assert.strictEqual(DEFAULT_HEADLESS_OPTIONS.udpRegistrationIntervalMs, 30000);
+  for (const runMode of ['ui', 'headless']) {
+    const result = parseCommandLineArgs(argv(
+      `runMode=${runMode}`,
+      'protocol=udp',
+      'mode=client',
+      'udpRegistrationIntervalMs=45000',
+    ));
+    assert.deepStrictEqual(result.errors, []);
+    const options = runMode === 'ui' ? result.ui.presets : result.headless;
+    assert.strictEqual(options.udpRegistrationIntervalMs, 45000);
+    assert.match(formatExplainOutput(result), /udpRegistrationIntervalMs\s+45000(?:ms)?/);
+  }
+  for (const value of ['0', '-1', '1.5', '2147483648', 'invalid']) {
+    const result = parseCommandLineArgs(argv(
+      'protocol=udp',
+      'mode=client',
+      `udpRegistrationIntervalMs=${value}`,
+    ));
+    assert.strictEqual(result.mode, 'error', value);
+    assert.ok(result.errors.some((error) => error.includes('udpRegistrationIntervalMs')));
+  }
+});
+
 test('Launch Config preserves TCP/UDP formats and CLI overrides one field', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logger-socket-format-'));
   const filename = path.join(dir, 'launch.json');
   try {
     fs.writeFileSync(filename, JSON.stringify({
-      connection: { protocol: 'tcp', mode: 'server', tcpFormat: 'geo-json', udpFormat: 'esri-json' },
+      connection: {
+        protocol: 'tcp',
+        mode: 'server',
+        tcpFormat: 'geo-json',
+        udpFormat: 'esri-json',
+        udpRegistrationIntervalMs: 45000,
+      },
     }));
     for (const runMode of ['ui', 'headless']) {
       const result = parseCommandLineArgs(argv(`runMode=${runMode}`, `config=${filename}`, 'tcpFormat=json'));
@@ -72,6 +103,7 @@ test('Launch Config preserves TCP/UDP formats and CLI overrides one field', () =
       const options = runMode === 'ui' ? result.ui.presets : result.headless;
       assert.strictEqual(options.tcpFormat, 'json');
       assert.strictEqual(options.udpFormat, 'esri-json');
+      assert.strictEqual(options.udpRegistrationIntervalMs, 45000);
     }
   } finally {
     fs.unlinkSync(filename);

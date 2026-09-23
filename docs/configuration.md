@@ -36,6 +36,8 @@ App Config controls how the application *looks*. Launch Config controls what the
 TCP and UDP payload choices are Launch Config connection fields:
 `connection.tcpFormat` and `connection.udpFormat`, both defaulting to
 `delimited` when omitted. They are not App Config preferences.
+The custom Logger/Simulator UDP Client renewal cadence is
+`connection.udpRegistrationIntervalMs`, defaulting to `30000` milliseconds.
 See [data formats](data-formats.md) for the allowed values and their distinction
 from `output.outputFormat`.
 

@@ -77,6 +77,7 @@
     port: { elementId: 'port', kind: 'value' },
     tcpFormat: { elementId: 'tcp-format', kind: 'value' },
     udpFormat: { elementId: 'udp-format', kind: 'value' },
+    udpRegistrationIntervalMs: { elementId: 'udp-registration-interval', kind: 'value' },
 
     grpcSerialization: { elementId: 'grpc-serialization', kind: 'value' },
     grpcSendMethod: { elementId: 'grpc-send-method', kind: 'value' },
@@ -141,6 +142,7 @@
     port: 5565,
     tcpFormat: 'delimited',
     udpFormat: 'delimited',
+    udpRegistrationIntervalMs: 30000,
 
     grpcSerialization: 'protobuf',
     grpcSendMethod: 'stream',

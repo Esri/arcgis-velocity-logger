@@ -132,6 +132,7 @@ Launch Config. See [data formats](data-formats.md), [TCP](tcp.md), and
 | --- | --- | --- | --- | --- | --- |
 | `tcpFormat` | `delimited`, `json`, `geo-json`, `esri-json` | `delimited` | No | `tcpFormat=json` | Expected TCP payload format; controls record extraction and inspection. |
 | `udpFormat` | `delimited`, `json`, `geo-json`, `esri-json` | `delimited` | No | `udpFormat=geo-json` | Expected format of one complete record or document per UDP datagram. |
+| `udpRegistrationIntervalMs` | integer `1` to `2147483647` | `30000` | No | `udpRegistrationIntervalMs=30000` | Milliseconds between custom UDP Client registration renewals for Logger/Simulator pairing. This is not an acknowledgment or delivery check and does not apply to ArcGIS Velocity outputs. |
 
 ### gRPC parameters
 
