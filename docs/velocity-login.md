@@ -143,7 +143,7 @@ icon and a color:
 | ◗ | `tcp` — TCP; `tcp-client` — TCP Client | `#546e7a` | TCP Server with a valid destination host, port, and format. |
 | ◗ | `tcp-server` — TCP Server | `#546e7a` | TCP Client using the owning server's public hostname and configured socket port. |
 | ◗ | `udp-client` — UDP Client | `#546e7a` | UDP Server with a valid advertised destination, port, and format. |
-| ◗ | `udp-server` — UDP Server | `#546e7a` | UDP Server when the output advertises a concrete routable IPv4 destination and port. |
+| ◗ | `udp-server` — UDP Server | `#546e7a` | UDP Server when the output advertises a concrete routable destination, matching address family, and port. |
 | ◗ | `udp` — UDP | `#546e7a` | No verified role for this legacy type. |
 | ▲ | `kafka` — Kafka | `#e53935` | No. |
 | ◎ | `mqtt` — MQTT | `#f57c00` | No. |

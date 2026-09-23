@@ -29,6 +29,14 @@ const {
   startUdpClientRegistration,
 } = require('./udp-utils.js');
 const {
+  formatUdpEndpoint,
+  resolveUdpEndpoint,
+  udpEndpointKey,
+  formatSocketEndpoint,
+  resolveSocketEndpoint,
+  tcpSocketOptions,
+} = require('./socket-address-utils.js');
+const {
   assertSocketPayloadFormat,
   attachTcpPayloadReceiver,
   finishTcpPayloadReceiver,
@@ -161,8 +169,10 @@ let aboutWindow = null;
 let velocityLoginWindow = null;
 let server;
 let clientSocket;
+let tcpConnectionAttempt = 0;
 let udpSocket;
 let udpClientRegistration = null;
+let udpConnectionAttempt = 0;
 let currentConnectionDetails = null;
 
 const { jsonRequest, TokenManager } = require('./velocity-rest-client.js');
@@ -1011,7 +1021,9 @@ async function getCurrentLaunchConfig() {
       const parts = connType.split('-');
       return JSON.stringify({
         tcpFormat: getVal('tcp-format') || 'delimited',
+        tcpAddressFamily: getVal('tcp-address-family') || 'auto',
         udpFormat: getVal('udp-format') || 'delimited',
+        udpAddressFamily: getVal('udp-address-family') || 'ipv4',
         udpRegistrationIntervalMs: parseInt(getVal('udp-registration-interval'), 10) || 30000,
         grpcHeaderPath: getVal('grpc-header-path') || 'replace.with.dedicated.uid',
         grpcHeaderPathKey: getVal('grpc-header-path-key') || 'grpc-path',
@@ -1061,7 +1073,9 @@ async function getCurrentLaunchConfig() {
       connectTimeoutMs: 0,
       connectWaitForServer: false,
       tcpFormat: s.tcpFormat,
+      tcpAddressFamily: s.tcpAddressFamily,
       udpFormat: s.udpFormat,
+      udpAddressFamily: s.udpAddressFamily,
       udpRegistrationIntervalMs: s.udpRegistrationIntervalMs,
       grpcHeaderPath: s.grpcHeaderPath,
       grpcHeaderPathKey: s.grpcHeaderPathKey,
@@ -1909,7 +1923,9 @@ function updateTcpButtonStates(connectionState) {
 }
 
 function reportSocketPayloadWarning(protocol, message, remote) {
-    const peer = remote?.address ? ` from ${remote.address}:${remote.port}` : '';
+    const peer = remote?.address
+        ? ` from ${protocol === 'udp' ? formatUdpEndpoint(remote) : formatSocketEndpoint(remote)}`
+        : '';
     const diagnostic = `[Transport] ${protocol.toUpperCase()} payload${peer}: ${message}`;
     velocityLog('warn', diagnostic);
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1923,98 +1939,114 @@ function sendSocketPayloadRecord(raw, metadata) {
     mainWindow.webContents.send('log-data', raw, { record: true });
 }
 
-ipcMain.on('connect-tcp', (event, { type, port, host, tcpFormat = APP_DEFAULTS.tcpFormat }) => {
+ipcMain.on('connect-tcp', async (event, {
+    type,
+    port,
+    host,
+    tcpFormat = APP_DEFAULTS.tcpFormat,
+    tcpAddressFamily = APP_DEFAULTS.tcpAddressFamily,
+}) => {
+    const attempt = ++tcpConnectionAttempt;
     try {
         assertSocketPayloadFormat(tcpFormat, 'tcpFormat');
+        const endpoint = await resolveSocketEndpoint(host, tcpAddressFamily, {
+            bind: type === 'server',
+            protocol: 'TCP',
+        });
+        if (attempt !== tcpConnectionAttempt) return;
+        currentConnectionDetails = {
+            protocol: 'tcp', type, port, host, tcpFormat, tcpAddressFamily,
+        };
+        velocityLog('info', `[Transport] Starting TCP ${type} receiver with ${tcpFormat} payloads`);
+        updateTcpButtonStates('connecting');
+
+        if (type === 'server') {
+            server = net.createServer((socket) => {
+                sockets.push(socket);
+                mainWindow.webContents.send('tcp-status', 'client-connected');
+                attachTcpPayloadReceiver(socket, {
+                    format: tcpFormat,
+                    context: { address: socket.remoteAddress, port: socket.remotePort },
+                    onWarning: (message, remote) => reportSocketPayloadWarning('tcp', message, remote),
+                    onRecord: (raw) => {
+                        const remote = formatSocketEndpoint({
+                            address: socket.remoteAddress || '?', port: socket.remotePort || '?',
+                        });
+                        const local = formatSocketEndpoint({
+                            address: socket.localAddress || '?', port: socket.localPort || '?',
+                        });
+                        sendSocketPayloadRecord(raw, `[metadata] protocol=TCP mode=server remote=${remote} local=${local} format=${tcpFormat}`);
+                    },
+                });
+                socket.on('close', () => {
+                    mainWindow.webContents.send('tcp-status', 'client-disconnected');
+                    const index = sockets.indexOf(socket);
+                    if (index !== -1) sockets.splice(index, 1);
+                });
+                socket.on('error', (err) => mainWindow.webContents.send('tcp-error', err.message));
+            });
+            server.on('error', (err) => {
+                mainWindow.webContents.send('connection-error', `TCP Server Error: ${err.message}`);
+                updateTcpButtonStates('disconnected');
+            });
+            server.listen(tcpSocketOptions(endpoint, port, { bind: true }), () => {
+                const address = server.address();
+                mainWindow.webContents.send('tcp-status', `TCP Server listening on ${formatSocketEndpoint(address)}`);
+                updateTcpButtonStates('connected');
+            });
+            return;
+        }
+
+        if (type === 'client') {
+            if (clientSocket) {
+                mainWindow.webContents.send('tcp-error', 'A TCP client connection is already active.');
+                updateTcpButtonStates('disconnected');
+                return;
+            }
+            clientSocket = new net.Socket();
+            const socket = clientSocket;
+            attachTcpPayloadReceiver(socket, {
+                format: tcpFormat,
+                context: { address: endpoint.address, port },
+                onWarning: (message, remote) => reportSocketPayloadWarning('tcp', message, remote),
+                onRecord: (raw) => {
+                    const remote = formatSocketEndpoint({
+                        address: socket.remoteAddress || endpoint.address, port: socket.remotePort || port,
+                    });
+                    const local = formatSocketEndpoint({
+                        address: socket.localAddress || '?', port: socket.localPort || '?',
+                    });
+                    sendSocketPayloadRecord(raw, `[metadata] protocol=TCP mode=client remote=${remote} local=${local} format=${tcpFormat}`);
+                },
+            });
+            clientSocket.connect(tcpSocketOptions(endpoint, port), () => {
+                mainWindow.webContents.send(
+                    'tcp-status',
+                    `TCP Client connected to ${formatSocketEndpoint({ address: socket.remoteAddress || endpoint.address, port: socket.remotePort || port })}`
+                );
+                updateTcpButtonStates('connected');
+            });
+            clientSocket.on('close', () => {
+                mainWindow.webContents.send('tcp-status', 'Disconnected from TCP Client');
+                cleanupTcpClientSocket();
+                updateTcpButtonStates('disconnected');
+            });
+            clientSocket.on('error', (err) => {
+                mainWindow.webContents.send('tcp-error', err.message);
+                cleanupTcpClientSocket();
+                updateTcpButtonStates('disconnected');
+            });
+        }
     } catch (error) {
+        if (attempt !== tcpConnectionAttempt) return;
         velocityLog('error', `[Transport] TCP configuration: ${error.message}`);
         mainWindow.webContents.send('tcp-error', error.message);
         updateTcpButtonStates('disconnected');
-        return;
-    }
-    currentConnectionDetails = { protocol: 'tcp', type, port, host, tcpFormat };
-    velocityLog('info', `[Transport] Starting TCP ${type} receiver with ${tcpFormat} payloads`);
-    // Immediately set connecting state
-    updateTcpButtonStates('connecting');
-    if (type === 'server') {
-        server = net.createServer((socket) => {
-            sockets.push(socket);
-            mainWindow.webContents.send('tcp-status', 'client-connected');
-            // Don't update button state here; already set on listen
-            attachTcpPayloadReceiver(socket, {
-                format: tcpFormat,
-                context: { address: socket.remoteAddress, port: socket.remotePort },
-                onWarning: (message, remote) => reportSocketPayloadWarning('tcp', message, remote),
-                onRecord: (raw) => {
-                    const remoteAddr = socket.remoteAddress || '?';
-                    const remotePort = socket.remotePort || '?';
-                    const localAddr = socket.localAddress || '?';
-                    const localPort = socket.localPort || '?';
-                    sendSocketPayloadRecord(raw, `[metadata] protocol=TCP mode=server remote=${remoteAddr}:${remotePort} local=${localAddr}:${localPort} format=${tcpFormat}`);
-                },
-            });
-            socket.on('close', () => {
-                mainWindow.webContents.send('tcp-status', 'client-disconnected');
-                let index = sockets.indexOf(socket);
-                if (index !== -1) {
-                    sockets.splice(index, 1);
-                }
-            });
-            socket.on('error', (err) => {
-                mainWindow.webContents.send('tcp-error', err.message);
-            });
-        });
-
-        server.on('error', (err) => {
-            mainWindow.webContents.send('connection-error', `TCP Server Error: ${err.message}`);
-            updateTcpButtonStates('disconnected');
-        });
-
-        server.listen(port, host, () => {
-            const address = server.address();
-            mainWindow.webContents.send('tcp-status', `TCP Server listening on ${address.address}:${address.port}`);
-            updateTcpButtonStates('connected'); // Server is "connected" when listening
-        });
-
-    } else if (type === 'client') {
-        if (clientSocket) {
-            mainWindow.webContents.send('tcp-error', 'A TCP client connection is already active.');
-            updateTcpButtonStates('disconnected');
-            return;
-        }
-        clientSocket = new net.Socket();
-        const socket = clientSocket;
-        attachTcpPayloadReceiver(socket, {
-            format: tcpFormat,
-            context: { address: host, port },
-            onWarning: (message, remote) => reportSocketPayloadWarning('tcp', message, remote),
-            onRecord: (raw) => {
-                const localAddr = socket.localAddress || '?';
-                const localPort = socket.localPort || '?';
-                sendSocketPayloadRecord(raw, `[metadata] protocol=TCP mode=client remote=${host}:${port} local=${localAddr}:${localPort} format=${tcpFormat}`);
-            },
-        });
-
-        clientSocket.connect(port, host, () => {
-            mainWindow.webContents.send('tcp-status', `TCP Client connected to ${host}:${port}`);
-            updateTcpButtonStates('connected');
-        });
-
-        clientSocket.on('close', () => {
-            mainWindow.webContents.send('tcp-status', 'Disconnected from TCP Client');
-            cleanupTcpClientSocket();
-            updateTcpButtonStates('disconnected');
-        });
-
-        clientSocket.on('error', (err) => {
-            mainWindow.webContents.send('tcp-error', err.message);
-            cleanupTcpClientSocket();
-            updateTcpButtonStates('disconnected');
-        });
     }
 });
 
 ipcMain.on('disconnect-tcp', () => {
+    tcpConnectionAttempt += 1;
     // Immediately set disconnecting state
     updateTcpButtonStates('disconnecting');
     if (server) {
@@ -2094,17 +2126,23 @@ function cleanupUdpSocket() {
     }
 }
 
-ipcMain.on('connect-udp', (event, {
+ipcMain.on('connect-udp', async (event, {
     type,
     port,
     host,
     udpFormat = APP_DEFAULTS.udpFormat,
+    udpAddressFamily = APP_DEFAULTS.udpAddressFamily,
     udpRegistrationIntervalMs = APP_DEFAULTS.udpRegistrationIntervalMs,
 }) => {
+    const attempt = ++udpConnectionAttempt;
     try {
         const validatedParams = validateUdpParams(type, port, host);
         const { type: validType, port: validPort, host: validHost } = validatedParams;
         assertSocketPayloadFormat(udpFormat, 'udpFormat');
+        const endpoint = await resolveUdpEndpoint(validHost, udpAddressFamily, {
+            bind: validType === 'server',
+        });
+        if (attempt !== udpConnectionAttempt) return;
         if (validType === 'client' && (!Number.isInteger(udpRegistrationIntervalMs) || udpRegistrationIntervalMs < 1
             || udpRegistrationIntervalMs > MAX_UDP_CLIENT_REGISTRATION_INTERVAL_MS)) {
             throw new Error(
@@ -2125,6 +2163,7 @@ ipcMain.on('connect-udp', (event, {
             port: validPort,
             host: validHost,
             udpFormat,
+            udpAddressFamily,
             udpRegistrationIntervalMs,
         };
         velocityLog('info', `[Transport] Starting UDP ${validType} receiver with ${udpFormat} payloads`);
@@ -2134,12 +2173,12 @@ ipcMain.on('connect-udp', (event, {
             onWarning: (message, remote) => reportSocketPayloadWarning('udp', message, remote),
             onRecord: (raw, remote) => {
                 const local = udpSocket.address();
-                sendSocketPayloadRecord(raw, `[metadata] protocol=UDP mode=${validType} remote=${remote.address}:${remote.port} local=${local.address}:${local.port} family=${remote.family} size=${remote.size} format=${udpFormat}`);
+                sendSocketPayloadRecord(raw, `[metadata] protocol=UDP mode=${validType} remote=${formatUdpEndpoint(remote)} local=${formatUdpEndpoint(local)} family=${remote.family} size=${remote.size} format=${udpFormat}`);
             },
         });
 
         if (validType === 'server') {
-            udpSocket = dgram.createSocket('udp4');
+            udpSocket = dgram.createSocket(endpoint.socketOptions);
 
             udpSocket.on('error', (err) => {
                 mainWindow.webContents.send('udp-error', `UDP Server error: ${err.message}`);
@@ -2149,10 +2188,11 @@ ipcMain.on('connect-udp', (event, {
 
             udpSocket.on('message', (msg, rinfo) => {
                 try {
-                    const clientKey = `${rinfo.address}:${rinfo.port}`;
+                    const client = { address: rinfo.address, port: rinfo.port };
+                    const clientKey = udpEndpointKey(client);
                     if (!udpClients.has(clientKey)) {
                         udpClients.add(clientKey);
-                        mainWindow.webContents.send('udp-status', `Client connected from ${clientKey}`);
+                        mainWindow.webContents.send('udp-status', `Client connected from ${formatUdpEndpoint(client)}`);
                       }
                     receivePayload(msg, rinfo);
                 } catch (err) {
@@ -2176,7 +2216,7 @@ ipcMain.on('connect-udp', (event, {
             });
 
             try {
-                udpSocket.bind(validPort, validHost);
+                udpSocket.bind(validPort, endpoint.address);
             } catch (err) {
                 mainWindow.webContents.send('udp-error', `Failed to bind UDP server: ${err.message}`);
                 cleanupUdpSocket();
@@ -2184,7 +2224,7 @@ ipcMain.on('connect-udp', (event, {
             }
 
         } else if (validType === 'client') {
-            udpSocket = dgram.createSocket('udp4');
+            udpSocket = dgram.createSocket(endpoint.socketOptions);
 
             udpSocket.on('error', (err) => {
                 if (err.code === 'ECONNREFUSED') {
@@ -2230,7 +2270,7 @@ ipcMain.on('connect-udp', (event, {
                     if (udpClientRegistration !== registration) return;
                     mainWindow.webContents.send(
                         'udp-status',
-                        `UDP Client connected from ${localAddress.port} to ${validHost}:${validPort}; registration renews every ${udpRegistrationIntervalMs} ms without acknowledgment`
+                        `UDP Client connected from ${formatUdpEndpoint(localAddress)} to ${formatUdpEndpoint({ address: endpoint.address, port: validPort })}; registration renews every ${udpRegistrationIntervalMs} ms without acknowledgment`
                     );
                     updateUdpButtonStates('connected');
                 }).catch((err) => {
@@ -2243,7 +2283,7 @@ ipcMain.on('connect-udp', (event, {
 
             udpSocket.on('listening', () => {
                 try {
-                    udpSocket.connect(validPort, validHost);
+                    udpSocket.connect(validPort, endpoint.address);
                 } catch (connectErr) {
                     mainWindow.webContents.send('udp-error', `Failed to connect UDP client: ${connectErr.message}`);
                     cleanupUdpSocket();
@@ -2261,6 +2301,7 @@ ipcMain.on('connect-udp', (event, {
         }
 
     } catch (validationErr) {
+        if (attempt !== udpConnectionAttempt) return;
         velocityLog('error', `[Transport] UDP configuration: ${validationErr.message}`);
         mainWindow.webContents.send('udp-error', validationErr.message);
         updateUdpButtonStates('disconnected');
@@ -2268,6 +2309,7 @@ ipcMain.on('connect-udp', (event, {
 });
 
 ipcMain.on('disconnect-udp', () => {
+    udpConnectionAttempt += 1;
     // Immediately set disconnecting state
     updateUdpButtonStates('disconnecting');
     if (udpSocket) {

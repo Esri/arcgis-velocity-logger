@@ -26,6 +26,10 @@ default to `127.0.0.1:5565` for local paired tests. Select the corresponding
 [connection preset](connection-presets.md) in both applications, start the
 server, and then connect the client.
 
+Address family defaults to **Automatic**, preserving operating-system hostname
+resolution and existing behavior. Choose IPv4 or IPv6 to require that family.
+An explicit IPv6 server bind accepts IPv6 only.
+
 TCP connections here are unsecure. Use a TLS-capable transport when encryption
 is required; see the [TLS guide](tls.md).
 
@@ -55,11 +59,13 @@ output.
 ## UI controls
 
 Host and port remain in the connection row. Select **Settings → Basics** to
-change Format while disconnected; the connected Summary is read-only.
+change Format and Address family while disconnected; the connected Summary is
+read-only.
 
 | Control | Default | Tooltip |
 |---|---|---|
 | Format | Delimited (CSV) | TCP payload format: Delimited (CSV). One comma-separated record; quoted fields may contain commas, quotes, and line breaks. |
+| Address family | Automatic | Automatic - preserve operating-system TCP hostname resolution and use the literal address family when specified. |
 
 ## Tooltip reference
 
@@ -67,6 +73,25 @@ The Format label tooltip is `Payload format for the TCP connection`.
 The initial select tooltip is `TCP payload format. Must match the peer. Delimited (CSV) is the default.`
 After initialization or a selection change, the select tooltip is
 `TCP payload format: ` followed by the selected option's exact text below.
+
+The Address family label tooltip is `Choose automatic, IPv4, or IPv6
+addressing for TCP. Automatic preserves operating-system hostname resolution.`
+The select tooltip follows the selected option:
+
+| Option | Tooltip |
+|---|---|
+| Automatic | Automatic - preserve operating-system TCP hostname resolution and use the literal address family when specified. |
+| IPv4 | IPv4 - require IPv4 addresses and resolve hostnames to IPv4. |
+| IPv6 | IPv6 - require IPv6 addresses and resolve hostnames to IPv6. Explicit IPv6 server binds accept IPv6 only. |
+
+The shared Host input follows the selected TCP role and family:
+
+| Mode | Tooltip |
+|---|---|
+| Client | Destination address: enter a reachable peer IP address or DNS name matching the selected address family. Do not use 0.0.0.0 or :: as a destination. |
+| Server, Automatic | Local bind address: 127.0.0.1 or ::1 is same-machine only. A local LAN IP restricts listening to that interface. Use 0.0.0.0 for all local IPv4 interfaces or :: for the system IPv6 wildcard when remote peers or multiple interfaces need access. Auto preserves system listen behavior. Wildcard binds expand network exposure; firewall rules still apply. |
+| Server, IPv4 | Local bind address: 127.0.0.1 accepts same-machine traffic only. A local LAN IP restricts listening to that interface. Use 0.0.0.0 to listen on all local IPv4 interfaces for remote peers or multiple interfaces. This expands network exposure; firewall rules still apply. |
+| Server, IPv6 | Local bind address: ::1 accepts same-machine traffic only. A local IPv6 address restricts listening to that interface. Use :: to listen on all local IPv6 interfaces for remote peers or multiple interfaces. Explicit IPv6 listeners accept IPv6 only. This expands network exposure; firewall rules still apply. |
 
 | Option | Tooltip |
 |---|---|

@@ -220,7 +220,7 @@ subscription URL:
 |---|---|
 | HTTP receiver | The advertised URL, method, full path and query, and required authentication. |
 | gRPC receiver | The advertised host and port, TLS requirements, and routing metadata. An HTTP context is not a gRPC method prefix. |
-| TCP or UDP connector | The connector role, explicit socket port, payload format, and advertised destination host. Do not substitute the HTTP management API host or port for the data destination. |
+| TCP or UDP connector | The connector role, explicit socket port, payload format, address family, and advertised destination host. Do not substitute the HTTP management API host or port for the data destination. |
 | Stream Layer | The advertised StreamServer URL, connection URLs, subscription path, and required token. |
 | Outbound connector | Its configured destination and direction. A destination an analytic sends to is not a subscription endpoint. |
 
@@ -268,8 +268,9 @@ The management API host and HTTPS port are not UDP data settings.
 
 Some deployments do not expose an editable destination host for a UDP Server
 output. Logger can apply that output only when the returned configuration
-advertises a concrete, routable IPv4 destination. Otherwise configure UDP
-Server manually using the deployment's effective destination and socket port.
+advertises a concrete, routable destination and matching IPv4 or IPv6 family.
+Otherwise configure UDP Server manually using the deployment's effective
+destination, family, and socket port.
 
 The output's format selects `tcpFormat` or `udpFormat`. Delimited (CSV) is the
 default; JSON, GeoJSON, and Esri JSON are also accepted. XML and missing or

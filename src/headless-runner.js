@@ -38,6 +38,13 @@ const {
   startUdpClientRegistration,
 } = require('./udp-utils.js');
 const {
+  formatUdpEndpoint,
+  resolveUdpEndpoint,
+  formatSocketEndpoint,
+  resolveSocketEndpoint,
+  tcpSocketOptions,
+} = require('./socket-address-utils.js');
+const {
   assertSocketPayloadFormat,
   attachTcpPayloadReceiver,
   finishTcpPayloadReceiver,
@@ -132,7 +139,12 @@ class RecordSink {
  * The returned object exposes a `stop()` function and a `startedPromise` that resolves
  * when the socket is ready (listening or connected), respecting `connectTimeoutMs`.
  */
-function createReceiver(options, { logger, onLine, onError }) {
+function createReceiver(options, {
+  logger,
+  onLine,
+  onError,
+  resolveSocket = resolveSocketEndpoint,
+}) {
   const { protocol, mode, ip, port, connectTimeoutMs } = options;
   let stopped = false;
   const closers = [];
@@ -166,7 +178,7 @@ function createReceiver(options, { logger, onLine, onError }) {
       const sockets = [];
       const server = net.createServer((socket) => {
         sockets.push(socket);
-        logger.info(`TCP client connected from ${socket.remoteAddress}:${socket.remotePort}`);
+        logger.info(`TCP client connected from ${formatSocketEndpoint({ address: socket.remoteAddress, port: socket.remotePort })}`);
         attachTcpPayloadReceiver(socket, payloadCallbacks({ address: socket.remoteAddress, port: socket.remotePort }));
         socket.on('error', (err) => onError(err));
         socket.on('close', () => {
@@ -175,11 +187,6 @@ function createReceiver(options, { logger, onLine, onError }) {
         });
       });
       server.on('error', (err) => { clearTimer(); reject(err); onError(err); });
-      server.listen(port, ip, () => {
-        clearTimer();
-        logger.info(`TCP server listening on ${ip}:${port}`);
-        resolve();
-      });
       closers.push(() => new Promise((res) => {
         sockets.forEach((s) => {
           finishTcpPayloadReceiver(s);
@@ -187,6 +194,20 @@ function createReceiver(options, { logger, onLine, onError }) {
         });
         server.close(() => res());
       }));
+      resolveSocket(ip, options.tcpAddressFamily, {
+        bind: true,
+        protocol: 'TCP',
+      }).then((endpoint) => {
+        if (stopped) return;
+        server.listen(tcpSocketOptions(endpoint, port, { bind: true }), () => {
+          clearTimer();
+          logger.info(`TCP server listening on ${formatSocketEndpoint(server.address())}`);
+          resolve();
+        });
+      }).catch((error) => {
+        clearTimer();
+        reject(error);
+      });
     } else if (protocol === 'tcp' && mode === 'client') {
       const { connectWaitForServer = false, connectRetryIntervalMs = 1000, connectTimeoutMs = 0 } = options;
       const retryEnabled = connectWaitForServer;
@@ -204,49 +225,51 @@ function createReceiver(options, { logger, onLine, onError }) {
         res();
       }));
 
-      const attempt = (resolve, reject) => {
+      const handleFailure = (resolve, reject, endpointLabel, cause) => {
+        const wasConnected = everConnected;
+        if (!retryEnabled) {
+          const error = new Error(wasConnected
+            ? `TCP connection to ${endpointLabel} closed`
+            : `TCP connect to ${endpointLabel} failed`, { cause });
+          clearTimer();
+          onError(error);
+          if (!wasConnected) reject(error);
+          return;
+        }
+        const elapsed = Date.now() - retryStartTime;
+        if (connectTimeoutMs > 0 && elapsed + connectRetryIntervalMs > connectTimeoutMs) {
+          const label = wasConnected ? 'reconnect to' : 'connect to';
+          const error = new Error(
+            `Could not ${label} ${endpointLabel} within ${connectTimeoutMs}ms`,
+            { cause },
+          );
+          clearTimer();
+          onError(error);
+          if (!wasConnected) reject(error);
+          return;
+        }
+        const action = wasConnected ? 'lost — reconnecting' : 'failed — retrying';
+        logger.warn(`TCP connection to ${endpointLabel} ${action} in ${connectRetryIntervalMs}ms…`);
+        setTimeout(() => attempt(resolve, reject), connectRetryIntervalMs);
+      };
+
+      const connectEndpoint = (resolve, reject, endpoint) => {
         if (stopped) return;
+        const endpointLabel = formatSocketEndpoint({ address: endpoint.address, port });
         const socket = new net.Socket();
         activeSocket = socket;
-        attachTcpPayloadReceiver(socket, payloadCallbacks({ address: ip, port }));
+        attachTcpPayloadReceiver(socket, payloadCallbacks({ address: endpoint.address, port }));
 
         // 'error' must be handled to prevent an unhandled-exception crash.
         // The 'close' event always follows 'error' and is where we decide what to do.
         socket.once('error', (err) => {
-          logger.warn(`TCP socket error (${ip}:${port}): ${err.message}`);
+          logger.warn(`TCP socket error (${endpointLabel}): ${err.message}`);
         });
 
         socket.on('close', () => {
           if (stopped) return;
           if (activeSocket === socket) activeSocket = null;
-
-          const wasConnected = everConnected;
-
-          if (!retryEnabled) {
-            // Retry disabled: propagate via onError and reject the startedPromise if
-            // we never managed to connect even once.
-            const e = new Error(wasConnected
-              ? `TCP connection to ${ip}:${port} closed`
-              : `TCP connect to ${ip}:${port} failed`);
-            clearTimer();
-            onError(e);
-            if (!wasConnected) reject(e);
-            return;
-          }
-
-          const elapsed = Date.now() - retryStartTime;
-          if (connectTimeoutMs > 0 && elapsed + connectRetryIntervalMs > connectTimeoutMs) {
-            const label = wasConnected ? 'reconnect to' : 'connect to';
-            const e = new Error(`Could not ${label} ${ip}:${port} within ${connectTimeoutMs}ms`);
-            clearTimer();
-            onError(e);
-            if (!wasConnected) reject(e);
-            return;
-          }
-
-          const action = wasConnected ? 'lost — reconnecting' : 'failed — retrying';
-          logger.warn(`TCP connection to ${ip}:${port} ${action} in ${connectRetryIntervalMs}ms…`);
-          setTimeout(() => attempt(resolve, reject), connectRetryIntervalMs);
+          handleFailure(resolve, reject, endpointLabel);
         });
 
         socket.once('connect', () => {
@@ -256,73 +279,60 @@ function createReceiver(options, { logger, onLine, onError }) {
           if (!everConnected) {
             clearTimer();
             everConnected = true;
-            logger.info(`TCP client connected to ${ip}:${port}`);
+            logger.info(`TCP client connected to ${endpointLabel}`);
             resolve();
           } else {
-            logger.info(`TCP client reconnected to ${ip}:${port}`);
+            logger.info(`TCP client reconnected to ${endpointLabel}`);
           }
         });
 
-        socket.connect(port, ip);
+        socket.connect(tcpSocketOptions(endpoint, port));
       };
 
+      const attempt = (resolve, reject) => {
+        if (stopped) return;
+        resolveSocket(ip, options.tcpAddressFamily, { protocol: 'TCP' })
+          .then((endpoint) => connectEndpoint(resolve, reject, endpoint))
+          .catch((error) => {
+            if (stopped) return;
+            handleFailure(resolve, reject, formatSocketEndpoint({ address: ip, port }), error);
+          });
+      };
       attempt(resolve, reject);
     } else if (protocol === 'udp' && mode === 'server') {
-      const socket = dgram.createSocket('udp4');
-      socket.on('message', createUdpPayloadReceiver({
-        ...payloadCallbacks(),
-        isControlDatagram: undefined,
+      let socket = null;
+      closers.push(() => new Promise((res) => {
+        if (!socket) return res();
+        try { socket.close(() => res()); } catch (_) { res(); }
       }));
-      socket.on('error', (err) => { clearTimer(); onError(err); reject(err); });
-      socket.on('listening', () => {
+      resolveUdpEndpoint(ip, options.udpAddressFamily, { bind: true }).then((endpoint) => {
+        if (stopped) return;
+        socket = dgram.createSocket(endpoint.socketOptions);
+        socket.on('message', createUdpPayloadReceiver({
+          ...payloadCallbacks(),
+          isControlDatagram: undefined,
+        }));
+        socket.on('error', (err) => { clearTimer(); onError(err); reject(err); });
+        socket.on('listening', () => {
+          clearTimer();
+          const addr = socket.address();
+          logger.info(`UDP server listening on ${formatUdpEndpoint(addr)}`);
+          resolve();
+        });
+        socket.bind(port, endpoint.address);
+      }).catch((error) => {
         clearTimer();
-        const addr = socket.address();
-        logger.info(`UDP server listening on ${addr.address}:${addr.port}`);
-        resolve();
+        reject(error);
       });
-      socket.bind(port, ip);
-      closers.push(() => new Promise((res) => { try { socket.close(() => res()); } catch (_) { res(); } }));
     } else if (protocol === 'udp' && mode === 'client') {
-      const socket = dgram.createSocket('udp4');
       const registrationIntervalMs = options.udpRegistrationIntervalMs
         ?? DEFAULT_UDP_CLIENT_REGISTRATION_INTERVAL_MS;
+      let socket = null;
       let registration = null;
       let registered = false;
-      socket.on('message', createUdpPayloadReceiver(payloadCallbacks()));
-      socket.on('error', (err) => {
-        if (registered && err.code === 'ECONNREFUSED') {
-          logger.warn(`UDP endpoint ${ip}:${port} refused a datagram; registration renewal remains active.`);
-          return;
-        }
-        clearTimer();
-        onError(err);
-        reject(err);
-      });
-      socket.on('connect', () => {
-        registration = startUdpClientRegistration(socket, {
-          intervalMs: registrationIntervalMs,
-          onError: (error) => {
-            logger.warn(`UDP registration renewal failed for ${ip}:${port}: ${error.message}`);
-          },
-        });
-        registration.ready.then(() => {
-          if (stopped) return;
-          clearTimer();
-          registered = true;
-          logger.info(
-            `UDP client connected to ${ip}:${port}; registration renews every ${registrationIntervalMs}ms without acknowledgment`
-          );
-          resolve();
-        }).catch((error) => {
-          if (stopped) return;
-          clearTimer();
-          reject(new Error(`UDP client registration failed: ${error.message}`));
-        });
-      });
-      socket.on('listening', () => { try { socket.connect(port, ip); } catch (err) { reject(err); } });
-      socket.bind();
       closers.push(() => new Promise((res) => {
         if (registration) registration.stop();
+        if (!socket) return res();
         try {
           if (typeof socket.remoteAddress === 'string') {
             try { socket.disconnect(); } catch (_) {}
@@ -330,6 +340,49 @@ function createReceiver(options, { logger, onLine, onError }) {
           socket.close(() => res());
         } catch (_) { res(); }
       }));
+      resolveUdpEndpoint(ip, options.udpAddressFamily).then((endpoint) => {
+        if (stopped) return;
+        const remoteLabel = formatUdpEndpoint({ address: endpoint.address, port });
+        socket = dgram.createSocket(endpoint.socketOptions);
+        socket.on('message', createUdpPayloadReceiver(payloadCallbacks()));
+        socket.on('error', (err) => {
+          if (registered && err.code === 'ECONNREFUSED') {
+            logger.warn(`UDP endpoint ${remoteLabel} refused a datagram; registration renewal remains active.`);
+            return;
+          }
+          clearTimer();
+          onError(err);
+          reject(err);
+        });
+        socket.on('connect', () => {
+          registration = startUdpClientRegistration(socket, {
+            intervalMs: registrationIntervalMs,
+            onError: (error) => {
+              logger.warn(`UDP registration renewal failed for ${remoteLabel}: ${error.message}`);
+            },
+          });
+          registration.ready.then(() => {
+            if (stopped) return;
+            clearTimer();
+            registered = true;
+            logger.info(
+              `UDP client connected to ${remoteLabel}; registration renews every ${registrationIntervalMs}ms without acknowledgment`
+            );
+            resolve();
+          }).catch((error) => {
+            if (stopped) return;
+            clearTimer();
+            reject(new Error(`UDP client registration failed: ${error.message}`));
+          });
+        });
+        socket.on('listening', () => {
+          try { socket.connect(port, endpoint.address); } catch (err) { reject(err); }
+        });
+        socket.bind();
+      }).catch((error) => {
+        clearTimer();
+        reject(error);
+      });
     } else if (protocol === 'http' || protocol === 'ws') {
       const isHttp = protocol === 'http';
       const {
@@ -640,6 +693,7 @@ async function runHeadlessSession(options, { app = null, logger = null } = {}) {
 
 module.exports = {
   EXIT_CODES,
+  createReceiver,
   runHeadlessSession,
   writeDoneFile,
 };

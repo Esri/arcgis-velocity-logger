@@ -131,7 +131,9 @@ Launch Config. See [data formats](data-formats.md), [TCP](tcp.md), and
 | Name | Supported values | Default | Required in headless mode | Example | Purpose |
 | --- | --- | --- | --- | --- | --- |
 | `tcpFormat` | `delimited`, `json`, `geo-json`, `esri-json` | `delimited` | No | `tcpFormat=json` | Expected TCP payload format; controls record extraction and inspection. |
+| `tcpAddressFamily` | `auto`, `ipv4`, `ipv6` | `auto` | No | `tcpAddressFamily=ipv6` | TCP address family. Automatic preserves operating-system hostname resolution; explicit modes require matching hosts and resolution. |
 | `udpFormat` | `delimited`, `json`, `geo-json`, `esri-json` | `delimited` | No | `udpFormat=geo-json` | Expected format of one complete record or document per UDP datagram. |
+| `udpAddressFamily` | `ipv4`, `ipv6` | `ipv4` | No | `udpAddressFamily=ipv6` | UDP socket and host-resolution family. IPv6 uses an IPv6-only socket; the host must resolve to or contain a matching address. |
 | `udpRegistrationIntervalMs` | integer `1` to `2147483647` | `30000` | No | `udpRegistrationIntervalMs=30000` | Milliseconds between custom UDP Client registration renewals for Logger/Simulator pairing. This is not an acknowledgment or delivery check and does not apply to ArcGIS Velocity outputs. |
 
 ### gRPC parameters

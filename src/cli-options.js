@@ -74,7 +74,9 @@ const CLI_OPTION_KEYS = new Set([
   'ip',
   'port',
   'tcpFormat',
+  'tcpAddressFamily',
   'udpFormat',
+  'udpAddressFamily',
   'udpRegistrationIntervalMs',
   'autoConnect',
   'connectTimeoutMs',
@@ -170,7 +172,9 @@ const APP_DEFAULTS = {
   ip: '127.0.0.1',
   port: 5565,
   tcpFormat: DEFAULT_SOCKET_PAYLOAD_FORMAT,
+  tcpAddressFamily: 'auto',
   udpFormat: DEFAULT_SOCKET_PAYLOAD_FORMAT,
+  udpAddressFamily: 'ipv4',
   udpRegistrationIntervalMs: 30000,
   grpcHeaderPath: 'replace.with.dedicated.uid',
   grpcHeaderPathKey: 'grpc-path',
@@ -322,6 +326,22 @@ const CLI_PARAMETER_DEFINITIONS = [
     example: 'udpRegistrationIntervalMs=30000',
     requiredInHeadless: 'No',
     purpose: 'Milliseconds between custom UDP client registration renewals. Applies only to UDP client mode for Logger/Simulator pairing; it is not an acknowledgment, delivery check, or ArcGIS Velocity output option.',
+  },
+  {
+    key: 'tcpAddressFamily',
+    defaultValue: DEFAULT_HEADLESS_OPTIONS.tcpAddressFamily,
+    options: ['auto', 'ipv4', 'ipv6'],
+    example: 'tcpAddressFamily=ipv6',
+    requiredInHeadless: 'No',
+    purpose: 'TCP address family. Automatic preserves operating-system hostname resolution; explicit IPv4 or IPv6 requires a matching address and resolution family.',
+  },
+  {
+    key: 'udpAddressFamily',
+    defaultValue: DEFAULT_HEADLESS_OPTIONS.udpAddressFamily,
+    options: ['ipv4', 'ipv6'],
+    example: 'udpAddressFamily=ipv6',
+    requiredInHeadless: 'No',
+    purpose: 'UDP socket and host-resolution address family. IPv4 uses udp4; IPv6 uses an IPv6-only udp6 socket. Applies only when protocol=udp.',
   },
   {
     key: 'doneFile',
@@ -1353,6 +1373,22 @@ function validateHeadlessOptions(values, errors, warnings) {
       normalized.udpRegistrationIntervalMs, errors
     );
   }
+  if (normalized.udpAddressFamily !== undefined) {
+    const udpAddressFamily = String(normalized.udpAddressFamily).trim().toLowerCase();
+    if (!['ipv4', 'ipv6'].includes(udpAddressFamily)) {
+      errors.push(`Invalid udpAddressFamily '${normalized.udpAddressFamily}'. Use ipv4 or ipv6.`);
+    } else {
+      options.udpAddressFamily = udpAddressFamily;
+    }
+  }
+  if (normalized.tcpAddressFamily !== undefined) {
+    const tcpAddressFamily = String(normalized.tcpAddressFamily).trim().toLowerCase();
+    if (!['auto', 'ipv4', 'ipv6'].includes(tcpAddressFamily)) {
+      errors.push(`Invalid tcpAddressFamily '${normalized.tcpAddressFamily}'. Use auto, ipv4, or ipv6.`);
+    } else {
+      options.tcpAddressFamily = tcpAddressFamily;
+    }
+  }
   if (normalized.outputFile !== undefined && normalized.outputFile !== '') {
     options.outputFile = resolvePathValue(normalized.outputFile);
   }
@@ -1864,7 +1900,9 @@ function parseCommandLineArgs(rawArgv, { isPackaged = false } = {}) {
   if (!headlessRequested && errors.length === 0) {
     // Keys that can prepopulate the UI when passed in UI mode.
     const uiPresetKeys = new Set([
-      'protocol', 'mode', 'ip', 'port', 'tcpFormat', 'udpFormat', 'udpRegistrationIntervalMs',
+      'protocol', 'mode', 'ip', 'port', 'tcpFormat', 'tcpAddressFamily',
+      'udpFormat', 'udpAddressFamily',
+      'udpRegistrationIntervalMs',
       'grpcSerialization', 'grpcSendMethod',
       'grpcHeaderPath', 'grpcHeaderPathKey', 'useTls', 'tlsCaPath', 'tlsCertPath', 'tlsKeyPath',
       'allowUnverifiedTls', 'httpAllowUnverifiedTls', 'wsAllowUnverifiedTls',
@@ -1897,6 +1935,22 @@ function parseCommandLineArgs(rawArgv, { isPackaged = false } = {}) {
       presets.udpRegistrationIntervalMs = parseUdpRegistrationInterval(
         mergedValues.udpRegistrationIntervalMs, errors
       );
+    }
+    if (mergedValues.udpAddressFamily !== undefined) {
+      const udpAddressFamily = String(mergedValues.udpAddressFamily).trim().toLowerCase();
+      if (!['ipv4', 'ipv6'].includes(udpAddressFamily)) {
+        errors.push(`Invalid udpAddressFamily '${mergedValues.udpAddressFamily}'. Use ipv4 or ipv6.`);
+      } else {
+        presets.udpAddressFamily = udpAddressFamily;
+      }
+    }
+    if (mergedValues.tcpAddressFamily !== undefined) {
+      const tcpAddressFamily = String(mergedValues.tcpAddressFamily).trim().toLowerCase();
+      if (!['auto', 'ipv4', 'ipv6'].includes(tcpAddressFamily)) {
+        errors.push(`Invalid tcpAddressFamily '${mergedValues.tcpAddressFamily}'. Use auto, ipv4, or ipv6.`);
+      } else {
+        presets.tcpAddressFamily = tcpAddressFamily;
+      }
     }
     validateSocketFormats(mergedValues, presets, errors);
     // host alias
@@ -1993,7 +2047,9 @@ function formatExplainOutput(cliOptions) {
       ['ip', (presets && presets.ip) || `(default: ${d.ip})`],
       ['port', (presets && presets.port) || `(default: ${d.port})`],
       ['tcpFormat', (presets && presets.tcpFormat) || `(default: ${d.tcpFormat})`],
+      ['tcpAddressFamily', (presets && presets.tcpAddressFamily) || `(default: ${d.tcpAddressFamily})`],
       ['udpFormat', (presets && presets.udpFormat) || `(default: ${d.udpFormat})`],
+      ['udpAddressFamily', (presets && presets.udpAddressFamily) || `(default: ${d.udpAddressFamily})`],
       ['udpRegistrationIntervalMs', presets && presets.udpRegistrationIntervalMs !== undefined
         ? presets.udpRegistrationIntervalMs : `(default: ${d.udpRegistrationIntervalMs})`],
       ['grpcSerialization', (presets && presets.grpcSerialization) || `(default: ${d.grpcSerialization})`],
@@ -2059,7 +2115,9 @@ function formatExplainOutput(cliOptions) {
       ['ip', h.ip],
       ['port', h.port],
       ['tcpFormat', h.tcpFormat],
+      ['tcpAddressFamily', h.tcpAddressFamily],
       ['udpFormat', h.udpFormat],
+      ['udpAddressFamily', h.udpAddressFamily],
       ['udpRegistrationIntervalMs', `${h.udpRegistrationIntervalMs}ms`],
       ['autoConnect', h.autoConnect],
       ['connectWaitForServer', h.connectWaitForServer],

@@ -106,6 +106,27 @@ const { buildVelocityConnectionOptions } = require('../src/velocity-connection-o
       get('connection-type').dispatchEvent(new window.Event('change', { bubbles: true }));
       assert.strictEqual(get('connection-summary-card').hidden, true);
     }
+    const ipv6UdpOutput = {
+      outputType: 'udp-client',
+      label: 'IPv6 UDP output',
+      host: '2001:db8::25',
+      port: 9012,
+      format: 'json',
+    };
+    listeners.get('velocity:output-applied')({
+      ...ipv6UdpOutput,
+      connectionOptions: buildVelocityConnectionOptions(ipv6UdpOutput),
+    });
+    assert.strictEqual(get('connection-type').value, 'udp-server');
+    assert.strictEqual(get('host').value, '::1');
+    assert.strictEqual(get('udp-address-family').value, 'ipv6');
+    assert.match(get('connection-summary-rows').textContent, /\[2001:db8::25\]:9012/);
+    get('connect-btn').click();
+    const ipv6UdpRequest = sent.filter(([name]) => name === 'connect-udp').at(-1)[1];
+    assert.strictEqual(ipv6UdpRequest.type, 'server');
+    assert.strictEqual(ipv6UdpRequest.host, '::1');
+    assert.strictEqual(ipv6UdpRequest.udpAddressFamily, 'ipv6');
+    listeners.get('udp-connection-state')('disconnected');
     const httpOutput = { outputType: 'http', label: 'HTTP output', url: 'http://127.0.0.1:9011/receive?tenant=demo', format: 'json' };
     listeners.get('velocity:output-applied')({
       ...httpOutput, connectionOptions: buildVelocityConnectionOptions(httpOutput),

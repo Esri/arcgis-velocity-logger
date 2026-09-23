@@ -308,6 +308,36 @@ test('UDP client summary reports registration renewal while UDP server omits it'
   assert.strictEqual(server.settings.count, 0);
 });
 
+test('UDP summary reports IPv6 as a changed address-family setting', () => {
+  const ipv6 = buildConnectionSummary({
+    ...BASE,
+    connectionType: 'udp-server',
+    host: '::1',
+    udpAddressFamily: 'ipv6',
+  });
+  assert.strictEqual(rowsByKey(ipv6).udpAddressFamily.value, 'IPv6');
+  assert.strictEqual(ipv6.url, '[::1]:5565');
+  assert.strictEqual(ipv6.settings.count, 1);
+  const ipv4 = buildConnectionSummary({
+    ...BASE,
+    connectionType: 'udp-server',
+  });
+  assert.strictEqual(rowsByKey(ipv4).udpAddressFamily.value, 'IPv4');
+});
+
+test('TCP summary preserves automatic family and reports explicit IPv6', () => {
+  const automatic = buildConnectionSummary({ ...BASE, connectionType: 'tcp-server' });
+  assert.strictEqual(rowsByKey(automatic).tcpAddressFamily.value, 'Automatic');
+  const ipv6 = buildConnectionSummary({
+    ...BASE,
+    connectionType: 'tcp-client',
+    host: '::1',
+    tcpAddressFamily: 'ipv6',
+  });
+  assert.strictEqual(rowsByKey(ipv6).tcpAddressFamily.value, 'IPv6');
+  assert.strictEqual(ipv6.url, '[::1]:5565');
+});
+
 test('the Logger reports the JID it receives on for both XMPP roles', () => {
   const client = rowsByKey(buildConnectionSummary({
     ...BASE, connectionType: 'xmpp-client', port: 5222, xmppLocalJid: 'velocity-logger@localhost',

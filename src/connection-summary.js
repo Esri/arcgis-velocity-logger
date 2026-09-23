@@ -145,9 +145,13 @@
    * controls exist?".
    */
   const PROTOCOL_SETTING_FIELDS = Object.freeze({
-    tcp: Object.freeze([{ field: 'tcpFormat', defaultValue: 'delimited' }]),
+    tcp: Object.freeze([
+      { field: 'tcpFormat', defaultValue: 'delimited' },
+      { field: 'tcpAddressFamily', defaultValue: 'auto' },
+    ]),
     udp: Object.freeze([
       { field: 'udpFormat', defaultValue: 'delimited' },
+      { field: 'udpAddressFamily', defaultValue: 'ipv4' },
       { field: 'udpRegistrationIntervalMs', defaultValue: 30000, clientOnly: true },
     ]),
     grpc: Object.freeze([
@@ -561,6 +565,19 @@
       rows.push(row('format', 'Format', FORMAT_LABELS[formatValue] || FORMAT_LABELS.delimited, {
         isDefault: formatValue === 'delimited',
       }));
+      if (protocol === 'tcp') {
+        const family = state.tcpAddressFamily === 'ipv6'
+          ? 'IPv6' : state.tcpAddressFamily === 'ipv4' ? 'IPv4' : 'Automatic';
+        rows.push(row('tcpAddressFamily', 'Address family', family, {
+          isDefault: family === 'Automatic',
+        }));
+      }
+      if (protocol === 'udp') {
+        const family = state.udpAddressFamily === 'ipv6' ? 'IPv6' : 'IPv4';
+        rows.push(row('udpAddressFamily', 'Address family', family, {
+          isDefault: family === 'IPv4',
+        }));
+      }
       if (protocol === 'udp' && mode === 'client') {
         const interval = Number(state.udpRegistrationIntervalMs || 30000);
         rows.push(row('udpRegistrationInterval', 'Registration renewal', `${interval} ms`, {

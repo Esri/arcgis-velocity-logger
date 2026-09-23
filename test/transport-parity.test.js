@@ -130,6 +130,10 @@ compare('network authority formatting is byte-identical', () => {
   assert.strictEqual(readLocal('src/network-address-utils.js'), readSimulator('src/network-address-utils.js'));
 });
 
+compare('socket address-family helpers are byte-identical', () => {
+  assert.strictEqual(readLocal('src/socket-address-utils.js'), readSimulator('src/socket-address-utils.js'));
+});
+
 for (const name of [
   'velocity-endpoints', 'velocity-rest-client', 'velocity-session',
   'velocity-preferences', 'velocity-connection-options', 'velocity-endpoint-ui',

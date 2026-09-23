@@ -38,6 +38,10 @@ TCP and UDP payload choices are Launch Config connection fields:
 `delimited` when omitted. They are not App Config preferences.
 The custom Logger/Simulator UDP Client renewal cadence is
 `connection.udpRegistrationIntervalMs`, defaulting to `30000` milliseconds.
+`connection.udpAddressFamily` selects `ipv4` (the default) or `ipv6` for the
+UDP socket and host resolution.
+`connection.tcpAddressFamily` selects `auto` (the default), `ipv4`, or `ipv6`.
+Automatic preserves operating-system TCP hostname resolution.
 See [data formats](data-formats.md) for the allowed values and their distinction
 from `output.outputFormat`.
 

@@ -685,6 +685,74 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
     assert.match(document.getElementById('protocol-settings-alert').textContent, /between 1 and 2147483647/);
   });
 
+  await uiTest('UDP address family is shared by both modes and reaches Connect', async ({ document, select, rows, sent, window }) => {
+    const family = document.getElementById('udp-address-family');
+    select('connection-type', 'udp-server');
+    family.value = 'ipv6';
+    family.dispatchEvent(new window.Event('change', { bubbles: true }));
+    assert.match(family.dataset.tooltip, /IPv6/);
+    assert.strictEqual(family.getAttribute('aria-label'), family.dataset.tooltip);
+    document.getElementById('protocol-settings-btn').click();
+    document.getElementById('protocol-settings-tab-summary').click();
+    assert.strictEqual(
+      rows('protocol-settings-summary-rows').find((row) => row.key === 'udpAddressFamily').value,
+      'IPv6',
+    );
+    document.getElementById('connect-btn').click();
+    assert.strictEqual(
+      sent.filter(({ channel }) => channel === 'connect-udp').at(-1).payload.udpAddressFamily,
+      'ipv6',
+    );
+  });
+
+  await uiTest('TCP address family defaults to Automatic and reaches Connect', async ({ document, select, rows, sent, window }) => {
+    const family = document.getElementById('tcp-address-family');
+    select('connection-type', 'tcp-client');
+    assert.strictEqual(family.value, 'auto');
+    family.value = 'ipv6';
+    family.dispatchEvent(new window.Event('change', { bubbles: true }));
+    assert.match(family.dataset.tooltip, /IPv6/);
+    document.getElementById('protocol-settings-btn').click();
+    document.getElementById('protocol-settings-tab-summary').click();
+    assert.strictEqual(
+      rows('protocol-settings-summary-rows').find((row) => row.key === 'tcpAddressFamily').value,
+      'IPv6',
+    );
+    document.getElementById('connect-btn').click();
+    assert.strictEqual(
+      sent.filter(({ channel }) => channel === 'connect-tcp').at(-1).payload.tcpAddressFamily,
+      'ipv6',
+    );
+  });
+
+  await uiTest('socket Host tooltip follows role and address family without rewriting Host', async ({ document, select, window }) => {
+    const host = document.getElementById('host');
+    const tcpFamily = document.getElementById('tcp-address-family');
+    const udpFamily = document.getElementById('udp-address-family');
+    host.value = 'example.internal';
+
+    select('connection-type', 'tcp-client');
+    assert.match(host.dataset.tooltip, /Destination address/);
+    assert.match(host.dataset.tooltip, /Do not use 0\.0\.0\.0 or ::/);
+    assert.strictEqual(host.value, 'example.internal');
+
+    select('connection-type', 'tcp-server');
+    assert.match(host.dataset.tooltip, /Auto preserves system listen behavior/);
+    tcpFamily.value = 'ipv6';
+    tcpFamily.dispatchEvent(new window.Event('change', { bubbles: true }));
+    assert.match(host.dataset.tooltip, /Use :: to listen on all local IPv6 interfaces/);
+    assert.strictEqual(host.value, 'example.internal');
+
+    select('connection-type', 'udp-server');
+    udpFamily.value = 'ipv4';
+    udpFamily.dispatchEvent(new window.Event('change', { bubbles: true }));
+    assert.match(host.dataset.tooltip, /Use 0\.0\.0\.0 to listen on all local IPv4 interfaces/);
+    assert.strictEqual(host.getAttribute('aria-label'), host.dataset.tooltip);
+
+    select('connection-type', 'http-server');
+    assert.match(host.dataset.tooltip, /Host name or IP address/);
+  });
+
   await uiTest('credential-bearing WebSocket fields never reach a summary surface', async ({ document, select, type, rows, sent }) => {
     select('connection-type', 'ws-client');
     type('ws-headers', '{"Authorization":"do-not-print-me"}');

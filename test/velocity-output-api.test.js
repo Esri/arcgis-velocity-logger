@@ -88,7 +88,10 @@ const analytic = { id: 'analytic/one', label: 'Vehicle positions', outputs: [str
     assert.strictEqual(item.analyticId, analytic.id);
     assert.deepStrictEqual(buildVelocityConnectionOptions(item), {
       connectionType: `${protocol}-${isServer ? 'client' : 'server'}`,
-      ip: item.host, port: item.port, [`${protocol}Format`]: formats[index],
+      ip: item.host,
+      port: item.port,
+      tcpAddressFamily: isServer ? 'ipv4' : 'auto',
+      [`${protocol}Format`]: formats[index],
     });
     for (const port of [0, 65536, 'invalid']) {
       const invalid = parseAnalyticOutput(analytic, 'realtime', {
@@ -107,7 +110,7 @@ const analytic = { id: 'analytic/one', label: 'Vehicle positions', outputs: [str
       assert.strictEqual(item.supported, true, item.unsupportedReason);
       assert.strictEqual(item.host, `destination-${index}.example.com`);
       assert.deepStrictEqual(item.expectedDestination, {
-        host: `destination-${index}.example.com`, port: 9020 + index,
+        host: `destination-${index}.example.com`, port: 9020 + index, family: 'ipv4',
       });
       assert.deepStrictEqual(buildVelocityConnectionOptions(item).expectedDestination, item.expectedDestination);
       assert.strictEqual(buildVelocityConnectionOptions(item).connectionType, 'udp-server');

@@ -13,43 +13,48 @@ function closeSocket(socket) {
   });
 }
 
-function bindEphemeral(socket) {
+function bindEphemeral(socket, host) {
   return new Promise((resolve, reject) => {
     socket.once('error', reject);
-    socket.bind(0, '127.0.0.1', () => {
+    socket.bind(0, host, () => {
       socket.removeListener('error', reject);
       resolve(socket.address());
     });
   });
 }
 
-function send(socket, payload, port) {
+function send(socket, payload, port, host) {
   return new Promise((resolve, reject) => {
-    socket.send(Buffer.from(payload), port, '127.0.0.1', (error) => {
+    socket.send(Buffer.from(payload), port, host, (error) => {
       if (error) reject(error);
       else resolve();
     });
   });
 }
 
-async function verifyVelocityOutput(outputType) {
-  const receiver = dgram.createSocket('udp4');
-  const sender = dgram.createSocket('udp4');
+async function verifyVelocityOutput(outputType, family) {
+  const ipv6 = family === 'ipv6';
+  const host = ipv6 ? '::1' : '127.0.0.1';
+  const socketOptions = ipv6 ? { type: 'udp6', ipv6Only: true } : { type: 'udp4' };
+  const receiver = dgram.createSocket(socketOptions);
+  const sender = dgram.createSocket(socketOptions);
   const received = [];
   const warnings = [];
   let unexpectedOutboundPackets = 0;
 
   try {
-    const address = await bindEphemeral(receiver);
-    await bindEphemeral(sender);
+    const address = await bindEphemeral(receiver, host);
+    await bindEphemeral(sender, host);
     const options = buildVelocityConnectionOptions({
       outputType,
-      host: '127.0.0.1',
+      host,
+      udpAddressFamily: family,
       port: address.port,
       format: 'delimited',
     });
     assert.strictEqual(options.connectionType, 'udp-server');
-    assert.strictEqual(options.ip, '127.0.0.1');
+    assert.strictEqual(options.ip, host);
+    assert.strictEqual(options.udpAddressFamily, family);
 
     sender.on('message', () => { unexpectedOutboundPackets += 1; });
     const receive = createUdpPayloadReceiver({
@@ -60,8 +65,8 @@ async function verifyVelocityOutput(outputType) {
     receiver.on('message', receive);
 
     const whitespacePayload = '  café,雪  \n';
-    await send(sender, whitespacePayload, address.port);
-    await send(sender, UDP_CLIENT_REGISTRATION_MESSAGE, address.port);
+    await send(sender, whitespacePayload, address.port, host);
+    await send(sender, UDP_CLIENT_REGISTRATION_MESSAGE, address.port, host);
     await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('Timed out receiving Velocity UDP datagrams')), 1000);
       const check = () => {
@@ -83,8 +88,23 @@ async function verifyVelocityOutput(outputType) {
 }
 
 (async () => {
+  let ipv6Available = true;
+  const probe = dgram.createSocket({ type: 'udp6', ipv6Only: true });
+  try {
+    await bindEphemeral(probe, '::1');
+  } catch (error) {
+    if (['EADDRNOTAVAIL', 'EAFNOSUPPORT', 'EPROTONOSUPPORT'].includes(error.code)) {
+      ipv6Available = false;
+      console.log('  – Velocity UDP IPv6 output fixtures skipped: ::1 is unavailable');
+    } else {
+      throw error;
+    }
+  } finally {
+    await closeSocket(probe);
+  }
   for (const outputType of ['udp-client', 'udp-server']) {
-    await verifyVelocityOutput(outputType);
+    await verifyVelocityOutput(outputType, 'ipv4');
+    if (ipv6Available) await verifyVelocityOutput(outputType, 'ipv6');
   }
   assert.strictEqual(
     isUdpClientRegistrationMessage(Buffer.from(UDP_CLIENT_REGISTRATION_MESSAGE)),

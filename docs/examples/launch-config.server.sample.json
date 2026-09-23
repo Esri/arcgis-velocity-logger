@@ -13,7 +13,9 @@
     "port": 5565,
     "protocol": "tcp",
     "tcpFormat": "delimited",
+    "tcpAddressFamily": "auto",
     "udpFormat": "delimited",
+    "udpAddressFamily": "ipv4",
     "wsFormat": "delimited",
     "wsPath": "/",
     "wsTls": true

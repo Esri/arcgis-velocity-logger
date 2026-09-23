@@ -76,7 +76,9 @@
     host: { elementId: 'host', kind: 'value' },
     port: { elementId: 'port', kind: 'value' },
     tcpFormat: { elementId: 'tcp-format', kind: 'value' },
+    tcpAddressFamily: { elementId: 'tcp-address-family', kind: 'value' },
     udpFormat: { elementId: 'udp-format', kind: 'value' },
+    udpAddressFamily: { elementId: 'udp-address-family', kind: 'value' },
     udpRegistrationIntervalMs: { elementId: 'udp-registration-interval', kind: 'value' },
 
     grpcSerialization: { elementId: 'grpc-serialization', kind: 'value' },
@@ -141,7 +143,9 @@
     host: CONNECTION_PRESET_HOST,
     port: 5565,
     tcpFormat: 'delimited',
+    tcpAddressFamily: 'auto',
     udpFormat: 'delimited',
+    udpAddressFamily: 'ipv4',
     udpRegistrationIntervalMs: 30000,
 
     grpcSerialization: 'protobuf',

@@ -12,7 +12,7 @@ const net = require('net');
 const path = require('path');
 
 const grpcTransportModule = require('../src/grpc-transport.js');
-const { runHeadlessSession, EXIT_CODES } = require('../src/headless-runner.js');
+const { createReceiver, runHeadlessSession, EXIT_CODES } = require('../src/headless-runner.js');
 const { DEFAULT_HEADLESS_OPTIONS } = require('../src/cli-options.js');
 const { createHttpClientTransport, createHttpServerTransport, HttpServerTransport } = require('../src/http-transport.js');
 const { UDP_CLIENT_REGISTRATION_MESSAGE } = require('../src/udp-utils.js');
@@ -99,6 +99,44 @@ function baseOptions(overrides) {
 
 (async () => {
   console.log('headless-runner.test.js');
+
+  await test('TCP explicit-family retry re-resolves DNS after a transient failure', async () => {
+    const server = net.createServer();
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    const port = server.address().port;
+    let resolutions = 0;
+    const receiver = createReceiver(baseOptions({
+      protocol: 'tcp',
+      mode: 'client',
+      ip: 'retry.example',
+      port,
+      tcpFormat: 'delimited',
+      tcpAddressFamily: 'ipv4',
+      connectWaitForServer: true,
+      connectRetryIntervalMs: 10,
+      connectTimeoutMs: 1000,
+    }), {
+      logger: { info() {}, warn() {}, error() {}, debug() {} },
+      onLine() {},
+      onError(error) { throw error; },
+      resolveSocket: async (_host, family) => {
+        resolutions += 1;
+        assert.strictEqual(family, 'ipv4');
+        if (resolutions === 1) throw new Error('temporary DNS failure');
+        return { address: '127.0.0.1', family: 4 };
+      },
+    });
+    try {
+      await receiver.startedPromise;
+      assert.strictEqual(resolutions, 2);
+    } finally {
+      await receiver.stop();
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
 
   await test('captures lines in text format and stops at maxLogCount', async () => {
     const port = await pickFreePort();

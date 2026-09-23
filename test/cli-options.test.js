@@ -84,6 +84,43 @@ test('UDP registration renewal interval is validated for UI and headless modes',
   }
 });
 
+test('UDP address family defaults to IPv4 and accepts explicit IPv6', () => {
+  assert.strictEqual(DEFAULT_HEADLESS_OPTIONS.udpAddressFamily, 'ipv4');
+  for (const runMode of ['ui', 'headless']) {
+    const result = parseCommandLineArgs(argv(
+      `runMode=${runMode}`,
+      'protocol=udp',
+      'udpAddressFamily=IPv6',
+    ));
+    assert.deepStrictEqual(result.errors, []);
+    const options = runMode === 'ui' ? result.ui.presets : result.headless;
+    assert.strictEqual(options.udpAddressFamily, 'ipv6');
+    assert.match(formatExplainOutput(result), /udpAddressFamily\s+ipv6/);
+  }
+  for (const value of ['', 'udp6', '6', 'auto']) {
+    const result = parseCommandLineArgs(argv('protocol=udp', `udpAddressFamily=${value}`));
+    assert.strictEqual(result.mode, 'error', value);
+    assert.ok(result.errors.some((error) => error.includes('udpAddressFamily')));
+  }
+});
+
+test('TCP address family defaults to auto and accepts explicit families', () => {
+  assert.strictEqual(DEFAULT_HEADLESS_OPTIONS.tcpAddressFamily, 'auto');
+  for (const family of ['auto', 'ipv4', 'ipv6']) {
+    const result = parseCommandLineArgs(argv(
+      'runMode=headless',
+      'protocol=tcp',
+      `tcpAddressFamily=${family.toUpperCase()}`,
+    ));
+    assert.deepStrictEqual(result.errors, []);
+    assert.strictEqual(result.headless.tcpAddressFamily, family);
+  }
+  for (const value of ['tcp6', '6']) {
+    const result = parseCommandLineArgs(argv('protocol=tcp', `tcpAddressFamily=${value}`));
+    assert.strictEqual(result.mode, 'error', value);
+  }
+});
+
 test('Launch Config preserves TCP/UDP formats and CLI overrides one field', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logger-socket-format-'));
   const filename = path.join(dir, 'launch.json');
@@ -93,7 +130,9 @@ test('Launch Config preserves TCP/UDP formats and CLI overrides one field', () =
         protocol: 'tcp',
         mode: 'server',
         tcpFormat: 'geo-json',
+        tcpAddressFamily: 'ipv6',
         udpFormat: 'esri-json',
+        udpAddressFamily: 'ipv6',
         udpRegistrationIntervalMs: 45000,
       },
     }));
@@ -102,7 +141,9 @@ test('Launch Config preserves TCP/UDP formats and CLI overrides one field', () =
       assert.deepStrictEqual(result.errors, []);
       const options = runMode === 'ui' ? result.ui.presets : result.headless;
       assert.strictEqual(options.tcpFormat, 'json');
+      assert.strictEqual(options.tcpAddressFamily, 'ipv6');
       assert.strictEqual(options.udpFormat, 'esri-json');
+      assert.strictEqual(options.udpAddressFamily, 'ipv6');
       assert.strictEqual(options.udpRegistrationIntervalMs, 45000);
     }
   } finally {

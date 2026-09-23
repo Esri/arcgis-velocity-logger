@@ -172,6 +172,9 @@ function parseItem(item, direction) {
     ];
     parsed.host = hostKeys.map((key) => text(properties[key])).find(Boolean) || '';
     parsed.port = typeof properties[`${name}.port`] === 'number' ? properties[`${name}.port`] : text(properties[`${name}.port`]);
+    if (name.startsWith('udp-') && properties[`${name}.addressFamily`] !== undefined) {
+      parsed.udpAddressFamily = text(properties[`${name}.addressFamily`]);
+    }
   }
   if (direction === 'feed' && name === 'websocket') {
     parsed.reason = 'A WebSocket feed connects to an outbound source; it is not a receiver the Simulator can publish to.';

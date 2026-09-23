@@ -23,7 +23,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const connectionPresetSelect = document.getElementById('connection-preset');
     const connectionPresetState = document.getElementById('connection-preset-state');
     const tcpFormatSelect = document.getElementById('tcp-format');
+    const tcpAddressFamilySelect = document.getElementById('tcp-address-family');
     const udpFormatSelect = document.getElementById('udp-format');
+    const udpAddressFamilySelect = document.getElementById('udp-address-family');
     const udpRegistrationIntervalInput = document.getElementById('udp-registration-interval');
     const grpcSerializationSelect = document.getElementById('grpc-serialization');
     const grpcSendMethodSelect = document.getElementById('grpc-send-method');
@@ -133,6 +135,43 @@ document.addEventListener('DOMContentLoaded', () => {
         select.addEventListener('change', () => updatePayloadFormatTooltip(select, protocol));
         updatePayloadFormatTooltip(select, protocol);
     }
+    const UDP_ADDRESS_FAMILY_TOOLTIPS = {
+        ipv4: 'IPv4 - use IPv4 addresses and resolve hostnames to IPv4. This is the default.',
+        ipv6: 'IPv6 - use IPv6 addresses and resolve hostnames to IPv6. IPv4-mapped addresses are not supported.',
+    };
+    const TCP_ADDRESS_FAMILY_TOOLTIPS = {
+        auto: 'Automatic - preserve operating-system TCP hostname resolution and use the literal address family when specified.',
+        ipv4: 'IPv4 - require IPv4 addresses and resolve hostnames to IPv4.',
+        ipv6: 'IPv6 - require IPv6 addresses and resolve hostnames to IPv6. Explicit IPv6 server binds accept IPv6 only.',
+    };
+    function updateTcpAddressFamilyTooltip() {
+        if (!tcpAddressFamilySelect) return;
+        const tooltip = TCP_ADDRESS_FAMILY_TOOLTIPS[tcpAddressFamilySelect.value]
+            || TCP_ADDRESS_FAMILY_TOOLTIPS.auto;
+        tcpAddressFamilySelect.dataset.tooltip = tooltip;
+        tcpAddressFamilySelect.setAttribute('aria-label', tooltip);
+    }
+    if (tcpAddressFamilySelect) {
+        tcpAddressFamilySelect.addEventListener('change', () => {
+            updateTcpAddressFamilyTooltip();
+            updateSocketHostTooltip();
+        });
+        updateTcpAddressFamilyTooltip();
+    }
+    function updateUdpAddressFamilyTooltip() {
+        if (!udpAddressFamilySelect) return;
+        const tooltip = UDP_ADDRESS_FAMILY_TOOLTIPS[udpAddressFamilySelect.value]
+            || UDP_ADDRESS_FAMILY_TOOLTIPS.ipv4;
+        udpAddressFamilySelect.dataset.tooltip = tooltip;
+        udpAddressFamilySelect.setAttribute('aria-label', tooltip);
+    }
+    if (udpAddressFamilySelect) {
+        udpAddressFamilySelect.addEventListener('change', () => {
+            updateUdpAddressFamilyTooltip();
+            updateSocketHostTooltip();
+        });
+        updateUdpAddressFamilyTooltip();
+    }
 
     function updateUdpRegistrationIntervalTooltip() {
         if (!udpRegistrationIntervalInput) return;
@@ -223,11 +262,37 @@ document.addEventListener('DOMContentLoaded', () => {
         'xmpp-server': 'XMPP Server - hosts a focused in-process C2S service and receives direct or room message bodies.',
         'xmpp-client': 'XMPP Client - connects to an XMPP service and receives direct or Multi-User Chat message bodies.',
     };
+    const DEFAULT_HOST_TOOLTIP = 'Host name or IP address. In a server mode this is the local address to bind; in a client mode it is the remote address to reach.';
+    const SOCKET_HOST_TOOLTIPS = {
+        client: 'Destination address: enter a reachable peer IP address or DNS name matching the selected address family. Do not use 0.0.0.0 or :: as a destination.',
+        ipv4: 'Local bind address: 127.0.0.1 accepts same-machine traffic only. A local LAN IP restricts listening to that interface. Use 0.0.0.0 to listen on all local IPv4 interfaces for remote peers or multiple interfaces. This expands network exposure; firewall rules still apply.',
+        ipv6: 'Local bind address: ::1 accepts same-machine traffic only. A local IPv6 address restricts listening to that interface. Use :: to listen on all local IPv6 interfaces for remote peers or multiple interfaces. Explicit IPv6 listeners accept IPv6 only. This expands network exposure; firewall rules still apply.',
+        auto: 'Local bind address: 127.0.0.1 or ::1 is same-machine only. A local LAN IP restricts listening to that interface. Use 0.0.0.0 for all local IPv4 interfaces or :: for the system IPv6 wildcard when remote peers or multiple interfaces need access. Auto preserves system listen behavior. Wildcard binds expand network exposure; firewall rules still apply.',
+    };
 
     function updateConnectionModeTooltip() {
         const tooltip = CONNECTION_MODE_TOOLTIPS[connectionTypeSelect.value] || '';
         connectionTypeSelect.title = tooltip;
         connectionTypeSelect.setAttribute('aria-label', tooltip);
+    }
+
+    function updateSocketHostTooltip() {
+        const type = connectionTypeSelect.value;
+        const protocol = type.split('-')[0];
+        let tooltip = DEFAULT_HOST_TOOLTIP;
+        if (protocol === 'tcp' || protocol === 'udp') {
+            if (type.endsWith('-client')) {
+                tooltip = SOCKET_HOST_TOOLTIPS.client;
+            } else if (protocol === 'tcp') {
+                tooltip = SOCKET_HOST_TOOLTIPS[tcpAddressFamilySelect?.value || 'auto'];
+            } else {
+                tooltip = SOCKET_HOST_TOOLTIPS[udpAddressFamilySelect?.value || 'ipv4'];
+            }
+        }
+        hostInput.dataset.tooltip = tooltip;
+        hostInput.dataset.tooltipIcon = '🖧';
+        hostInput.dataset.tooltipKind = 'info';
+        hostInput.setAttribute('aria-label', tooltip);
     }
 
     // ------------------------------------------------------------------
@@ -528,6 +593,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         updateGrpcSerializationTooltip();
         updateConnectionModeTooltip();
+        updateSocketHostTooltip();
         updateWsFormatTooltip();
         updateXmppTlsPolicyTooltip();
         updateXmppConversationTooltip();
@@ -586,7 +652,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     connectionTypeSelect.addEventListener('change', updateConnectionModeTooltip);
+    connectionTypeSelect.addEventListener('change', updateSocketHostTooltip);
     updateConnectionModeTooltip();
+    updateSocketHostTooltip();
 
     grpcTlsCheckbox.addEventListener('change', () => {
         const isGrpc = connectionTypeSelect.value.startsWith('grpc');
@@ -833,7 +901,9 @@ document.addEventListener('DOMContentLoaded', () => {
             port: portInput.value,
             connectionState: connectionLockState,
             tcpFormat: value('tcp-format') || 'delimited',
+            tcpAddressFamily: value('tcp-address-family') || 'auto',
             udpFormat: value('udp-format') || 'delimited',
+            udpAddressFamily: value('udp-address-family') || 'ipv4',
             udpRegistrationIntervalMs: Number(value('udp-registration-interval') || 30000),
             preset: {
                 id: activePresetId,
@@ -2206,6 +2276,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 select.value = presets[key];
                 select.dispatchEvent(new Event('change'));
             }
+            if (presets.udpAddressFamily !== undefined && udpAddressFamilySelect) {
+                udpAddressFamilySelect.value = presets.udpAddressFamily;
+                updateUdpAddressFamilyTooltip();
+            }
+            if (presets.tcpAddressFamily !== undefined && tcpAddressFamilySelect) {
+                tcpAddressFamilySelect.value = presets.tcpAddressFamily;
+                updateTcpAddressFamilyTooltip();
+            }
             if (presets.udpRegistrationIntervalMs !== undefined && udpRegistrationIntervalInput) {
                 udpRegistrationIntervalInput.value = presets.udpRegistrationIntervalMs;
                 updateUdpRegistrationIntervalTooltip();
@@ -2324,11 +2402,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (connectionType.startsWith('tcp')) {
             const type = connectionType.split('-')[1];
             const tcpFormat = tcpFormatSelect?.value || 'delimited';
+            const tcpAddressFamily = tcpAddressFamilySelect?.value || 'auto';
             setStatus(`Connecting via TCP ${type} to ${host}:${port} [${tcpFormat}]...`, { category: 'connection' });
-            window.electronAPI.send('connect-tcp', { type, port, host, tcpFormat });
+            window.electronAPI.send('connect-tcp', { type, port, host, tcpFormat, tcpAddressFamily });
         } else if (connectionType.startsWith('udp')) {
             const type = connectionType.split('-')[1];
             const udpFormat = udpFormatSelect?.value || 'delimited';
+            const udpAddressFamily = udpAddressFamilySelect?.value || 'ipv4';
             const udpRegistrationIntervalMs = Number(udpRegistrationIntervalInput?.value || 30000);
             if (type === 'client' && (!Number.isInteger(udpRegistrationIntervalMs)
                 || udpRegistrationIntervalMs < 1 || udpRegistrationIntervalMs > 2147483647)) {
@@ -2340,7 +2420,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             setStatus(`Connecting via UDP ${type} to ${host}:${port} [${udpFormat}]...`, { category: 'connection' });
             window.electronAPI.send('connect-udp', {
-                type, port, host, udpFormat, udpRegistrationIntervalMs,
+                type, port, host, udpFormat, udpAddressFamily, udpRegistrationIntervalMs,
             });
         } else if (connectionType.startsWith('grpc')) {
             const type = connectionType.split('-')[1];

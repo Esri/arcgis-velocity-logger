@@ -150,6 +150,13 @@
                                         <option value="esri-json" data-tooltip="Esri JSON. An ArcGIS feature or feature set with attributes and geometry.">Esri JSON</option>
                                     </select>
                                 </label>
+                                <label class="protocol-settings-field" data-tooltip="Choose automatic, IPv4, or IPv6 addressing for TCP. Automatic preserves operating-system hostname resolution." aria-label="TCP address family">Address family
+                                    <select id="tcp-address-family" data-tooltip="Automatic - preserve operating-system TCP hostname resolution and use the literal address family when specified." aria-label="TCP address family: Automatic">
+                                        <option value="auto" selected data-tooltip="Automatic - preserve operating-system TCP hostname resolution and use the literal address family when specified.">Automatic</option>
+                                        <option value="ipv4" data-tooltip="IPv4 - require IPv4 addresses and resolve hostnames to IPv4.">IPv4</option>
+                                        <option value="ipv6" data-tooltip="IPv6 - require IPv6 addresses and resolve hostnames to IPv6. Explicit IPv6 server binds accept IPv6 only.">IPv6</option>
+                                    </select>
+                                </label>
                             </div>
                             <div class="protocol-settings-group" data-protocol="udp" data-section="basics">
                                 <label class="protocol-settings-field" data-tooltip="Payload format for the UDP connection" aria-label="UDP payload format">Format
@@ -158,6 +165,12 @@
                                         <option value="json" data-tooltip="JSON. A complete JSON object or array.">JSON</option>
                                         <option value="geo-json" data-tooltip="GeoJSON. A Feature or FeatureCollection with geometry and properties.">GeoJSON</option>
                                         <option value="esri-json" data-tooltip="Esri JSON. An ArcGIS feature or feature set with attributes and geometry.">Esri JSON</option>
+                                    </select>
+                                </label>
+                                <label class="protocol-settings-field" data-tooltip="Choose IPv4 or IPv6 for UDP. The host must match the selected family. IPv6 sockets accept IPv6 only." aria-label="UDP address family">Address family
+                                    <select id="udp-address-family" data-tooltip="IPv4 - use IPv4 addresses and resolve hostnames to IPv4. This is the default." aria-label="UDP address family: IPv4">
+                                        <option value="ipv4" selected data-tooltip="IPv4 - use IPv4 addresses and resolve hostnames to IPv4. This is the default.">IPv4</option>
+                                        <option value="ipv6" data-tooltip="IPv6 - use IPv6 addresses and resolve hostnames to IPv6. IPv4-mapped addresses are not supported.">IPv6</option>
                                     </select>
                                 </label>
                             </div>

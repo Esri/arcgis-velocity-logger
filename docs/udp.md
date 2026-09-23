@@ -23,6 +23,9 @@ destination, so applying either output selects UDP Server. The bind address
 defaults to `127.0.0.1`; choose a local interface that the output's advertised
 destination routes to. Applying an output reports that expected destination
 but does not claim that routing or firewall configuration is reachable.
+Select **IPv4** or **IPv6** to match the local bind address and peer. IPv6 uses
+an IPv6-only socket; use `::1` for local testing or a local IPv6 interface for
+remote peers. IPv4 remains the default.
 
 **UDP Client** is available for compatible custom servers. It connects its
 socket to a remote server and announces its receiving address using the exact
@@ -53,9 +56,10 @@ One datagram must contain one complete CSV record or JSON document. Logger
 never combines datagrams, even from the same sender. Embedded newlines inside
 a quoted CSV field or JSON document remain part of that record.
 
-The IPv4 UDP payload limit is 65,507 bytes, measured after UTF-8 encoding.
-This is an upper bound, not a recommended Internet packet size: larger
-datagrams can require IP fragmentation and are more vulnerable to loss.
+The application UDP payload limit is 65,507 bytes for both families, measured
+after UTF-8 encoding. This preserves the IPv4 UDP ceiling as one shared bound;
+it is not a recommended Internet packet size. Larger datagrams can require IP
+fragmentation and are more vulnerable to loss.
 JSON and geometry-bearing records can be substantially larger than their
 source CSV rows.
 
@@ -69,12 +73,14 @@ See [data formats](data-formats.md) for format meanings and capture containers.
 ## UI controls
 
 Host and port remain in the connection row. Select **Settings → Basics** to
-change Format and **Settings → Advanced** to change UDP Client registration
-renewal while disconnected; the connected Summary is read-only.
+change Format and Address family, and **Settings → Advanced** to change UDP
+Client registration renewal while disconnected; the connected Summary is
+read-only.
 
 | Control | Default | Tooltip |
 |---|---|---|
 | Format | Delimited (CSV) | UDP payload format: Delimited (CSV). One comma-separated record; quoted fields may contain commas, quotes, and line breaks. |
+| Address family | IPv4 | IPv4 - use IPv4 addresses and resolve hostnames to IPv4. This is the default. |
 | Registration renewal | 30000 ms | Renew the custom UDP client registration every 30000 milliseconds. Positive values up to 2147483647 are accepted. This does not apply to ArcGIS Velocity UDP outputs. |
 
 ## Tooltip reference
@@ -91,6 +97,23 @@ After initialization or a selection change, the select tooltip is
 | GeoJSON | GeoJSON. A Feature or FeatureCollection with geometry and properties. |
 | Esri JSON | Esri JSON. An ArcGIS feature or feature set with attributes and geometry. |
 
+The Address family label tooltip is `Choose IPv4 or IPv6 for UDP. The host
+must match the selected family. IPv6 sockets accept IPv6 only.` The select
+tooltip follows the selected option:
+
+| Option | Tooltip |
+|---|---|
+| IPv4 | IPv4 - use IPv4 addresses and resolve hostnames to IPv4. This is the default. |
+| IPv6 | IPv6 - use IPv6 addresses and resolve hostnames to IPv6. IPv4-mapped addresses are not supported. |
+
+The shared Host input follows the selected UDP role and family:
+
+| Mode | Tooltip |
+|---|---|
+| Client | Destination address: enter a reachable peer IP address or DNS name matching the selected address family. Do not use 0.0.0.0 or :: as a destination. |
+| Server, IPv4 | Local bind address: 127.0.0.1 accepts same-machine traffic only. A local LAN IP restricts listening to that interface. Use 0.0.0.0 to listen on all local IPv4 interfaces for remote peers or multiple interfaces. This expands network exposure; firewall rules still apply. |
+| Server, IPv6 | Local bind address: ::1 accepts same-machine traffic only. A local IPv6 address restricts listening to that interface. Use :: to listen on all local IPv6 interfaces for remote peers or multiple interfaces. Explicit IPv6 listeners accept IPv6 only. This expands network exposure; firewall rules still apply. |
+
 The Registration renewal label tooltip is `Renew the custom UDP client registration at this interval so a restarted Simulator server can rediscover the reply endpoint. This is not an acknowledgment or delivery check.` The control appears only for UDP Client.
 After initialization or an edit, the input tooltip is `Renew the custom UDP
 client registration every ` followed by the current interval and ` milliseconds.
@@ -106,9 +129,11 @@ npm run start:headless -- protocol=udp mode=server ip=127.0.0.1 port=5565 udpFor
 ```
 
 Set `connection.udpFormat` in a Launch Config to restore the same choice.
+Set `connection.udpAddressFamily` to `ipv4` or `ipv6`; host names resolve only
+within that family, and literal addresses must match it.
 Set `connection.udpRegistrationIntervalMs` to change the custom UDP Client
 renewal cadence. The defaults are `delimited` and `30000`; older configurations
-do not need either field.
+use `ipv4` and do not need any of these fields.
 `outputFormat` remains the capture-file format, not the incoming payload format.
 
 See the [complete option reference](command-line.md) and
