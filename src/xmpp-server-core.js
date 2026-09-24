@@ -433,6 +433,22 @@ class XmppServerCore extends EventEmitter {
     const type = stanza.attrs.type;
     const bind = stanza.getChild('bind', NS.BIND);
     if (type === 'set' && bind) return this._bind(connection, stanza, bind);
+    const discoInfo = stanza.getChild('query', NS.DISCO_INFO);
+    if (type === 'get' && discoInfo && stanza.attrs.to === this.muc.mucDomain) {
+      this._sendTracked(connection, xml('iq', {
+        type: 'result',
+        id: stanza.attrs.id,
+        from: this.muc.mucDomain,
+        to: connection.fullJid,
+      }, xml('query', { xmlns: NS.DISCO_INFO },
+        xml('identity', {
+          category: 'conference',
+          type: 'text',
+          name: 'ArcGIS Velocity Logger',
+        }),
+        xml('feature', { var: NS.MUC }))));
+      return;
+    }
     const ping = stanza.getChild('ping', NS.PING);
     if (type === 'get' && ping) {
       this._sendTracked(connection, xml('iq', {
@@ -626,9 +642,10 @@ class XmppServerCore extends EventEmitter {
     this._sendTracked(connection, xml('iq', {
       type: 'error',
       id: request.attrs.id,
+      from: request.attrs.to || this.options.domain,
       to: connection.fullJid,
     }, xml('error', { type: 'cancel' }, xml(condition, {
-      xmlns: 'urn:ietf:params:xml:ns:xmpp-stanzas',
+      xmlns: NS.STANZA_ERROR,
     }))));
   }
 

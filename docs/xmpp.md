@@ -370,7 +370,7 @@ See the [Headless mode guide](headless.md) for how to launch with a config templ
 
 ## Protocol scope and limitations
 
-The XMPP server implements a focused subset of RFC 6120 (Core), STARTTLS, SASL `PLAIN` and `SCRAM-SHA-1`, resource binding, and Multi-User Chat (XEP-0045) sufficient to receive direct and room messages from a single external account. It also advertises Stream Management (XEP-0198) with the following verified scope:
+The XMPP server implements a focused subset of RFC 6120 (Core), STARTTLS, SASL `PLAIN` and `SCRAM-SHA-1`, resource binding, service discovery (XEP-0030) for its conference service, and Multi-User Chat (XEP-0045) sufficient to receive direct and room messages from a single external account. It also advertises Stream Management (XEP-0198) with the following verified scope:
 
 > [!NOTE]
 > Stream Management support is intentionally partial: `<enable/>` and inbound/outbound stanza acknowledgement counters are implemented, but session **resumption is not implemented** — the server always answers `<enabled resume="false"/>` — and the server does **not** queue or replay unacknowledged outbound stanzas after a disconnect. Acknowledgements are advisory only.

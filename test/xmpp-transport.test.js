@@ -164,6 +164,45 @@ function pickFreePort() {
     }
   });
 
+  await test('server advertises its MUC service with correctly addressed discovery replies', async () => {
+    const server = new XmppServerCore({
+      host: '127.0.0.1',
+      port: 0,
+      domain: 'localhost',
+      tlsPolicy: 'disabled',
+      externalAccount: { username: 'velocity', password: 'disco-secret' },
+    });
+    const started = await server.listen();
+    const client = new XmppClientCore({
+      service: `xmpp://127.0.0.1:${started.address.port}`,
+      domain: 'localhost',
+      username: 'velocity',
+      password: 'disco-secret',
+      resource: 'sender',
+      startTlsPolicy: 'disabled',
+    });
+    try {
+      await client.connect();
+      const response = await client.entity.iqCaller.request(xml('iq', {
+        type: 'get',
+        to: 'conference.localhost',
+      }, xml('query', { xmlns: 'http://jabber.org/protocol/disco#info' })), 1000);
+      const query = response.getChild('query', 'http://jabber.org/protocol/disco#info');
+      assert.strictEqual(response.attrs.from, 'conference.localhost');
+      assert.strictEqual(query.getChild('identity').attrs.category, 'conference');
+      assert.strictEqual(query.getChild('identity').attrs.type, 'text');
+      assert.strictEqual(
+        query.getChildren('feature').some((feature) => (
+          feature.attrs.var === 'http://jabber.org/protocol/muc'
+        )),
+        true,
+      );
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
   await test('client requires a username and accepts an explicit remote verification bypass', async () => {
     await assert.rejects(
       () => createXmppClientTransport({
