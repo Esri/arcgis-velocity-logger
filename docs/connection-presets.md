@@ -106,7 +106,8 @@ field lives in **Protocol Settings**, grouped into sections:
 
 | Protocol | Basics | Security | Advanced |
 |---|---|---|---|
-| TCP, UDP | Format | — | — |
+| TCP | Format, Address family | — | Handshake text, Use escapes |
+| UDP | Format, Address family | — | Registration renewal (client only) |
 | gRPC | Serialization, RPC type | TLS, CA/certificate/key paths, Allow unverified | Endpoint header key and path (client only) |
 | HTTP | Format, path | TLS, CA/certificate/key paths, Allow unverified | — |
 | WebSocket | Format, path | TLS, CA/certificate/key paths, Allow unverified | Subscription message, Skip 1st, headers |

@@ -19,6 +19,8 @@
     "protocol": "udp",
     "tcpFormat": "delimited",
     "tcpAddressFamily": "auto",
+    "tcpHandshakeText": "",
+    "tcpHandshakeUseEscapes": true,
     "udpFormat": "delimited",
     "udpAddressFamily": "ipv4",
     "wsFormat": "delimited",

@@ -138,6 +138,154 @@ function baseOptions(overrides) {
     }
   });
 
+  await test('TCP startup timeout cancels a pending handshake and closes its socket', async () => {
+    let peerClosed = false;
+    const server = net.createServer((socket) => {
+      socket.once('close', () => { peerClosed = true; });
+    });
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    const receiver = createReceiver(baseOptions({
+      protocol: 'tcp',
+      mode: 'client',
+      ip: '127.0.0.1',
+      port: server.address().port,
+      tcpFormat: 'delimited',
+      tcpHandshakeText: 'hello',
+      tcpHandshakeUseEscapes: true,
+      connectTimeoutMs: 40,
+    }), {
+      logger: { info() {}, warn() {}, error() {}, debug() {} },
+      onLine() {},
+      onError() {},
+      writeHandshake: (_socket, _bytes, { signal }) => new Promise((resolve, reject) => {
+        signal.addEventListener('abort', () => {
+          const error = new Error('TCP handshake cancelled before completion.');
+          error.code = 'TCP_HANDSHAKE_CANCELLED';
+          reject(error);
+        }, { once: true });
+      }),
+    });
+    await assert.rejects(receiver.startedPromise, /timeout/i);
+    await waitFor(() => peerClosed, 'Timed-out TCP handshake socket stayed open');
+    await receiver.stop();
+    await new Promise((resolve) => server.close(resolve));
+  });
+
+  await test('TCP handshake failure is terminal and does not enter reconnect loop', async () => {
+    let connections = 0;
+    const server = net.createServer(() => { connections += 1; });
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    const failure = Object.assign(
+      new Error('TCP handshake could not be sent.'),
+      { code: 'TCP_HANDSHAKE_FAILED' },
+    );
+    const receiver = createReceiver(baseOptions({
+      protocol: 'tcp',
+      mode: 'client',
+      ip: '127.0.0.1',
+      port: server.address().port,
+      tcpFormat: 'delimited',
+      tcpHandshakeText: 'secret-not-for-errors',
+      connectWaitForServer: true,
+      connectRetryIntervalMs: 10,
+      connectTimeoutMs: 500,
+    }), {
+      logger: { info() {}, warn() {}, error() {}, debug() {} },
+      onLine() {},
+      onError(error) {
+        assert.strictEqual(error.code, 'TCP_HANDSHAKE_FAILED');
+        assert.doesNotMatch(error.message, /secret-not-for-errors/);
+      },
+      writeHandshake: async () => { throw failure; },
+    });
+    await assert.rejects(receiver.startedPromise, (error) => {
+      assert.strictEqual(error.code, 'TCP_HANDSHAKE_FAILED');
+      return true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.strictEqual(connections, 1);
+    await receiver.stop();
+    await new Promise((resolve) => server.close(resolve));
+  });
+
+  await test('malformed TCP handshake fails cleanly without exposing its value', async () => {
+    const doneFile = tmpFile('done.json');
+    const logFile = tmpFile('log');
+    const secret = 'do-not-print\\q';
+    try {
+      const code = await runHeadlessSession(baseOptions({
+        protocol: 'tcp',
+        mode: 'server',
+        port: await pickFreePort(),
+        tcpHandshakeText: secret,
+        tcpHandshakeUseEscapes: true,
+        doneFile,
+        logFile,
+      }));
+      assert.strictEqual(code, EXIT_CODES.runtimeError);
+      const done = JSON.parse(fs.readFileSync(doneFile, 'utf8'));
+      assert.strictEqual(done.success, false);
+      assert.match(done.error.message, /unsupported escape/);
+      assert.ok(!fs.readFileSync(logFile, 'utf8').includes(secret));
+      assert.ok(!JSON.stringify(done).includes(secret));
+    } finally {
+      for (const filename of [doneFile, logFile]) {
+        if (fs.existsSync(filename)) fs.unlinkSync(filename);
+      }
+    }
+  });
+
+  await test('TCP server handshake failure closes only the affected peer', async () => {
+    const port = await pickFreePort();
+    let writes = 0;
+    let transportErrors = 0;
+    const receiver = createReceiver(baseOptions({
+      protocol: 'tcp',
+      mode: 'server',
+      ip: '127.0.0.1',
+      port,
+      tcpFormat: 'delimited',
+      tcpHandshakeText: 'hello',
+    }), {
+      logger: { info() {}, warn() {}, error() {}, debug() {} },
+      onLine() {},
+      onError() { transportErrors += 1; },
+      writeHandshake: async (socket, bytes) => {
+        writes += 1;
+        if (writes === 1) {
+          socket.destroy();
+          throw Object.assign(
+            new Error('TCP handshake could not be sent.'),
+            { code: 'TCP_HANDSHAKE_FAILED' },
+          );
+        }
+        await new Promise((resolve, reject) => {
+          socket.write(bytes, (error) => error ? reject(error) : resolve());
+        });
+        return { bytesWritten: bytes.length };
+      },
+    });
+    await receiver.startedPromise;
+    const first = net.createConnection(port, '127.0.0.1');
+    first.on('error', () => {});
+    await new Promise((resolve) => first.once('close', resolve));
+    const second = await new Promise((resolve, reject) => {
+      const socket = net.createConnection(port, '127.0.0.1');
+      socket.once('error', reject);
+      socket.once('data', (bytes) => resolve({ socket, bytes }));
+    });
+    assert.deepStrictEqual(second.bytes, Buffer.from('hello'));
+    assert.strictEqual(transportErrors, 0);
+    second.socket.destroy();
+    await receiver.stop();
+  });
+
   await test('captures lines in text format and stops at maxLogCount', async () => {
     const port = await pickFreePort();
     const outFile = tmpFile('log');

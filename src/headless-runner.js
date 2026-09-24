@@ -45,6 +45,10 @@ const {
   tcpSocketOptions,
 } = require('./socket-address-utils.js');
 const {
+  decodeTcpHandshake,
+  writeTcpHandshake,
+} = require('./tcp-handshake-utils.js');
+const {
   assertSocketPayloadFormat,
   attachTcpPayloadReceiver,
   finishTcpPayloadReceiver,
@@ -144,10 +148,13 @@ function createReceiver(options, {
   onLine,
   onError,
   resolveSocket = resolveSocketEndpoint,
+  writeHandshake = writeTcpHandshake,
 }) {
   const { protocol, mode, ip, port, connectTimeoutMs } = options;
+  let tcpHandshakeBytes = Buffer.alloc(0);
   let stopped = false;
   const closers = [];
+  let cancelStartup = null;
 
   function payloadCallbacks(context) {
     return {
@@ -163,25 +170,59 @@ function createReceiver(options, {
   }
 
   const startedPromise = new Promise((resolve, reject) => {
+    if (protocol === 'tcp') {
+      try {
+        tcpHandshakeBytes = decodeTcpHandshake(options.tcpHandshakeText, {
+          useEscapes: options.tcpHandshakeUseEscapes,
+        });
+      } catch (error) {
+        reject(error);
+        return;
+      }
+    }
     if (protocol === 'tcp' || protocol === 'udp') {
       assertSocketPayloadFormat(options[`${protocol}Format`], `${protocol}Format`);
     }
     let timeoutHandle = null;
     if (connectTimeoutMs && connectTimeoutMs > 0) {
       timeoutHandle = setTimeout(() => {
+        cancelStartup?.();
         reject(new Error(`Connect/bind timeout after ${connectTimeoutMs}ms`));
       }, connectTimeoutMs);
     }
-    const clearTimer = () => { if (timeoutHandle) clearTimeout(timeoutHandle); };
+    const clearTimer = () => {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+      cancelStartup = null;
+    };
 
     if (protocol === 'tcp' && mode === 'server') {
       const sockets = [];
+      const handshakeControllers = new Map();
       const server = net.createServer((socket) => {
         sockets.push(socket);
         logger.info(`TCP client connected from ${formatSocketEndpoint({ address: socket.remoteAddress, port: socket.remotePort })}`);
         attachTcpPayloadReceiver(socket, payloadCallbacks({ address: socket.remoteAddress, port: socket.remotePort }));
-        socket.on('error', (err) => onError(err));
+        const controller = new AbortController();
+        handshakeControllers.set(socket, controller);
+        writeHandshake(socket, tcpHandshakeBytes, {
+          signal: controller.signal,
+          timeoutMs: connectTimeoutMs,
+        })
+          .then(({ bytesWritten }) => {
+            if (bytesWritten > 0) logger.debug(`TCP server greeting sent (${bytesWritten} bytes)`);
+          })
+          .catch((error) => {
+            if (error.code !== 'TCP_HANDSHAKE_CANCELLED') {
+              logger.warn('TCP server greeting could not be sent to one client.');
+            }
+          })
+          .finally(() => handshakeControllers.delete(socket));
+        socket.on('error', (err) => {
+          if (!handshakeControllers.has(socket)) onError(err);
+        });
         socket.on('close', () => {
+          handshakeControllers.get(socket)?.abort();
+          handshakeControllers.delete(socket);
           const idx = sockets.indexOf(socket);
           if (idx !== -1) sockets.splice(idx, 1);
         });
@@ -189,6 +230,8 @@ function createReceiver(options, {
       server.on('error', (err) => { clearTimer(); reject(err); onError(err); });
       closers.push(() => new Promise((res) => {
         sockets.forEach((s) => {
+          handshakeControllers.get(s)?.abort();
+          handshakeControllers.delete(s);
           finishTcpPayloadReceiver(s);
           try { s.destroy(); } catch (_) {}
         });
@@ -212,13 +255,20 @@ function createReceiver(options, {
       const { connectWaitForServer = false, connectRetryIntervalMs = 1000, connectTimeoutMs = 0 } = options;
       const retryEnabled = connectWaitForServer;
       let activeSocket = null;
+      let activeHandshakeController = null;
       let everConnected = false;
       // retryStartTime tracks when the current retry cycle began so connectTimeoutMs
       // can enforce an overall deadline. Reset on each successful connection.
       let retryStartTime = Date.now();
+      cancelStartup = () => {
+        activeHandshakeController?.abort();
+        try { activeSocket?.destroy(); } catch (_) {}
+      };
 
       closers.push(() => new Promise((res) => {
         if (activeSocket) {
+          activeHandshakeController?.abort();
+          activeHandshakeController = null;
           finishTcpPayloadReceiver(activeSocket);
           try { activeSocket.destroy(); } catch (_) {}
         }
@@ -257,33 +307,62 @@ function createReceiver(options, {
         if (stopped) return;
         const endpointLabel = formatSocketEndpoint({ address: endpoint.address, port });
         const socket = new net.Socket();
+        let handshakeFailed = false;
+        let handshakePending = false;
         activeSocket = socket;
         attachTcpPayloadReceiver(socket, payloadCallbacks({ address: endpoint.address, port }));
 
         // 'error' must be handled to prevent an unhandled-exception crash.
         // The 'close' event always follows 'error' and is where we decide what to do.
         socket.once('error', (err) => {
-          logger.warn(`TCP socket error (${endpointLabel}): ${err.message}`);
+          if (!handshakePending) {
+            logger.warn(`TCP socket error (${endpointLabel}): ${err.message}`);
+          }
         });
 
         socket.on('close', () => {
           if (stopped) return;
           if (activeSocket === socket) activeSocket = null;
+          if (handshakeFailed) return;
           handleFailure(resolve, reject, endpointLabel);
         });
 
         socket.once('connect', () => {
           // Reset the retry start so connectTimeoutMs is measured from the most
           // recent successful connection, not from the very start of the session.
-          retryStartTime = Date.now();
-          if (!everConnected) {
-            clearTimer();
-            everConnected = true;
-            logger.info(`TCP client connected to ${endpointLabel}`);
-            resolve();
-          } else {
-            logger.info(`TCP client reconnected to ${endpointLabel}`);
-          }
+          handshakePending = true;
+          const handshakeController = new AbortController();
+          activeHandshakeController = handshakeController;
+          writeHandshake(socket, tcpHandshakeBytes, {
+            signal: handshakeController.signal,
+            timeoutMs: connectTimeoutMs,
+          })
+            .then(({ bytesWritten }) => {
+              if (stopped || socket !== activeSocket) return;
+              retryStartTime = Date.now();
+              if (!everConnected) {
+                clearTimer();
+                everConnected = true;
+                logger.info(`TCP client connected to ${endpointLabel}`);
+                resolve();
+              } else {
+                logger.info(`TCP client reconnected to ${endpointLabel}`);
+              }
+              if (bytesWritten > 0) logger.debug(`TCP client greeting sent (${bytesWritten} bytes)`);
+            })
+            .catch((error) => {
+              if (stopped || error.code === 'TCP_HANDSHAKE_CANCELLED') return;
+              handshakeFailed = true;
+              clearTimer();
+              onError(error);
+              if (!everConnected) reject(error);
+            })
+            .finally(() => {
+              handshakePending = false;
+              if (activeHandshakeController === handshakeController) {
+                activeHandshakeController = null;
+              }
+            });
         });
 
         socket.connect(tcpSocketOptions(endpoint, port));

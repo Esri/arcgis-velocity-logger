@@ -37,6 +37,10 @@ const {
   tcpSocketOptions,
 } = require('./socket-address-utils.js');
 const {
+  decodeTcpHandshake,
+  writeTcpHandshake,
+} = require('./tcp-handshake-utils.js');
+const {
   assertSocketPayloadFormat,
   attachTcpPayloadReceiver,
   finishTcpPayloadReceiver,
@@ -170,6 +174,8 @@ let velocityLoginWindow = null;
 let server;
 let clientSocket;
 let tcpConnectionAttempt = 0;
+const tcpHandshakeControllers = new Map();
+const TCP_HANDSHAKE_TIMEOUT_MS = 30000;
 let udpSocket;
 let udpClientRegistration = null;
 let udpConnectionAttempt = 0;
@@ -415,6 +421,8 @@ app.on('child-process-gone', (event, details) => {
 function cleanupTcpClientSocket() {
     if (clientSocket) {
         try {
+            tcpHandshakeControllers.get(clientSocket)?.abort();
+            tcpHandshakeControllers.delete(clientSocket);
             finishTcpPayloadReceiver(clientSocket);
             clientSocket.removeAllListeners();
             clientSocket.destroy();
@@ -953,6 +961,16 @@ async function applyLaunchConfigFrom() {
         }
       }
       if (Object.keys(presets).length > 0 && mainWindow) {
+        if (typeof presets.tcpHandshakeText === 'string'
+            && presets.tcpHandshakeText.length > 1024 * 1024) {
+          throw new Error('tcpHandshakeText must not exceed 1048576 input characters.');
+        }
+        decodeTcpHandshake(presets.tcpHandshakeText ?? '', {
+          useEscapes: presets.tcpHandshakeUseEscapes === undefined
+            ? true
+            : presets.tcpHandshakeUseEscapes === true
+              || presets.tcpHandshakeUseEscapes === 'true',
+        });
         mainWindow.webContents.send('cli-presets', presets);
       }
     } catch (error) {
@@ -1022,6 +1040,15 @@ async function getCurrentLaunchConfig() {
       return JSON.stringify({
         tcpFormat: getVal('tcp-format') || 'delimited',
         tcpAddressFamily: getVal('tcp-address-family') || 'auto',
+        tcpHandshakeText: (() => {
+          const element = document.getElementById('tcp-handshake-text');
+          if (!element) return '';
+          const raw = typeof element.tcpHandshakeRawValue === 'string'
+            ? element.tcpHandshakeRawValue
+            : element.value;
+          return element.value === raw.replace(/\\r\\n?/g, '\\n') ? raw : element.value;
+        })(),
+        tcpHandshakeUseEscapes: getChecked('tcp-handshake-use-escapes'),
         udpFormat: getVal('udp-format') || 'delimited',
         udpAddressFamily: getVal('udp-address-family') || 'ipv4',
         udpRegistrationIntervalMs: parseInt(getVal('udp-registration-interval'), 10) || 30000,
@@ -1074,6 +1101,8 @@ async function getCurrentLaunchConfig() {
       connectWaitForServer: false,
       tcpFormat: s.tcpFormat,
       tcpAddressFamily: s.tcpAddressFamily,
+      tcpHandshakeText: s.tcpHandshakeText,
+      tcpHandshakeUseEscapes: s.tcpHandshakeUseEscapes,
       udpFormat: s.udpFormat,
       udpAddressFamily: s.udpAddressFamily,
       udpRegistrationIntervalMs: s.udpRegistrationIntervalMs,
@@ -1945,10 +1974,15 @@ ipcMain.on('connect-tcp', async (event, {
     host,
     tcpFormat = APP_DEFAULTS.tcpFormat,
     tcpAddressFamily = APP_DEFAULTS.tcpAddressFamily,
+    tcpHandshakeText = APP_DEFAULTS.tcpHandshakeText,
+    tcpHandshakeUseEscapes = APP_DEFAULTS.tcpHandshakeUseEscapes,
 }) => {
     const attempt = ++tcpConnectionAttempt;
     try {
         assertSocketPayloadFormat(tcpFormat, 'tcpFormat');
+        const handshakeBytes = decodeTcpHandshake(tcpHandshakeText, {
+            useEscapes: tcpHandshakeUseEscapes,
+        });
         const endpoint = await resolveSocketEndpoint(host, tcpAddressFamily, {
             bind: type === 'server',
             protocol: 'TCP',
@@ -1956,6 +1990,7 @@ ipcMain.on('connect-tcp', async (event, {
         if (attempt !== tcpConnectionAttempt) return;
         currentConnectionDetails = {
             protocol: 'tcp', type, port, host, tcpFormat, tcpAddressFamily,
+            tcpHandshakeConfigured: handshakeBytes.length > 0,
         };
         velocityLog('info', `[Transport] Starting TCP ${type} receiver with ${tcpFormat} payloads`);
         updateTcpButtonStates('connecting');
@@ -1963,7 +1998,6 @@ ipcMain.on('connect-tcp', async (event, {
         if (type === 'server') {
             server = net.createServer((socket) => {
                 sockets.push(socket);
-                mainWindow.webContents.send('tcp-status', 'client-connected');
                 attachTcpPayloadReceiver(socket, {
                     format: tcpFormat,
                     context: { address: socket.remoteAddress, port: socket.remotePort },
@@ -1978,12 +2012,39 @@ ipcMain.on('connect-tcp', async (event, {
                         sendSocketPayloadRecord(raw, `[metadata] protocol=TCP mode=server remote=${remote} local=${local} format=${tcpFormat}`);
                     },
                 });
+                const controller = new AbortController();
+                tcpHandshakeControllers.set(socket, controller);
+                writeTcpHandshake(socket, handshakeBytes, {
+                    signal: controller.signal,
+                    timeoutMs: TCP_HANDSHAKE_TIMEOUT_MS,
+                })
+                    .then(({ bytesWritten }) => {
+                        if (!mainWindow || mainWindow.isDestroyed() || socket.destroyed) return;
+                        mainWindow.webContents.send('tcp-status', 'client-connected');
+                        if (bytesWritten > 0) {
+                            velocityLog('debug', `[Transport] TCP server greeting sent (${bytesWritten} bytes)`);
+                        }
+                    })
+                    .catch((error) => {
+                        if (error.code === 'TCP_HANDSHAKE_CANCELLED') return;
+                        velocityLog('warn', '[Transport] TCP server greeting could not be sent to one client');
+                        if (mainWindow && !mainWindow.isDestroyed()) {
+                            mainWindow.webContents.send('tcp-status', error.message);
+                        }
+                    })
+                    .finally(() => tcpHandshakeControllers.delete(socket));
                 socket.on('close', () => {
+                    tcpHandshakeControllers.get(socket)?.abort();
+                    tcpHandshakeControllers.delete(socket);
                     mainWindow.webContents.send('tcp-status', 'client-disconnected');
                     const index = sockets.indexOf(socket);
                     if (index !== -1) sockets.splice(index, 1);
                 });
-                socket.on('error', (err) => mainWindow.webContents.send('tcp-error', err.message));
+                socket.on('error', (err) => {
+                    if (!tcpHandshakeControllers.has(socket)) {
+                        mainWindow.webContents.send('tcp-error', err.message);
+                    }
+                });
             });
             server.on('error', (err) => {
                 mainWindow.webContents.send('connection-error', `TCP Server Error: ${err.message}`);
@@ -2020,11 +2081,34 @@ ipcMain.on('connect-tcp', async (event, {
                 },
             });
             clientSocket.connect(tcpSocketOptions(endpoint, port), () => {
-                mainWindow.webContents.send(
-                    'tcp-status',
-                    `TCP Client connected to ${formatSocketEndpoint({ address: socket.remoteAddress || endpoint.address, port: socket.remotePort || port })}`
-                );
-                updateTcpButtonStates('connected');
+                const controller = new AbortController();
+                tcpHandshakeControllers.set(socket, controller);
+                writeTcpHandshake(socket, handshakeBytes, {
+                    signal: controller.signal,
+                    timeoutMs: TCP_HANDSHAKE_TIMEOUT_MS,
+                })
+                    .then(({ bytesWritten }) => {
+                        if (socket !== clientSocket) return;
+                        mainWindow.webContents.send(
+                            'tcp-status',
+                            `TCP Client connected to ${formatSocketEndpoint({ address: socket.remoteAddress || endpoint.address, port: socket.remotePort || port })}`
+                        );
+                        if (bytesWritten > 0) {
+                            velocityLog('debug', `[Transport] TCP client greeting sent (${bytesWritten} bytes)`);
+                        }
+                        updateTcpButtonStates('connected');
+                    })
+                    .catch((error) => {
+                        if (socket !== clientSocket) return;
+                        if (error.code === 'TCP_HANDSHAKE_CANCELLED') return;
+                        velocityLog('error', '[Transport] TCP client greeting could not be sent');
+                        if (mainWindow && !mainWindow.isDestroyed()) {
+                            mainWindow.webContents.send('tcp-error', error.message);
+                        }
+                        cleanupTcpClientSocket();
+                        updateTcpButtonStates('disconnected');
+                    })
+                    .finally(() => tcpHandshakeControllers.delete(socket));
             });
             clientSocket.on('close', () => {
                 mainWindow.webContents.send('tcp-status', 'Disconnected from TCP Client');
@@ -2032,6 +2116,7 @@ ipcMain.on('connect-tcp', async (event, {
                 updateTcpButtonStates('disconnected');
             });
             clientSocket.on('error', (err) => {
+                if (tcpHandshakeControllers.has(socket)) return;
                 mainWindow.webContents.send('tcp-error', err.message);
                 cleanupTcpClientSocket();
                 updateTcpButtonStates('disconnected');
@@ -2051,6 +2136,8 @@ ipcMain.on('disconnect-tcp', () => {
     updateTcpButtonStates('disconnecting');
     if (server) {
         sockets.forEach(socket => {
+            tcpHandshakeControllers.get(socket)?.abort();
+            tcpHandshakeControllers.delete(socket);
             finishTcpPayloadReceiver(socket);
             socket.destroy();
         });

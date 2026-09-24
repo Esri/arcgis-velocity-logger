@@ -91,6 +91,8 @@ const analytic = { id: 'analytic/one', label: 'Vehicle positions', outputs: [str
       ip: item.host,
       port: item.port,
       tcpAddressFamily: isServer ? 'ipv4' : 'auto',
+      tcpHandshakeText: '',
+      tcpHandshakeUseEscapes: true,
       [`${protocol}Format`]: formats[index],
     });
     for (const port of [0, 65536, 'invalid']) {

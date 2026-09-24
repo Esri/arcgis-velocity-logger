@@ -33,6 +33,11 @@ An explicit IPv6 server bind accepts IPv6 only.
 TCP connections here are unsecure. Use a TLS-capable transport when encryption
 is required; see the [TLS guide](tls.md).
 
+Both roles can send an optional UTF-8 greeting once per new connection. TCP
+Client sends it again after every reconnect; TCP Server sends it independently
+to every accepted client. Blank text sends nothing. There is no expected reply,
+acknowledgment, challenge, or inbound-data gate.
+
 ## Record framing
 
 - **Delimited (CSV)** uses record-ending LF or CRLF outside quoted fields.
@@ -66,6 +71,8 @@ read-only.
 |---|---|---|
 | Format | Delimited (CSV) | TCP payload format: Delimited (CSV). One comma-separated record; quoted fields may contain commas, quotes, and line breaks. |
 | Address family | Automatic | Automatic - preserve operating-system TCP hostname resolution and use the literal address family when specified. |
+| Handshake text | Empty | Optional TCP greeting sent as UTF-8 once on each new client connection or accepted server connection, including reconnects. Blank sends nothing. Whitespace is preserved; no newline is appended and no reply is awaited. Decoded maximum: 1 MiB. |
+| Use escapes | On | Interpret Java-style escapes in the TCP greeting (enabled by default): `\r\n` sends CRLF; `\t`, `\b`, `\f`, `\\`, escaped quotes, `\uXXXX`, and octal escapes are supported. When off, backslashes are sent literally. Whitespace is preserved; malformed escapes are rejected without displaying the greeting. |
 
 ## Tooltip reference
 
@@ -92,6 +99,29 @@ The shared Host input follows the selected TCP role and family:
 | Server, Automatic | Local bind address: 127.0.0.1 or ::1 is same-machine only. A local LAN IP restricts listening to that interface. Use 0.0.0.0 for all local IPv4 interfaces or :: for the system IPv6 wildcard when remote peers or multiple interfaces need access. Auto preserves system listen behavior. Wildcard binds expand network exposure; firewall rules still apply. |
 | Server, IPv4 | Local bind address: 127.0.0.1 accepts same-machine traffic only. A local LAN IP restricts listening to that interface. Use 0.0.0.0 to listen on all local IPv4 interfaces for remote peers or multiple interfaces. This expands network exposure; firewall rules still apply. |
 | Server, IPv6 | Local bind address: ::1 accepts same-machine traffic only. A local IPv6 address restricts listening to that interface. Use :: to listen on all local IPv6 interfaces for remote peers or multiple interfaces. Explicit IPv6 listeners accept IPv6 only. This expands network exposure; firewall rules still apply. |
+
+The **Handshake text:** label and textarea use this exact tooltip:
+`Optional TCP greeting sent as UTF-8 once on each new client connection or accepted server connection, including reconnects. Blank sends nothing. Whitespace is preserved; no newline is appended and no reply is awaited. Decoded maximum: 1 MiB.`
+
+The **Use escapes:** label and checkbox use this exact tooltip:
+`Interpret Java-style escapes in the TCP greeting (enabled by default): \r\n sends CRLF; \t, \b, \f, \\, escaped quotes, \uXXXX, and octal escapes are supported. When off, backslashes are sent literally. Whitespace is preserved; malformed escapes are rejected without displaying the greeting.`
+
+Handshake text is direct connection setup data, not a CSV record conversion.
+Actual spaces and line breaks are preserved. With **Use escapes** enabled,
+terminators must be explicit. Invalid or oversized decoded text is rejected
+without showing its content in status, logs, or summaries. Raw input is limited
+to 1,048,576 characters before it enters the settings surface; decoded UTF-8
+bytes are independently limited to 1 MiB, so escape-heavy input may reach the
+raw-input limit first.
+The interactive app bounds a pending greeting write to 30 seconds. Headless
+mode uses `connectTimeoutMs` for the connection and greeting startup deadline.
+
+Summary masking is not encryption. Launch Config files store handshake text as
+plain text, and command-line values may be visible in shell history or process
+listings. Protect configuration files and prefer them over command-line secrets
+when the greeting contains credentials. The greeting travels over the same
+unsecure TCP connection as captured data; use a [TLS-capable transport](tls.md)
+when encryption is required.
 
 | Option | Tooltip |
 |---|---|

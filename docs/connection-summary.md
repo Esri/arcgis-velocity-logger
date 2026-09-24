@@ -88,7 +88,7 @@ selected protocol and mode are not offered:
 |---|---|---|
 | Basics | Format, TCP/UDP address family, path, serialization, RPC type, XMPP domain, conversation, account, and room fields. | TCP, UDP, gRPC, HTTP, WebSocket, XMPP. |
 | Security | TLS or the STARTTLS policy, certificate verification, the CA, certificate, and key paths, and XMPP **Allow remote**. | gRPC, HTTP, WebSocket, XMPP. |
-| Advanced | UDP Client registration renewal, gRPC endpoint header, WebSocket subscription message, **Skip 1st**, headers, and the XMPP timing values. | UDP Client, gRPC Client, WebSocket, XMPP. |
+| Advanced | TCP handshake greeting, UDP Client registration renewal, gRPC endpoint header, WebSocket subscription message, **Skip 1st**, headers, and the XMPP timing values. | TCP, UDP Client, gRPC Client, WebSocket, XMPP. |
 | Summary | Every connection setting as a read-only list, warnings first. | Every mode. |
 
 TCP and UDP offer **Basics** for payload Format and the read-only **Summary**.
@@ -222,6 +222,8 @@ destination it sends to.
 | `grpcEndpointHeader` | Endpoint header | gRPC Client. |
 | `format` | Format | TCP, UDP, HTTP, WebSocket. |
 | `tcpAddressFamily` | Address family | TCP. |
+| `tcpHandshakeText` | Handshake text | TCP. Presence only. |
+| `tcpHandshakeEscapes` | Decode escapes | TCP. |
 | `udpAddressFamily` | Address family | UDP. |
 | `udpRegistrationInterval` | Registration renewal | UDP Client. |
 | `path` | Path | HTTP, WebSocket. |

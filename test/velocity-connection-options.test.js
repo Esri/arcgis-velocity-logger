@@ -119,20 +119,23 @@ test('TCP connector roles remain complementary', () => {
     port: '17011', format: 'delimited',
   }), {
     connectionType: 'tcp-client', ip: 'velocity.example.com', port: 17011,
-    tcpAddressFamily: 'ipv4', tcpFormat: 'delimited',
+    tcpAddressFamily: 'ipv4', tcpHandshakeText: '', tcpHandshakeUseEscapes: true,
+    tcpFormat: 'delimited',
   });
   assert.deepStrictEqual(build({
     outputType: 'tcp-client', host: 'logger.example.com', port: 17013, format: 'esri-json',
   }), {
     connectionType: 'tcp-server', ip: 'logger.example.com', port: 17013,
-    tcpAddressFamily: 'auto', tcpFormat: 'esri-json',
+    tcpAddressFamily: 'auto', tcpHandshakeText: '', tcpHandshakeUseEscapes: true,
+    tcpFormat: 'esri-json',
   });
   assert.deepStrictEqual(build({
     outputType: 'tcp-server', serverApiUrl: 'https://velocity.example.com:7143/arcgis',
     port: 17011, format: 'json',
   }), {
     connectionType: 'tcp-client', ip: 'velocity.example.com', port: 17011,
-    tcpAddressFamily: 'ipv4', tcpFormat: 'json',
+    tcpAddressFamily: 'ipv4', tcpHandshakeText: '', tcpHandshakeUseEscapes: true,
+    tcpFormat: 'json',
   });
   assert.throws(() => build({
     outputType: 'tcp-server', port: 17011, format: 'json',

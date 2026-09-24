@@ -305,8 +305,8 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
     select('connection-type', 'tcp-server');
     assert.deepStrictEqual(
       tabState().filter((tab) => !tab.hidden).map((tab) => tab.section),
-      ['basics', 'summary'],
-      'TCP offers payload format in Basics',
+      ['basics', 'advanced', 'summary'],
+      'TCP offers format in Basics and handshake in Advanced',
     );
     assert.strictEqual(document.getElementById('protocol-settings-empty').hidden, true);
 
@@ -723,6 +723,67 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
       sent.filter(({ channel }) => channel === 'connect-tcp').at(-1).payload.tcpAddressFamily,
       'ipv6',
     );
+  });
+
+  await uiTest('TCP handshake controls live in Advanced, redact summaries, preserve raw whitespace, and reach Connect', async ({ document, select, rows, sent, window }) => {
+    select('connection-type', 'tcp-client');
+    const text = document.getElementById('tcp-handshake-text');
+    const escapes = document.getElementById('tcp-handshake-use-escapes');
+    assert.strictEqual(text.closest('.protocol-settings-group').dataset.section, 'advanced');
+    assert.strictEqual(text.tagName, 'TEXTAREA');
+    assert.strictEqual(text.getAttribute('rows'), '2');
+    assert.strictEqual(text.maxLength, 1048576);
+    assert.strictEqual(escapes.checked, true);
+    text.value = '  HELLO\\r\\n  ';
+    text.dispatchEvent(new window.Event('input', { bubbles: true }));
+    escapes.checked = false;
+    escapes.dispatchEvent(new window.Event('change', { bubbles: true }));
+    document.getElementById('protocol-settings-btn').click();
+    document.getElementById('protocol-settings-tab-summary').click();
+    assert.strictEqual(
+      rows('protocol-settings-summary-rows').find((row) => row.key === 'tcpHandshakeText').value,
+      'Set (hidden)',
+    );
+    assert.doesNotMatch(document.getElementById('protocol-settings-summary-rows').textContent, /HELLO/);
+    document.getElementById('connect-btn').click();
+    const request = sent.filter(({ channel }) => channel === 'connect-tcp').at(-1).payload;
+    assert.strictEqual(request.tcpHandshakeText, '  HELLO\\r\\n  ');
+    assert.strictEqual(request.tcpHandshakeUseEscapes, false);
+  });
+
+  await uiTest('TCP handshake preset loading preserves pristine CRLF through DOM normalization', async ({ document, listeners, sent }) => {
+    listeners.get('cli-presets')({
+      protocol: 'tcp',
+      mode: 'client',
+      tcpHandshakeText: '  hello\r\nworld  ',
+      tcpHandshakeUseEscapes: false,
+    });
+    const text = document.getElementById('tcp-handshake-text');
+    assert.strictEqual(text.value, '  hello\nworld  ');
+    document.getElementById('connect-btn').click();
+    assert.strictEqual(text.tcpHandshakeRawValue, '  hello\r\nworld  ');
+    assert.strictEqual(
+      sent.filter(({ channel }) => channel === 'connect-tcp').at(-1).payload.tcpHandshakeText,
+      '  hello\r\nworld  ',
+    );
+  });
+
+  await uiTest('malformed TCP handshake errors open Advanced and focus the secret field safely', async ({ document, select, listeners }) => {
+    select('connection-type', 'tcp-client');
+    listeners.get('tcp-error')('TCP handshake contains an unsupported escape.');
+    const field = document.getElementById('tcp-handshake-text');
+    assert.strictEqual(document.getElementById('protocol-settings-alert').hidden, false);
+    assert.match(document.getElementById('protocol-settings-alert').textContent, /unsupported escape/);
+    assert.strictEqual(field.getAttribute('aria-invalid'), 'true');
+    assert.ok((field.getAttribute('aria-describedby') || '').split(/\s+/).includes('protocol-settings-alert'));
+    assert.strictEqual(
+      document.getElementById('protocol-settings-tab-advanced').getAttribute('aria-selected'),
+      'true',
+    );
+    assert.strictEqual(document.activeElement, field);
+    assert.doesNotMatch(document.getElementById('protocol-settings-alert').textContent, /secret-value/);
+    listeners.get('tcp-error')('TCP handshake text exceeds the 1,048,576-character input limit.');
+    assert.match(document.getElementById('protocol-settings-alert').textContent, /input limit/);
   });
 
   await uiTest('socket Host tooltip follows role and address family without rewriting Host', async ({ document, select, window }) => {

@@ -62,12 +62,17 @@ const { buildVelocityConnectionOptions } = require('../src/velocity-connection-o
         serverApiUrl: 'https://127.0.0.1:7443/team/velocity',
       };
       const connectionOptions = buildVelocityConnectionOptions(output);
+      get('tcp-handshake-text').value = 'old-secret-greeting';
+      get('tcp-handshake-text').dispatchEvent(new window.Event('input', { bubbles: true }));
+      get('tcp-handshake-use-escapes').checked = false;
       const before = sent.filter(([channel]) => channel.startsWith('connect-')).length;
       listeners.get('velocity:output-applied')({ ...output, connectionOptions });
       assert.strictEqual(get('connection-type').value, connectionOptions.connectionType);
       assert.strictEqual(get('host').value, '127.0.0.1');
       assert.strictEqual(get('port').value, '9010');
       assert.strictEqual(get(`${protocol}-format`).value, 'geo-json');
+      assert.strictEqual(get('tcp-handshake-text').value, '');
+      assert.strictEqual(get('tcp-handshake-use-escapes').checked, true);
       assert.strictEqual(sent.filter(([channel]) => channel.startsWith('connect-')).length, before);
       get('connect-btn').click();
       const [channel, request] = sent.filter(([name]) => name.startsWith('connect-')).at(-1);

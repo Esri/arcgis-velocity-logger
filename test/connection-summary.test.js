@@ -338,6 +338,18 @@ test('TCP summary preserves automatic family and reports explicit IPv6', () => {
   assert.strictEqual(ipv6.url, '[::1]:5565');
 });
 
+test('TCP handshake summary redacts whitespace-only content and counts settings', () => {
+  const summary = buildConnectionSummary({
+    ...BASE,
+    connectionType: 'tcp-client',
+    tcpHandshakeText: '  ',
+    tcpHandshakeUseEscapes: false,
+  });
+  assert.strictEqual(rowsByKey(summary).tcpHandshakeText.value, 'Set (hidden)');
+  assert.strictEqual(rowsByKey(summary).tcpHandshakeEscapes.value, 'Off');
+  assert.strictEqual(summary.settings.count, 2);
+  assert.doesNotMatch(formatConnectionSummaryText(summary), /Handshake text: {2}$/m);
+});
 test('the Logger reports the JID it receives on for both XMPP roles', () => {
   const client = rowsByKey(buildConnectionSummary({
     ...BASE, connectionType: 'xmpp-client', port: 5222, xmppLocalJid: 'velocity-logger@localhost',

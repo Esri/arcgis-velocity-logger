@@ -137,6 +137,12 @@ first frame.
 
 ## TCP client retry and reconnection (waiting for a server)
 
+Set `tcpHandshakeText` to send an optional UTF-8 greeting after every new TCP
+connection. TCP Client sends it again after each reconnect; TCP Server sends it
+once to each accepted client. `tcpHandshakeUseEscapes=true` decodes explicit
+Java-style terminators such as `\r\n`. Blank text sends nothing, whitespace is
+preserved, no terminator is added automatically, and no reply is awaited.
+
 When `mode=client` and `protocol=tcp`, set `connectWaitForServer=true` to **retry the connection automatically** every `connectRetryIntervalMs` milliseconds. This covers two scenarios:
 
 - **Server not yet available** — the client keeps trying until the server starts accepting connections.

@@ -121,6 +121,29 @@ test('TCP address family defaults to auto and accepts explicit families', () => 
   }
 });
 
+test('TCP handshake options preserve whitespace and parse escape mode independently', () => {
+  assert.strictEqual(DEFAULT_HEADLESS_OPTIONS.tcpHandshakeText, '');
+  assert.strictEqual(DEFAULT_HEADLESS_OPTIONS.tcpHandshakeUseEscapes, true);
+  for (const runMode of ['ui', 'headless']) {
+    const result = parseCommandLineArgs(argv(
+      `runMode=${runMode}`,
+      String.raw`tcpHandshakeText=  HELLO\r\n  `,
+      'tcpHandshakeUseEscapes=false',
+    ));
+    assert.deepStrictEqual(result.errors, []);
+    const options = runMode === 'ui' ? result.ui.presets : result.headless;
+    assert.strictEqual(options.tcpHandshakeText, String.raw`  HELLO\r\n  `);
+    assert.strictEqual(options.tcpHandshakeUseEscapes, false);
+    assert.doesNotMatch(formatExplainOutput(result), /HELLO/);
+    assert.match(formatExplainOutput(result), /Set \(hidden\)/);
+  }
+  const invalid = parseCommandLineArgs(argv('tcpHandshakeUseEscapes=invalid'));
+  assert.strictEqual(invalid.mode, 'error');
+  const oversized = parseCommandLineArgs(argv(`tcpHandshakeText=${'x'.repeat(1024 * 1024 + 1)}`));
+  assert.strictEqual(oversized.mode, 'error');
+  assert.ok(oversized.errors.some((error) => /1048576 input characters/.test(error)));
+});
+
 test('Launch Config preserves TCP/UDP formats and CLI overrides one field', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logger-socket-format-'));
   const filename = path.join(dir, 'launch.json');
@@ -131,6 +154,8 @@ test('Launch Config preserves TCP/UDP formats and CLI overrides one field', () =
         mode: 'server',
         tcpFormat: 'geo-json',
         tcpAddressFamily: 'ipv6',
+        tcpHandshakeText: '  hi\r\n',
+        tcpHandshakeUseEscapes: false,
         udpFormat: 'esri-json',
         udpAddressFamily: 'ipv6',
         udpRegistrationIntervalMs: 45000,
@@ -142,6 +167,8 @@ test('Launch Config preserves TCP/UDP formats and CLI overrides one field', () =
       const options = runMode === 'ui' ? result.ui.presets : result.headless;
       assert.strictEqual(options.tcpFormat, 'json');
       assert.strictEqual(options.tcpAddressFamily, 'ipv6');
+      assert.strictEqual(options.tcpHandshakeText, '  hi\r\n');
+      assert.strictEqual(options.tcpHandshakeUseEscapes, false);
       assert.strictEqual(options.udpFormat, 'esri-json');
       assert.strictEqual(options.udpAddressFamily, 'ipv6');
       assert.strictEqual(options.udpRegistrationIntervalMs, 45000);
@@ -149,6 +176,23 @@ test('Launch Config preserves TCP/UDP formats and CLI overrides one field', () =
   } finally {
     fs.unlinkSync(filename);
     fs.rmdirSync(dir);
+  }
+});
+
+test('Launch Config rejects non-string TCP handshake values', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logger-tcp-handshake-type-'));
+  const filename = path.join(dir, 'launch.json');
+  try {
+    for (const value of [42, null, { greeting: 'hello' }]) {
+      fs.writeFileSync(filename, JSON.stringify({
+        connection: { protocol: 'tcp', tcpHandshakeText: value },
+      }));
+      const result = parseCommandLineArgs(argv(`config=${filename}`));
+      assert.strictEqual(result.mode, 'error');
+      assert.ok(result.errors.some((error) => /must be a string/.test(error)));
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 

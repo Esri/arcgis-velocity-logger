@@ -148,6 +148,8 @@
     tcp: Object.freeze([
       { field: 'tcpFormat', defaultValue: 'delimited' },
       { field: 'tcpAddressFamily', defaultValue: 'auto' },
+      { field: 'tcpHandshakeText', defaultValue: '' },
+      { field: 'tcpHandshakeUseEscapes', defaultValue: true },
     ]),
     udp: Object.freeze([
       { field: 'udpFormat', defaultValue: 'delimited' },
@@ -570,6 +572,17 @@
           ? 'IPv6' : state.tcpAddressFamily === 'ipv4' ? 'IPv4' : 'Automatic';
         rows.push(row('tcpAddressFamily', 'Address family', family, {
           isDefault: family === 'Automatic',
+        }));
+        rows.push(row('tcpHandshakeText', 'Handshake text', describeSecret(state.tcpHandshakeText, { optional: true }), {
+          kind: 'secret', secret: true,
+          isDefault: typeof state.tcpHandshakeText !== 'string' || state.tcpHandshakeText.length === 0,
+          detail: 'Sent once on each new TCP connection; content is hidden.',
+        }));
+        const escapesOn = state.tcpHandshakeUseEscapes === undefined
+          ? true
+          : isTruthy(state.tcpHandshakeUseEscapes);
+        rows.push(row('tcpHandshakeEscapes', 'Decode escapes', describeToggle(escapesOn), {
+          isDefault: escapesOn,
         }));
       }
       if (protocol === 'udp') {

@@ -1037,7 +1037,8 @@ button[id]:disabled {
 }
 
 .protocol-settings-field > input,
-.protocol-settings-field > select {
+.protocol-settings-field > select,
+.protocol-settings-field > textarea {
     width: 100%;
     min-width: 0;
     font-size: 14px;

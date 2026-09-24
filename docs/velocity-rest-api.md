@@ -266,6 +266,11 @@ advertised destination. Confirm that the destination routes to the selected
 local interface and that the UDP port is allowed through any firewall or NAT.
 The management API host and HTTPS port are not UDP data settings.
 
+Applying any TCP feed or output clears an existing custom TCP handshake
+greeting and restores escape decoding to its default. ArcGIS Velocity does not
+advertise compatible greeting metadata, so settings from another endpoint are
+never carried into the newly applied connection.
+
 Some deployments do not expose an editable destination host for a UDP Server
 output. Logger can apply that output only when the returned configuration
 advertises a concrete, routable destination and matching IPv4 or IPv6 family.

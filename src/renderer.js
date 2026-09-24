@@ -24,6 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const connectionPresetState = document.getElementById('connection-preset-state');
     const tcpFormatSelect = document.getElementById('tcp-format');
     const tcpAddressFamilySelect = document.getElementById('tcp-address-family');
+    const tcpHandshakeTextInput = document.getElementById('tcp-handshake-text');
+    const tcpHandshakeUseEscapesCheckbox = document.getElementById('tcp-handshake-use-escapes');
     const udpFormatSelect = document.getElementById('udp-format');
     const udpAddressFamilySelect = document.getElementById('udp-address-family');
     const udpRegistrationIntervalInput = document.getElementById('udp-registration-interval');
@@ -101,6 +103,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const connectionText = document.getElementById('connection-text');
     const appStatusDot = document.getElementById('app-status-dot');
     const appStatusText = document.getElementById('app-status-text');
+
+    function setTcpHandshakeText(value) {
+        if (!tcpHandshakeTextInput) return;
+        const raw = value === null || value === undefined ? '' : String(value);
+        tcpHandshakeTextInput.tcpHandshakeRawValue = raw;
+        tcpHandshakeTextInput.value = raw;
+    }
+
+    function getTcpHandshakeText() {
+        if (!tcpHandshakeTextInput) return '';
+        const raw = typeof tcpHandshakeTextInput.tcpHandshakeRawValue === 'string'
+            ? tcpHandshakeTextInput.tcpHandshakeRawValue
+            : tcpHandshakeTextInput.value;
+        return tcpHandshakeTextInput.value === raw.replace(/\r\n?/g, '\n')
+            ? raw
+            : tcpHandshakeTextInput.value;
+    }
+
+    if (tcpHandshakeTextInput) {
+        setTcpHandshakeText(tcpHandshakeTextInput.value);
+        tcpHandshakeTextInput.addEventListener('input', () => {
+            tcpHandshakeTextInput.tcpHandshakeRawValue = tcpHandshakeTextInput.value;
+        });
+    }
 
     const GRPC_SERIALIZATION_TOOLTIPS = {
         protobuf: 'gRPC Feature Serialization Format: Protobuf. Uses the ArcGIS Velocity external GrpcFeed protocol (velocity-grpc.proto) with typed Feature messages and google.protobuf.Any-wrapped attributes. Recommended for standard external Velocity gRPC interoperability.',
@@ -367,6 +393,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!element) return;
         if (control.kind === 'checked') {
             element.checked = value === true;
+        } else if (element === tcpHandshakeTextInput) {
+            setTcpHandshakeText(value);
         } else {
             element.value = value === null || value === undefined ? '' : String(value);
         }
@@ -902,6 +930,8 @@ document.addEventListener('DOMContentLoaded', () => {
             connectionState: connectionLockState,
             tcpFormat: value('tcp-format') || 'delimited',
             tcpAddressFamily: value('tcp-address-family') || 'auto',
+            tcpHandshakeText: getTcpHandshakeText(),
+            tcpHandshakeUseEscapes: checked('tcp-handshake-use-escapes'),
             udpFormat: value('udp-format') || 'delimited',
             udpAddressFamily: value('udp-address-family') || 'ipv4',
             udpRegistrationIntervalMs: Number(value('udp-registration-interval') || 30000),
@@ -1039,7 +1069,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const snapshot = {};
         getProtocolSettingsControls().forEach((control) => {
             if (!control.id) return;
-            snapshot[control.id] = control.type === 'checkbox' ? control.checked : control.value;
+            snapshot[control.id] = control.type === 'checkbox'
+                ? control.checked
+                : control === tcpHandshakeTextInput ? getTcpHandshakeText() : control.value;
         });
         return snapshot;
     }
@@ -1050,7 +1082,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return getProtocolSettingsControls().some((control) => {
             if (!control.id || !(control.id in protocolSettingsOpenSnapshot)) return false;
             const previous = protocolSettingsOpenSnapshot[control.id];
-            return control.type === 'checkbox' ? control.checked !== previous : control.value !== previous;
+            const current = control.type === 'checkbox'
+                ? control.checked
+                : control === tcpHandshakeTextInput ? getTcpHandshakeText() : control.value;
+            return current !== previous;
         });
     }
 
@@ -1067,7 +1102,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     control.checked = previous;
                 } else {
                     if (control.value === previous) return;
-                    control.value = previous;
+                    if (control === tcpHandshakeTextInput) setTcpHandshakeText(previous);
+                    else control.value = previous;
                 }
                 control.dispatchEvent(new Event('change'));
             });
@@ -1235,7 +1271,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (control.type === 'checkbox' || control.type === 'radio') {
                 if (typeof message.checked === 'boolean') control.checked = message.checked;
             } else if (typeof message.value === 'string') {
-                control.value = message.value;
+                if (control === tcpHandshakeTextInput) setTcpHandshakeText(message.value);
+                else control.value = message.value;
             }
             control.dispatchEvent(new Event(message.type, { bubbles: true }));
             scheduleProtocolSettingsSync();
@@ -2284,6 +2321,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 tcpAddressFamilySelect.value = presets.tcpAddressFamily;
                 updateTcpAddressFamilyTooltip();
             }
+            if (presets.tcpHandshakeText !== undefined && tcpHandshakeTextInput) {
+                setTcpHandshakeText(presets.tcpHandshakeText);
+            }
+            if (presets.tcpHandshakeUseEscapes !== undefined && tcpHandshakeUseEscapesCheckbox) {
+                tcpHandshakeUseEscapesCheckbox.checked = presets.tcpHandshakeUseEscapes === true
+                    || presets.tcpHandshakeUseEscapes === 'true';
+            }
             if (presets.udpRegistrationIntervalMs !== undefined && udpRegistrationIntervalInput) {
                 udpRegistrationIntervalInput.value = presets.udpRegistrationIntervalMs;
                 updateUdpRegistrationIntervalTooltip();
@@ -2404,7 +2448,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const tcpFormat = tcpFormatSelect?.value || 'delimited';
             const tcpAddressFamily = tcpAddressFamilySelect?.value || 'auto';
             setStatus(`Connecting via TCP ${type} to ${host}:${port} [${tcpFormat}]...`, { category: 'connection' });
-            window.electronAPI.send('connect-tcp', { type, port, host, tcpFormat, tcpAddressFamily });
+            window.electronAPI.send('connect-tcp', {
+                type,
+                port,
+                host,
+                tcpFormat,
+                tcpAddressFamily,
+                tcpHandshakeText: getTcpHandshakeText(),
+                tcpHandshakeUseEscapes: tcpHandshakeUseEscapesCheckbox?.checked !== false,
+            });
         } else if (connectionType.startsWith('udp')) {
             const type = connectionType.split('-')[1];
             const udpFormat = udpFormatSelect?.value || 'delimited';
@@ -3020,6 +3072,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.electronAPI.on('tcp-error', (message) => {
         currentTlsTooltip = '';
+        if (/^TCP handshake (?:text (?:must|exceeds)|Use escapes|contains|exceeds)/.test(message)) {
+            setConnectionControls('disconnected');
+            setAppStatus(Status.ERROR);
+            reportConnectionValidationError(tcpHandshakeTextInput, message);
+            return;
+        }
         showErrorDialog(message);
         setStatus(`Error: ${message}`, { category: 'connection' });
         setAppStatus(Status.ERROR);
