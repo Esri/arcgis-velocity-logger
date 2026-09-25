@@ -58,7 +58,7 @@ const { buildVelocityConnectionOptions } = require('../src/velocity-connection-o
       const protocol = outputType.split('-')[0];
       const output = {
         outputType, label: outputType, port: 9010, format: 'geo-json',
-        host: outputType.endsWith('-client') ? '127.0.0.1' : '',
+        host: outputType.endsWith('-client') ? 'destination.example.com' : '',
         serverApiUrl: 'https://127.0.0.1:7443/team/velocity',
       };
       const connectionOptions = buildVelocityConnectionOptions(output);
@@ -73,6 +73,9 @@ const { buildVelocityConnectionOptions } = require('../src/velocity-connection-o
       assert.strictEqual(get(`${protocol}-format`).value, 'geo-json');
       assert.strictEqual(get('tcp-handshake-text').value, '');
       assert.strictEqual(get('tcp-handshake-use-escapes').checked, true);
+      if (outputType === 'tcp-client') {
+        assert.match(get('connection-summary-rows').textContent, /destination\.example\.com:9010/);
+      }
       assert.strictEqual(sent.filter(([channel]) => channel.startsWith('connect-')).length, before);
       get('connect-btn').click();
       const [channel, request] = sent.filter(([name]) => name.startsWith('connect-')).at(-1);

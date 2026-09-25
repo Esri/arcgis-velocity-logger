@@ -104,6 +104,48 @@ test('UDP address family defaults to IPv4 and accepts explicit IPv6', () => {
   }
 });
 
+test('UDP direct mode is the new default and legacy loaded clients migrate to registered', () => {
+  assert.strictEqual(DEFAULT_HEADLESS_OPTIONS.udpConnectionMode, 'direct');
+  assert.strictEqual(DEFAULT_HEADLESS_OPTIONS.udpLocalHost, '127.0.0.1');
+  assert.strictEqual(DEFAULT_HEADLESS_OPTIONS.udpLocalPort, 5565);
+  const direct = parseCommandLineArgs(argv(
+    'runMode=headless', 'protocol=udp', 'mode=client',
+  ));
+  assert.strictEqual(direct.headless.udpConnectionMode, 'direct');
+  const directWithoutRemote = parseCommandLineArgs(argv(
+    'runMode=headless', 'protocol=udp', 'mode=client',
+    'ip=', 'udpLocalHost=127.0.0.1', 'udpLocalPort=17001',
+  ));
+  assert.deepStrictEqual(directWithoutRemote.errors, []);
+  const missingLocalHost = parseCommandLineArgs(argv(
+    'runMode=headless', 'protocol=udp', 'mode=client', 'udpLocalHost=',
+  ));
+  assert.match(missingLocalHost.errors.join('\n'), /requires 'udpLocalHost/);
+  const explicit = parseCommandLineArgs(argv(
+    'runMode=headless', 'protocol=udp', 'mode=client',
+    'udpConnectionMode=registered',
+  ));
+  assert.strictEqual(explicit.headless.udpConnectionMode, 'registered');
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logger-legacy-udp-mode-'));
+  const filename = path.join(dir, 'launch.json');
+  try {
+    fs.writeFileSync(filename, JSON.stringify({
+      connection: { protocol: 'udp', mode: 'client', ip: '127.0.0.1', port: 5565 },
+    }));
+    const migrated = parseCommandLineArgs(argv(
+      'runMode=headless', `config=${filename}`,
+    ));
+    assert.strictEqual(migrated.headless.udpConnectionMode, 'registered');
+    const overridden = parseCommandLineArgs(argv(
+      'runMode=headless', `config=${filename}`, 'udpConnectionMode=direct',
+    ));
+    assert.strictEqual(overridden.headless.udpConnectionMode, 'direct');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('TCP address family defaults to auto and accepts explicit families', () => {
   assert.strictEqual(DEFAULT_HEADLESS_OPTIONS.tcpAddressFamily, 'auto');
   for (const family of ['auto', 'ipv4', 'ipv6']) {

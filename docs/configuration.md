@@ -239,7 +239,7 @@ itself. See [Connection presets](connection-presets.md).
 ### Supported headless keys
 
 - `config`, `runMode`, `explain`
-- `protocol`, `mode`, `ip`, `port`, `tcpHandshakeText`, `tcpHandshakeUseEscapes`
+- `protocol`, `mode`, `ip`, `port`, `tcpHandshakeText`, `tcpHandshakeUseEscapes`, `udpConnectionMode`, `udpLocalHost`, `udpLocalPort`
 - `connectTimeoutMs`, `connectWaitForServer`, `connectRetryIntervalMs`
 - `outputFile`, `outputFormat`, `outputEncoding`
 - `maxLogCount`, `durationMs`, `idleTimeoutMs`

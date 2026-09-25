@@ -136,6 +136,9 @@ Launch Config. See [data formats](data-formats.md), [TCP](tcp.md), and
 | `tcpHandshakeUseEscapes` | `true`, `false` | `true` | No | `tcpHandshakeUseEscapes=true` | Decode Java-style control, Unicode, quote, backslash, and octal escapes in `tcpHandshakeText`. Disable to send backslashes literally. |
 | `udpFormat` | `delimited`, `json`, `geo-json`, `esri-json` | `delimited` | No | `udpFormat=geo-json` | Expected format of one complete record or document per UDP datagram. |
 | `udpAddressFamily` | `ipv4`, `ipv6` | `ipv4` | No | `udpAddressFamily=ipv6` | UDP socket and host-resolution family. IPv6 uses an IPv6-only socket; the host must resolve to or contain a matching address. |
+| `udpConnectionMode` | `direct`, `registered` | `direct` | No | `udpConnectionMode=direct` | UDP Client mode. Direct binds a stable local endpoint, sends no registration, and accepts any sender tuple. Registered preserves the legacy marker and exact remote tuple filter. |
+| `udpLocalHost` | local IP or host | `127.0.0.1` | No | `udpLocalHost=0.0.0.0` | Local interface for Direct UDP Client receive mode. |
+| `udpLocalPort` | integer `1` to `65535` | `5565` | No | `udpLocalPort=5565` | Stable local receive port for Direct UDP Client mode. |
 | `udpRegistrationIntervalMs` | integer `1` to `2147483647` | `30000` | No | `udpRegistrationIntervalMs=30000` | Milliseconds between custom UDP Client registration renewals for Logger/Simulator pairing. This is not an acknowledgment or delivery check and does not apply to ArcGIS Velocity outputs. |
 
 ### gRPC parameters
