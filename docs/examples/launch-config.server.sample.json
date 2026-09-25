@@ -18,6 +18,9 @@
     "tcpHandshakeUseEscapes": true,
     "udpFormat": "delimited",
     "udpAddressFamily": "ipv4",
+    "udpConnectionMode": "direct",
+    "udpLocalHost": "127.0.0.1",
+    "udpLocalPort": 5565,
     "wsFormat": "delimited",
     "wsPath": "/",
     "wsTls": true

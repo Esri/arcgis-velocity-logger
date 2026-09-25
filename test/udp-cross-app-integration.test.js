@@ -153,6 +153,7 @@ async function simulatorServerToLoggerClient(directory) {
     mode: 'server',
     ip: '127.0.0.1',
     port: 0,
+    udpConnectionMode: 'registered',
     udpFormat: 'delimited',
     udpAppendNewline: false,
   });
@@ -165,7 +166,8 @@ async function simulatorServerToLoggerClient(directory) {
     const firstOutput = path.join(directory, 'server-to-client-first.jsonl');
     const firstDone = path.join(directory, 'server-to-client-first.done.json');
     firstRun = runHeadlessSession(loggerOptions({
-      mode: 'client', port, outputFile: firstOutput, doneFile: firstDone, maxLogCount: 1,
+      mode: 'client', port, udpConnectionMode: 'registered',
+      outputFile: firstOutput, doneFile: firstDone, maxLogCount: 1,
     }));
     await waitFor(() => simulator.hasRecipients(), 'Simulator did not learn the first Logger endpoint');
     const firstClientKey = [...simulator.udpServerClients][0];
@@ -186,7 +188,8 @@ async function simulatorServerToLoggerClient(directory) {
     const secondOutput = path.join(directory, 'server-to-client-second.jsonl');
     const secondDone = path.join(directory, 'server-to-client-second.done.json');
     secondRun = runHeadlessSession(loggerOptions({
-      mode: 'client', port, outputFile: secondOutput, doneFile: secondDone, maxLogCount: 1,
+      mode: 'client', port, udpConnectionMode: 'registered',
+      outputFile: secondOutput, doneFile: secondDone, maxLogCount: 1,
     }));
     await waitFor(
       () => simulator.udpServerClients.size >= 2,
@@ -220,6 +223,7 @@ async function loggerClientSurvivesSimulatorRestart(directory) {
     mode: 'server',
     ip: '127.0.0.1',
     port: 0,
+    udpConnectionMode: 'registered',
     udpFormat: 'delimited',
     udpAppendNewline: false,
   });
@@ -230,6 +234,7 @@ async function loggerClientSurvivesSimulatorRestart(directory) {
   const loggerRun = runHeadlessSession(loggerOptions({
     mode: 'client',
     port,
+    udpConnectionMode: 'registered',
     outputFile,
     doneFile,
     maxLogCount: 2,
@@ -248,6 +253,7 @@ async function loggerClientSurvivesSimulatorRestart(directory) {
       mode: 'server',
       ip: '127.0.0.1',
       port,
+      udpConnectionMode: 'registered',
       udpFormat: 'delimited',
       udpAppendNewline: false,
     });

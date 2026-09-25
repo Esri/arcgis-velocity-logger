@@ -80,7 +80,8 @@ function parseAnalyticOutput(analytic, analyticKind, output, source = {}) {
       item.supported = true;
       item.format = options.tcpFormat || options.udpFormat || options.httpFormat;
       if (options.tcpFormat) {
-        item.host = options.ip;
+        item.expectedDestination = options.expectedDestination;
+        if (!options.expectedDestination) item.host = options.ip;
         item.port = options.port;
       } else if (options.udpFormat) {
         item.expectedDestination = options.expectedDestination;

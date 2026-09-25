@@ -960,6 +960,11 @@ async function applyLaunchConfigFrom() {
           }
         }
       }
+      if (presets.udpConnectionMode === undefined
+          && String(presets.protocol || '').toLowerCase() === 'udp'
+          && String(presets.mode || '').toLowerCase() === 'client') {
+        presets.udpConnectionMode = 'registered';
+      }
       if (Object.keys(presets).length > 0 && mainWindow) {
         if (typeof presets.tcpHandshakeText === 'string'
             && presets.tcpHandshakeText.length > 1024 * 1024) {
@@ -1051,6 +1056,9 @@ async function getCurrentLaunchConfig() {
         tcpHandshakeUseEscapes: getChecked('tcp-handshake-use-escapes'),
         udpFormat: getVal('udp-format') || 'delimited',
         udpAddressFamily: getVal('udp-address-family') || 'ipv4',
+        udpConnectionMode: getVal('udp-connection-mode') || 'direct',
+        udpLocalHost: getVal('udp-local-host') || '127.0.0.1',
+        udpLocalPort: parseInt(getVal('udp-local-port'), 10) || 5565,
         udpRegistrationIntervalMs: parseInt(getVal('udp-registration-interval'), 10) || 30000,
         grpcHeaderPath: getVal('grpc-header-path') || 'replace.with.dedicated.uid',
         grpcHeaderPathKey: getVal('grpc-header-path-key') || 'grpc-path',
@@ -1105,6 +1113,9 @@ async function getCurrentLaunchConfig() {
       tcpHandshakeUseEscapes: s.tcpHandshakeUseEscapes,
       udpFormat: s.udpFormat,
       udpAddressFamily: s.udpAddressFamily,
+      udpConnectionMode: s.udpConnectionMode,
+      udpLocalHost: s.udpLocalHost,
+      udpLocalPort: s.udpLocalPort,
       udpRegistrationIntervalMs: s.udpRegistrationIntervalMs,
       grpcHeaderPath: s.grpcHeaderPath,
       grpcHeaderPathKey: s.grpcHeaderPathKey,
@@ -2219,18 +2230,29 @@ ipcMain.on('connect-udp', async (event, {
     host,
     udpFormat = APP_DEFAULTS.udpFormat,
     udpAddressFamily = APP_DEFAULTS.udpAddressFamily,
+    udpConnectionMode = APP_DEFAULTS.udpConnectionMode,
+    udpLocalHost = APP_DEFAULTS.udpLocalHost,
+    udpLocalPort = APP_DEFAULTS.udpLocalPort,
     udpRegistrationIntervalMs = APP_DEFAULTS.udpRegistrationIntervalMs,
 }) => {
     const attempt = ++udpConnectionAttempt;
     try {
-        const validatedParams = validateUdpParams(type, port, host);
+        const directClient = type === 'client' && udpConnectionMode === 'direct';
+        const validatedParams = validateUdpParams(
+            type,
+            directClient ? udpLocalPort : port,
+            directClient ? udpLocalHost : host,
+        );
         const { type: validType, port: validPort, host: validHost } = validatedParams;
         assertSocketPayloadFormat(udpFormat, 'udpFormat');
-        const endpoint = await resolveUdpEndpoint(validHost, udpAddressFamily, {
-            bind: validType === 'server',
-        });
+        const endpoint = await resolveUdpEndpoint(
+            validHost,
+            udpAddressFamily,
+            { bind: validType === 'server' || directClient },
+        );
         if (attempt !== udpConnectionAttempt) return;
-        if (validType === 'client' && (!Number.isInteger(udpRegistrationIntervalMs) || udpRegistrationIntervalMs < 1
+        if (validType === 'client' && !directClient
+            && (!Number.isInteger(udpRegistrationIntervalMs) || udpRegistrationIntervalMs < 1
             || udpRegistrationIntervalMs > MAX_UDP_CLIENT_REGISTRATION_INTERVAL_MS)) {
             throw new Error(
                 `UDP registration renewal must be between 1 and ${MAX_UDP_CLIENT_REGISTRATION_INTERVAL_MS} milliseconds.`
@@ -2251,15 +2273,27 @@ ipcMain.on('connect-udp', async (event, {
             host: validHost,
             udpFormat,
             udpAddressFamily,
+            udpConnectionMode,
+            udpLocalHost,
+            udpLocalPort,
             udpRegistrationIntervalMs,
         };
         velocityLog('info', `[Transport] Starting UDP ${validType} receiver with ${udpFormat} payloads`);
         const receivePayload = createUdpPayloadReceiver({
             format: udpFormat,
-            isControlDatagram: validType === 'client' ? isUdpClientRegistrationMessage : undefined,
+            isControlDatagram: validType === 'client' && !directClient
+                ? isUdpClientRegistrationMessage
+                : undefined,
             onWarning: (message, remote) => reportSocketPayloadWarning('udp', message, remote),
             onRecord: (raw, remote) => {
                 const local = udpSocket.address();
+                if (!currentConnectionDetails?.receivedDatagram) {
+                    currentConnectionDetails.receivedDatagram = true;
+                    mainWindow.webContents.send(
+                        'udp-status',
+                        `First UDP datagram received from ${formatUdpEndpoint(remote)}`
+                    );
+                }
                 sendSocketPayloadRecord(raw, `[metadata] protocol=UDP mode=${validType} remote=${formatUdpEndpoint(remote)} local=${formatUdpEndpoint(local)} family=${remote.family} size=${remote.size} format=${udpFormat}`);
             },
         });
@@ -2314,7 +2348,7 @@ ipcMain.on('connect-udp', async (event, {
             udpSocket = dgram.createSocket(endpoint.socketOptions);
 
             udpSocket.on('error', (err) => {
-                if (err.code === 'ECONNREFUSED') {
+                if (!directClient && err.code === 'ECONNREFUSED') {
                     const { host, port } = currentConnectionDetails || {};
                     const message = `Connection refused by ${host || 'host'}:${port || 'port'}. Ensure a UDP server is listening.`;
                     velocityLog('warn', `[Transport] ${message} Registration renewal remains active.`);
@@ -2340,6 +2374,19 @@ ipcMain.on('connect-udp', async (event, {
                 updateUdpButtonStates('disconnected');
             });
 
+            if (directClient) {
+                udpSocket.on('listening', () => {
+                    const localAddress = udpSocket.address();
+                    mainWindow.webContents.send(
+                        'udp-status',
+                        `UDP Client direct receiver ready at ${formatUdpEndpoint(localAddress)}; no registration was sent. Awaiting datagrams from any source address and port.`
+                    );
+                    updateUdpButtonStates('connected');
+                });
+                udpSocket.bind(validPort, endpoint.address);
+                return;
+            }
+
             udpSocket.on('connect', () => {
                 const localAddress = udpSocket.address();
                 const registration = startUdpClientRegistration(udpSocket, {
@@ -2357,7 +2404,7 @@ ipcMain.on('connect-udp', async (event, {
                     if (udpClientRegistration !== registration) return;
                     mainWindow.webContents.send(
                         'udp-status',
-                        `UDP Client connected from ${formatUdpEndpoint(localAddress)} to ${formatUdpEndpoint({ address: endpoint.address, port: validPort })}; registration renews every ${udpRegistrationIntervalMs} ms without acknowledgment`
+                        `UDP Client socket ready at ${formatUdpEndpoint(localAddress)} for ${formatUdpEndpoint({ address: endpoint.address, port: validPort })}; registration sent and renews every ${udpRegistrationIntervalMs} ms without acknowledgment. Awaiting datagrams from that exact address and port.`
                     );
                     updateUdpButtonStates('connected');
                 }).catch((err) => {

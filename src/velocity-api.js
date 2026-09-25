@@ -175,6 +175,17 @@ function parseItem(item, direction) {
     if (name.startsWith('udp-') && properties[`${name}.addressFamily`] !== undefined) {
       parsed.udpAddressFamily = text(properties[`${name}.addressFamily`]);
     }
+    if (name === 'udp-client') {
+      const udpFields = {
+        [`${name}.connectionMode`]: 'udpConnectionMode',
+        [`${name}.localHost`]: 'udpLocalHost',
+        [`${name}.localPort`]: 'udpLocalPort',
+        [`${name}.sourceHost`]: 'udpSourceHost',
+      };
+      for (const [property, field] of Object.entries(udpFields)) {
+        if (properties[property] !== undefined) parsed[field] = properties[property];
+      }
+    }
   }
   if (direction === 'feed' && name === 'websocket') {
     parsed.reason = 'A WebSocket feed connects to an outbound source; it is not a receiver the Simulator can publish to.';
