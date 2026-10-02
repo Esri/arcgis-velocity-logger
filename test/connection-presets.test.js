@@ -228,6 +228,28 @@ async function uiTest(name, fn) {
 }
 
 (async () => {
+  await uiTest('UDP lifecycle labels distinguish local readiness from received data', async ({ document, listeners, window }) => {
+    const type = document.getElementById('connection-type');
+    const appStatus = document.getElementById('app-status-text');
+    const connectionStatus = document.getElementById('connection-text');
+
+    type.value = 'udp-client';
+    type.dispatchEvent(new window.Event('change', { bubbles: true }));
+    listeners.get('udp-connection-state')('connected');
+    assert.strictEqual(appStatus.textContent, 'Ready');
+    assert.strictEqual(connectionStatus.textContent, 'Ready');
+    listeners.get('udp-status')('First UDP datagram received from 127.0.0.1:5565');
+    assert.strictEqual(appStatus.textContent, 'Receiving');
+    assert.strictEqual(connectionStatus.textContent, 'Receiving');
+
+    listeners.get('udp-connection-state')('disconnected');
+    type.value = 'udp-server';
+    type.dispatchEvent(new window.Event('change', { bubbles: true }));
+    listeners.get('udp-connection-state')('connected');
+    assert.strictEqual(appStatus.textContent, 'Listening');
+    assert.strictEqual(connectionStatus.textContent, 'Listening');
+  });
+
   await uiTest('framed records preserve embedded newlines, count once, and reverse atomically', async ({ document, listeners, window }) => {
     const csv = '1,"a\nb"\r\n';
     const json = '{\n  "name": "雪"\n}';

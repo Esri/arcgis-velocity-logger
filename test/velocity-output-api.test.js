@@ -86,15 +86,22 @@ const analytic = { id: 'analytic/one', label: 'Vehicle positions', outputs: [str
     assert.strictEqual(item.serverId, socketSource.id);
     assert.strictEqual(item.serverApiUrl, socketSource.apiBaseUrl);
     assert.strictEqual(item.analyticId, analytic.id);
-    assert.deepStrictEqual(buildVelocityConnectionOptions(item), {
+    const expectedOptions = {
       connectionType: `${protocol}-${isServer ? 'client' : 'server'}`,
-      ip: item.host,
+      ip: isServer ? item.host : '127.0.0.1',
       port: item.port,
       tcpAddressFamily: isServer ? 'ipv4' : 'auto',
       tcpHandshakeText: '',
       tcpHandshakeUseEscapes: true,
       [`${protocol}Format`]: formats[index],
-    });
+    };
+    if (!isServer) {
+      expectedOptions.expectedDestination = {
+        host: item.host, port: item.port, family: 'auto',
+      };
+      expectedOptions.routingWarning = `Velocity connects to ${item.host}:${item.port}. The Logger bind address defaults to 127.0.0.1; choose a local interface and ensure the advertised destination routes to this Logger.`;
+    }
+    assert.deepStrictEqual(buildVelocityConnectionOptions(item), expectedOptions);
     for (const port of [0, 65536, 'invalid']) {
       const invalid = parseAnalyticOutput(analytic, 'realtime', {
         ...config, properties: { ...config.properties, [`${name}.port`]: port },

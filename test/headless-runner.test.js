@@ -41,6 +41,7 @@ function pickFreePort() {
       const port = s.address().port;
       s.close(() => resolve(port));
     });
+
   });
 }
 
@@ -111,6 +112,7 @@ function baseOptions(overrides) {
     const receiver = createReceiver(baseOptions({
       protocol: 'tcp',
       mode: 'client',
+      udpConnectionMode: 'registered',
       ip: 'retry.example',
       port,
       tcpFormat: 'delimited',
@@ -150,6 +152,7 @@ function baseOptions(overrides) {
     const receiver = createReceiver(baseOptions({
       protocol: 'tcp',
       mode: 'client',
+      udpConnectionMode: 'registered',
       ip: '127.0.0.1',
       port: server.address().port,
       tcpFormat: 'delimited',
@@ -475,11 +478,11 @@ function baseOptions(overrides) {
       registration = message.toString('utf8');
       server.send(Buffer.from(expected), remote.port, remote.address);
     });
-
     try {
       const code = await runHeadlessSession(baseOptions({
         protocol: 'udp',
         mode: 'client',
+        udpConnectionMode: 'registered',
         ip: '127.0.0.1',
         port,
         outputFile: outFile,
@@ -492,6 +495,143 @@ function baseOptions(overrides) {
     } finally {
       await new Promise((resolve) => server.close(resolve));
       if (fs.existsSync(outFile)) fs.unlinkSync(outFile);
+    }
+  });
+
+  await test('UDP direct client binds a stable local endpoint and accepts ephemeral sender ports', async () => {
+    const localPort = await pickFreeUdpPort();
+    const legacyRemotePort = await pickFreeUdpPort();
+    const outFile = tmpFile('log');
+    const logFile = tmpFile('log');
+    const senderA = dgram.createSocket('udp4');
+    const senderB = dgram.createSocket('udp4');
+    const legacyRemote = dgram.createSocket('udp4');
+    const unexpectedOutbound = [];
+    legacyRemote.on('message', (message) => unexpectedOutbound.push(message.toString('utf8')));
+    await new Promise((resolve, reject) => {
+      legacyRemote.once('error', reject);
+      legacyRemote.bind(legacyRemotePort, '127.0.0.1', resolve);
+    });
+    const run = runHeadlessSession(baseOptions({
+      protocol: 'udp',
+      mode: 'client',
+      ip: '127.0.0.1',
+      port: legacyRemotePort,
+      udpConnectionMode: 'direct',
+      udpLocalHost: '127.0.0.1',
+      udpLocalPort: localPort,
+      udpAddressFamily: 'ipv4',
+      outputFile: outFile,
+      logFile,
+      logLevel: 'info',
+      maxLogCount: 3,
+      durationMs: 2000,
+    }));
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      for (const [socket, payload] of [
+        [senderA, 'sender,a'],
+        [senderB, 'sender,b'],
+        [senderA, UDP_CLIENT_REGISTRATION_MESSAGE],
+      ]) {
+        await new Promise((resolve, reject) => socket.send(
+          Buffer.from(payload), localPort, '127.0.0.1',
+          (error) => error ? reject(error) : resolve(),
+        ));
+      }
+      assert.strictEqual(await run, EXIT_CODES.success);
+      assert.deepStrictEqual(fs.readFileSync(outFile, 'utf8').trim().split('\n').sort(), [
+        UDP_CLIENT_REGISTRATION_MESSAGE, 'sender,a', 'sender,b',
+      ]);
+      const diagnostics = fs.readFileSync(logFile, 'utf8');
+      assert.match(diagnostics, /direct receiver ready/);
+      assert.match(diagnostics, /no registration was sent/);
+      assert.match(diagnostics, /any source address and port/);
+      assert.deepStrictEqual(unexpectedOutbound, []);
+    } finally {
+      await Promise.all([
+        new Promise((resolve) => senderA.close(resolve)),
+        new Promise((resolve) => senderB.close(resolve)),
+        new Promise((resolve) => legacyRemote.close(resolve)),
+      ]);
+      await run;
+      for (const filename of [outFile, logFile]) {
+        if (fs.existsSync(filename)) fs.unlinkSync(filename);
+      }
+    }
+  });
+
+  await test('UDP direct client reports a bind failure when another receiver owns the local port', async () => {
+    const localPort = await pickFreeUdpPort();
+    const blocker = dgram.createSocket('udp4');
+    const logFile = tmpFile('log');
+    await new Promise((resolve, reject) => {
+      blocker.once('error', reject);
+      blocker.bind(localPort, '127.0.0.1', resolve);
+    });
+    try {
+      const code = await runHeadlessSession(baseOptions({
+        protocol: 'udp',
+        mode: 'client',
+        udpConnectionMode: 'direct',
+        udpLocalHost: '127.0.0.1',
+        udpLocalPort: localPort,
+        logFile,
+        durationMs: 500,
+      }));
+      assert.strictEqual(code, EXIT_CODES.runtimeError);
+      const diagnostics = fs.readFileSync(logFile, 'utf8');
+      assert.match(diagnostics, /EADDRINUSE/);
+      assert.doesNotMatch(diagnostics, /direct receiver ready/);
+    } finally {
+      await new Promise((resolve) => blocker.close(resolve));
+      if (fs.existsSync(logFile)) fs.unlinkSync(logFile);
+    }
+  });
+
+  await test('UDP Registered client filters a different source port and reports readiness honestly', async () => {
+    const port = await pickFreeUdpPort();
+    const outFile = tmpFile('log');
+    const logFile = tmpFile('log');
+    const server = dgram.createSocket('udp4');
+    const alternate = dgram.createSocket('udp4');
+    await Promise.all([
+      new Promise((resolve, reject) => {
+        server.once('error', reject);
+        server.bind(port, '127.0.0.1', resolve);
+      }),
+      new Promise((resolve, reject) => {
+        alternate.once('error', reject);
+        alternate.bind(0, '127.0.0.1', resolve);
+      }),
+    ]);
+    server.once('message', async (_message, remote) => {
+      alternate.send(Buffer.from('wrong,source,port'), remote.port, remote.address);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      server.send(Buffer.from('expected,source,port'), remote.port, remote.address);
+    });
+    try {
+      const code = await runHeadlessSession(baseOptions({
+        protocol: 'udp', mode: 'client', udpConnectionMode: 'registered',
+        ip: '127.0.0.1', port, outputFile: outFile, logFile, logLevel: 'info',
+        maxLogCount: 1, durationMs: 2000,
+      }));
+      assert.strictEqual(code, EXIT_CODES.success);
+      assert.strictEqual(fs.readFileSync(outFile, 'utf8'), 'expected,source,port\n');
+      const diagnostics = fs.readFileSync(logFile, 'utf8');
+      assert.match(diagnostics, /socket ready/);
+      assert.match(diagnostics, /without acknowledgment/);
+      assert.match(diagnostics, /exact address and port/);
+      assert.match(diagnostics, /First UDP datagram received from/);
+      assert.doesNotMatch(diagnostics, /wrong,source,port/);
+    } finally {
+      await Promise.all([
+        new Promise((resolve) => server.close(resolve)),
+        new Promise((resolve) => alternate.close(resolve)),
+      ]);
+      for (const filename of [outFile, logFile]) {
+        if (fs.existsSync(filename)) fs.unlinkSync(filename);
+      }
     }
   });
 

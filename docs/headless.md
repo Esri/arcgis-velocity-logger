@@ -256,6 +256,11 @@ registration every `udpRegistrationIntervalMs` milliseconds (default `30000`)
 while connected, so a restarted Simulator server can rediscover the endpoint.
 Renewal stops during teardown and does not acknowledge or guarantee delivery.
 
+That registration behavior applies only to
+`udpConnectionMode=registered`. New UDP Client configurations default to
+`udpConnectionMode=direct`, which binds `udpLocalHost` and `udpLocalPort`,
+sends no marker, and accepts datagrams from ephemeral sender ports.
+
 ### Filter/exclude using regular expressions
 
 ```bash

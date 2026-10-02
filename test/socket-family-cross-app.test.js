@@ -98,6 +98,7 @@ function loggerOptions(protocol, mode, family, host, port, outputFile, maxLogCou
     port,
     tcpAddressFamily: family === 'ipv6' ? 'ipv6' : 'ipv4',
     udpAddressFamily: family,
+    udpConnectionMode: protocol === 'udp' && mode === 'client' ? 'registered' : 'direct',
     tcpFormat: 'delimited',
     udpFormat: 'delimited',
     udpRegistrationIntervalMs: 40,
@@ -177,6 +178,7 @@ async function simulatorServerToLoggerClient(protocol, family, directory) {
   const connected = await simulator.connect({
     protocol, mode: 'server', ip: host, port: 0,
     tcpAddressFamily: family, udpAddressFamily: family,
+    udpConnectionMode: protocol === 'udp' ? 'registered' : 'direct',
     tcpFormat: 'delimited', udpFormat: 'delimited',
   });
   const port = connected.address.port;
@@ -209,7 +211,7 @@ async function udpIpv6RenewalSurvivesRestart(directory) {
   const simulator = new TransportManager();
   const connected = await simulator.connect({
     protocol: 'udp', mode: 'server', ip: '::1', port: 0,
-    udpAddressFamily: 'ipv6', udpFormat: 'delimited',
+    udpAddressFamily: 'ipv6', udpConnectionMode: 'registered', udpFormat: 'delimited',
   });
   const port = connected.address.port;
   const outputFile = path.join(directory, 'udp-ipv6-restart.jsonl');
@@ -223,7 +225,7 @@ async function udpIpv6RenewalSurvivesRestart(directory) {
     await wait(140);
     await simulator.connect({
       protocol: 'udp', mode: 'server', ip: '::1', port,
-      udpAddressFamily: 'ipv6', udpFormat: 'delimited',
+      udpAddressFamily: 'ipv6', udpConnectionMode: 'registered', udpFormat: 'delimited',
     });
     await waitFor(
       () => simulator.hasRecipients(),

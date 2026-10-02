@@ -54,7 +54,9 @@ test('covers all twelve connection modes with a title, endpoint, and status', ()
     assert.ok(summary.title.endsWith(' settings'), `${connectionType} title`);
     assert.ok(rows.connection && rows.endpoint && rows.status && rows.preset, `${connectionType} core rows`);
     assert.strictEqual(rows.status.value, 'Disconnected');
-    assert.match(summary.headline, summary.mode === 'server' ? /^Listening on / : /^Receiving from /);
+    const listensLocally = summary.mode === 'server'
+      || (summary.protocol === 'udp' && summary.mode === 'client');
+    assert.match(summary.headline, listensLocally ? /^Listening on / : /^Receiving from /);
     assert.ok(summary.rows.length >= 4, `${connectionType} must report rows`);
   });
 });
@@ -295,10 +297,11 @@ test('UDP client summary reports registration renewal while UDP server omits it'
   const client = buildConnectionSummary({
     ...BASE,
     connectionType: 'udp-client',
+    udpConnectionMode: 'registered',
     udpRegistrationIntervalMs: 45000,
   });
   assert.strictEqual(rowsByKey(client).udpRegistrationInterval.value, '45000 ms');
-  assert.strictEqual(client.settings.count, 1);
+  assert.strictEqual(client.settings.count, 2);
   const server = buildConnectionSummary({
     ...BASE,
     connectionType: 'udp-server',
@@ -393,6 +396,37 @@ test('the connection state is echoed for every lifecycle value', () => {
   });
   const unknown = buildConnectionSummary({ ...BASE, connectionType: 'tcp-server', connectionState: 'nonsense' });
   assert.strictEqual(unknown.connectionState, 'disconnected');
+});
+
+test('UDP connected summaries distinguish Ready, Listening, and Receiving', () => {
+  const direct = buildConnectionSummary({
+    ...BASE,
+    connectionType: 'udp-client',
+    connectionState: 'connected',
+    udpConnectionMode: 'direct',
+  });
+  assert.strictEqual(rowsByKey(direct).status.value, 'Ready');
+  assert.strictEqual(direct.connectionStateLabel, 'Ready');
+  const registered = buildConnectionSummary({
+    ...BASE,
+    connectionType: 'udp-client',
+    connectionState: 'connected',
+    udpConnectionMode: 'registered',
+  });
+  assert.strictEqual(rowsByKey(registered).status.value, 'Ready');
+  const server = buildConnectionSummary({
+    ...BASE,
+    connectionType: 'udp-server',
+    connectionState: 'connected',
+  });
+  assert.strictEqual(rowsByKey(server).status.value, 'Listening');
+  const receiving = buildConnectionSummary({
+    ...BASE,
+    connectionType: 'udp-client',
+    connectionState: 'connected',
+    udpHasReceivedData: true,
+  });
+  assert.strictEqual(rowsByKey(receiving).status.value, 'Receiving');
 });
 
 test('the chip counts only protocol settings that differ from their defaults', () => {

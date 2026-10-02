@@ -173,6 +173,12 @@
                                         <option value="ipv6" data-tooltip="IPv6 - use IPv6 addresses and resolve hostnames to IPv6. IPv4-mapped addresses are not supported.">IPv6</option>
                                     </select>
                                 </label>
+                                <label class="protocol-settings-field udp-client-only" data-tooltip="Choose how UDP Client receives datagrams. Direct binds a stable local endpoint and sends no registration. Registered preserves the legacy paired-app registration behavior." aria-label="UDP connection mode">UDP mode:
+                                    <select id="udp-connection-mode" data-tooltip="Direct - use configured endpoints without registration or acknowledgment." aria-label="UDP mode: Direct">
+                                        <option value="direct" selected data-tooltip="Direct - use configured endpoints without registration or acknowledgment.">Direct</option>
+                                        <option value="registered" data-tooltip="Registered - compatibility pairing using the existing UDP registration marker; not standard UDP behavior.">Registered</option>
+                                    </select>
+                                </label>
                             </div>
                             <div class="protocol-settings-group" data-protocol="grpc" data-section="basics">
                                 <label class="protocol-settings-field" data-tooltip="Feature serialization used by the gRPC connection" aria-label="gRPC serialization">Serialization
@@ -290,7 +296,13 @@
                                 </label>
                             </div>
                             <div class="protocol-settings-group" id="udp-advanced" data-protocol="udp" data-section="advanced">
-                                <label class="protocol-settings-field udp-client-only" data-tooltip="Renew the custom UDP client registration at this interval so a restarted Simulator server can rediscover the reply endpoint. This is not an acknowledgment or delivery check." aria-label="UDP client registration renewal interval">Registration renewal (ms)
+                                <label class="protocol-settings-field udp-client-only udp-direct-only" data-tooltip="Local UDP interface to bind in Direct mode. Loopback is local-only; choose another interface explicitly for remote traffic." aria-label="UDP local bind host">Local host:
+                                    <input type="text" id="udp-local-host" value="127.0.0.1" data-tooltip="Local UDP interface to bind in Direct mode. Loopback is local-only; choose another interface explicitly for remote traffic." aria-label="UDP local bind host">
+                                </label>
+                                <label class="protocol-settings-field udp-client-only udp-direct-only" data-tooltip="Local UDP bind port in Direct mode. Receivers require a stable port; a publisher may use 0 for an ephemeral port." aria-label="UDP local bind port">Local port:
+                                    <input type="number" id="udp-local-port" value="5565" min="1" max="65535" data-tooltip="Local UDP bind port in Direct mode. Receivers require a stable port; a publisher may use 0 for an ephemeral port." aria-label="UDP local bind port">
+                                </label>
+                                <label class="protocol-settings-field udp-client-only udp-registered-only" data-tooltip="Renew the custom UDP client registration at this interval so a restarted Simulator server can rediscover the reply endpoint. This is not an acknowledgment or delivery check." aria-label="UDP client registration renewal interval">Registration renewal (ms)
                                     <input type="number" id="udp-registration-interval" value="30000" min="1" max="2147483647" step="1000" data-tooltip="Renew the custom UDP client registration every 30000 milliseconds. Positive values up to 2147483647 are accepted. This does not apply to ArcGIS Velocity UDP outputs." aria-label="UDP client registration renewal interval in milliseconds">
                                 </label>
                             </div>

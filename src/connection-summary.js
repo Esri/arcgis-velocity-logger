@@ -154,6 +154,9 @@
     udp: Object.freeze([
       { field: 'udpFormat', defaultValue: 'delimited' },
       { field: 'udpAddressFamily', defaultValue: 'ipv4' },
+      { field: 'udpConnectionMode', defaultValue: 'direct', clientOnly: true },
+      { field: 'udpLocalHost', defaultValue: '127.0.0.1', clientOnly: true },
+      { field: 'udpLocalPort', defaultValue: 5565, clientOnly: true },
       { field: 'udpRegistrationIntervalMs', defaultValue: 30000, clientOnly: true },
     ]),
     grpc: Object.freeze([
@@ -290,6 +293,10 @@
    */
   function buildConnectionUrl(state) {
     const { protocol } = splitConnectionType(state.connectionType);
+    if (protocol === 'udp' && state.connectionType === 'udp-client'
+        && state.udpConnectionMode !== 'registered') {
+      return formatEndpoint(state.udpLocalHost || '127.0.0.1', state.udpLocalPort || 5565);
+    }
     const host = formatHostForUrl(state.host) || NOT_SET;
     const port = describeValue(state.port);
     if (protocol === 'http') {
@@ -592,11 +599,25 @@
         }));
       }
       if (protocol === 'udp' && mode === 'client') {
-        const interval = Number(state.udpRegistrationIntervalMs || 30000);
-        rows.push(row('udpRegistrationInterval', 'Registration renewal', `${interval} ms`, {
-          isDefault: interval === 30000,
-          detail: 'Custom Logger/Simulator pairing only; this is not an acknowledgment or delivery check.',
+        const direct = state.udpConnectionMode !== 'registered';
+        rows.push(row('udpConnectionMode', 'UDP mode', direct ? 'Direct' : 'Registered', {
+          isDefault: direct,
         }));
+        if (direct) {
+          rows.push(row(
+            'udpLocalEndpoint',
+            'Local endpoint',
+            formatEndpoint(state.udpLocalHost || '127.0.0.1', state.udpLocalPort || 5565),
+            { kind: 'endpoint', isDefault: (state.udpLocalHost || '127.0.0.1') === '127.0.0.1'
+              && Number(state.udpLocalPort || 5565) === 5565 },
+          ));
+        } else {
+          const interval = Number(state.udpRegistrationIntervalMs || 30000);
+          rows.push(row('udpRegistrationInterval', 'Registration renewal', `${interval} ms`, {
+            isDefault: interval === 30000,
+            detail: 'Custom Logger/Simulator pairing only; this is not an acknowledgment or delivery check.',
+          }));
+        }
       }
       if (protocol === 'udp' && state.expectedDestination
           && typeof state.expectedDestination === 'object') {
@@ -723,8 +744,19 @@
    */
   function describeConnectionRole(state, protocol, mode) {
     const target = buildConnectionUrl(state);
+    if (protocol === 'udp' && mode === 'client' && state.udpConnectionMode !== 'registered') {
+      return `Listening on ${target}`;
+    }
     if (mode === 'server') return `Listening on ${target}`;
     return `Receiving from ${target}`;
+  }
+
+  function describeConnectionState(state, protocol, mode, connectionState) {
+    if (connectionState !== 'connected' || protocol !== 'udp') {
+      return CONNECTION_STATE_LABELS[connectionState];
+    }
+    if (state.udpHasReceivedData) return 'Receiving';
+    return mode === 'server' ? 'Listening' : 'Ready';
   }
 
   /**
@@ -741,13 +773,22 @@
     const connectionState = CONNECTION_STATE_LABELS[state.connectionState] ? state.connectionState : 'disconnected';
     const preset = normalizePreset(state.preset);
     const url = buildConnectionUrl(normalized);
+    const connectionStateLabel = describeConnectionState(
+      normalized, protocol, mode, connectionState
+    );
 
     const warnings = buildWarnings(normalized, protocol, mode);
     const rows = [
       ...warnings,
       row('connection', 'Connection', CONNECTION_TYPE_LABELS[connectionType], { group: 'Connection', kind: 'state' }),
-      row('endpoint', mode === 'server' ? 'Listening on' : 'Receiving from', url, { group: 'Connection', kind: 'endpoint' }),
-      row('status', 'Status', CONNECTION_STATE_LABELS[connectionState], { group: 'Session', kind: 'state' }),
+      row(
+        'endpoint',
+        mode === 'server' || (protocol === 'udp' && mode === 'client'
+          && normalized.udpConnectionMode !== 'registered') ? 'Listening on' : 'Receiving from',
+        url,
+        { group: 'Connection', kind: 'endpoint' },
+      ),
+      row('status', 'Status', connectionStateLabel, { group: 'Session', kind: 'state' }),
       row('preset', 'Preset', preset.label, { group: 'Session', kind: 'preset', isDefault: !preset.modified }),
       ...buildTlsRows(normalized, protocol, mode),
       ...buildProtocolRows(normalized, protocol, mode),
@@ -767,7 +808,7 @@
       encrypted: isEncryptionEnabled(normalized, protocol),
       supportsProtocolSettings: DIALOG_PROTOCOLS.includes(protocol),
       connectionState,
-      connectionStateLabel: CONNECTION_STATE_LABELS[connectionState],
+      connectionStateLabel,
       preset,
       warnings,
       warningCount: warnings.length,
