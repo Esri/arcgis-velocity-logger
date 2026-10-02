@@ -2,7 +2,11 @@
 
 [← Documentation index](README.md) · [Repository overview](../README.md#documentation)
 
-This guide covers all aspects of TLS (Transport Layer Security) support in the ArcGIS Velocity Logger: certificate type taxonomy, platform-specific behaviour (macOS / Linux / Windows), certificate file formats, OS trust store integration, working with a custom CA, mutual TLS (mTLS), the TLS Trust Badge, and per-protocol notes. It is the canonical TLS reference shared by the gRPC, HTTP, and WebSocket transports.
+This guide covers TLS (Transport Layer Security) support in ArcGIS Velocity
+Logger: certificate types, platform behavior, file formats, OS trust-store
+integration, custom CAs, client-certificate presentation, the TLS Trust Badge,
+and per-protocol notes. It is the canonical TLS reference shared by the gRPC,
+HTTP, and WebSocket transports.
 
 This guide is intended for users and developers who need to configure TLS, mTLS, or custom certificate authorities for any TLS-capable transport. Throughout this guide, connections lacking TLS/encryption are described as unsecure (not insecure); third-party API identifiers such as `createInsecure()` are left unchanged, as required.
 
@@ -29,30 +33,41 @@ TLS is supported on four transports:
 
 | Protocol | Client mode | Server mode | Notes |
 |----------|-------------|-------------|-------|
-| **HTTP** | ✅ HTTPS | ✅ HTTPS | Default port 8443 when `useTls=true` |
-| **WebSocket** | ✅ WSS | ✅ WSS | Default port 8443 when `useTls=true` |
+| **HTTP** | ✅ HTTPS | ✅ HTTPS | The UI selects port 8443 for its untouched TLS default; headless `port` remains explicit or uses the generic default |
+| **WebSocket** | ✅ WSS | ✅ WSS | The UI selects port 8443 for its untouched TLS default; headless `port` remains explicit or uses the generic default |
 | **gRPC** | ✅ SSL credentials | ✅ SSL credentials | Mandatory HTTP/2; TLS controlled via `useTls` flag |
 | **XMPP** | ✅ STARTTLS | ✅ STARTTLS | Negotiated in-band via `xmppTlsPolicy`, not the `useTls` flag — see the [XMPP guide](xmpp.md#tls-and-starttls) |
 
-**TCP and UDP** do not support TLS. TCP uses a plain line-delimited protocol matching ArcGIS Velocity's native TCP feed format. UDP is connectionless and DTLS is not supported by Node.js's built-in `dgram` module.
+**TCP and UDP** do not support TLS. TCP supports Delimited (CSV) and structured
+JSON framing as described in the [TCP guide](tcp.md); UDP is connectionless and
+DTLS is not supported by Node.js's built-in `dgram` module.
 
 ## CLI parameters
 
-These parameters apply to all TLS-capable protocols (HTTP, WebSocket, gRPC):
+TLS is enabled by default for gRPC, HTTP, and WebSocket. Each transport keeps
+its own switch and certificate-path prefix:
+
+| Protocol | TLS switch | CA, certificate, and key paths |
+|---|---|---|
+| gRPC | `useTls` | `tlsCaPath`, `tlsCertPath`, `tlsKeyPath` |
+| HTTP | `httpTls` | `httpTlsCaPath`, `httpTlsCertPath`, `httpTlsKeyPath` |
+| WebSocket | `wsTls` | `wsTlsCaPath`, `wsTlsCertPath`, `wsTlsKeyPath` |
+
+In client mode, an omitted CA path uses the merged OS and Node.js root stores;
+certificate and key are needed only when presenting a client identity to an
+external server. In server mode, provide the
+certificate and key together for a custom identity, or leave both empty to use
+an in-memory self-signed pair.
+
+Certificate-verification bypasses are protocol-specific:
 
 | Parameter | Description |
 |-----------|-------------|
-| `useTls` | Enable TLS/SSL for the connection (default: `false`). |
-| `tlsCaPath` | Path to a custom CA certificate PEM file. When omitted in client mode, OS root CAs are loaded automatically. |
-| `tlsCertPath` | Path to a client/server certificate PEM file. Required for server-mode TLS; required in client mode only for mTLS. |
-| `tlsKeyPath` | Path to a private key PEM file. Required for server-mode TLS and client-side mTLS. |
 | `allowUnverifiedTls` | gRPC client only. Explicitly accept an unverified server certificate (default: `false`). |
 | `httpAllowUnverifiedTls` | HTTP client only. Explicitly accept an unverified server certificate (default: `false`). |
 | `wsAllowUnverifiedTls` | WebSocket client only. Explicitly accept an unverified server certificate (default: `false`). |
 
-Each protocol keeps its own parameter name so the option matches the TLS switch
-it modifies (`useTls`, `httpTls`, `wsTls`). XMPP has its own in-band equivalent,
-`xmppAllowUnverifiedTls`.
+XMPP has its own in-band equivalent, `xmppAllowUnverifiedTls`.
 
 ## Certificate types
 
@@ -127,7 +142,8 @@ A certificate presented by the **client** to the server during the TLS handshake
 
 **How it maps to the app:**
 - Set on the client: `tlsCertPath=./certs/client.pem` + `tlsKeyPath=./certs/client-key.pem`
-- The TLS Trust Badge shows 🔐 (blue/cyan) when the app detects mutual auth
+- The external server must request and verify the certificate for mutual
+  authentication to occur
 - See [Mutual TLS (mTLS)](#mutual-tls-mtls) for the full workflow
 
 ### 5. Intermediate CA certificate
@@ -362,9 +378,9 @@ All certificate and key files must be in **PEM** format (Base64-encoded DER with
 
 | Parameter | Holds | When required |
 |-----------|-------|---------------|
-| `tlsCertPath` | Server certificate **or** client certificate (mTLS) | Server mode always; client mode only for mTLS |
-| `tlsKeyPath` | Private key matching `tlsCertPath` | Server mode always; client mode only for mTLS |
-| `tlsCaPath` | CA certificate (or chain) that issued `tlsCertPath` | Client mode when the server cert was signed by a private CA not in the OS store; server mode when verifying client certs |
+| `tlsCertPath` | Custom server identity or client certificate | Server mode when replacing the automatic identity; client mode when an external server requests a certificate |
+| `tlsKeyPath` | Private key matching `tlsCertPath` | Whenever a custom certificate is supplied |
+| `tlsCaPath` | CA certificate (or chain) used to verify the remote server | Client mode when the server certificate was signed by a private CA not in the OS store |
 
 ## Working with a custom certificate authority
 
@@ -410,7 +426,7 @@ You now have:
 - `server.pem` — Server certificate (set as `tlsCertPath` on the server)
 - `server-key.pem` — Server private key (set as `tlsKeyPath` on the server)
 
-### Step 3 — Issue a client certificate for mTLS (optional)
+### Step 3 — Issue a client certificate for an external mTLS server (optional)
 
 ```bash
 openssl genrsa -out client-key.pem 4096
@@ -455,53 +471,57 @@ electron . protocol=grpc mode=client ip=myserver.example.com port=50051 useTls=t
 
 **Server:**
 ```bash
-electron . protocol=http mode=server port=8443 useTls=true \
-  tlsCertPath=./certs/server.pem \
-  tlsKeyPath=./certs/server-key.pem
+electron . protocol=http mode=server port=8443 httpTls=true \
+  httpTlsCertPath=./certs/server.pem \
+  httpTlsKeyPath=./certs/server-key.pem
 ```
 
 **Client — custom CA:**
 ```bash
-electron . protocol=http mode=client ip=myserver.example.com port=8443 useTls=true \
-  tlsCaPath=./certs/ca.pem
+electron . protocol=http mode=client ip=myserver.example.com port=8443 httpTls=true \
+  httpTlsCaPath=./certs/ca.pem
 ```
 
 **Client — mTLS:**
 ```bash
-electron . protocol=http mode=client ip=myserver.example.com port=8443 useTls=true \
-  tlsCaPath=./certs/ca.pem \
-  tlsCertPath=./certs/client.pem \
-  tlsKeyPath=./certs/client-key.pem
+electron . protocol=http mode=client ip=myserver.example.com port=8443 httpTls=true \
+  httpTlsCaPath=./certs/ca.pem \
+  httpTlsCertPath=./certs/client.pem \
+  httpTlsKeyPath=./certs/client-key.pem
 ```
 
 #### XMPP (STARTTLS)
 
-XMPP negotiates TLS in-band with STARTTLS rather than through the shared `useTls`/`tlsCaPath`/`tlsCertPath`/`tlsKeyPath` parameters used above. It has its own `xmppTlsPolicy` (`required`, `preferred`, or `disabled`), `xmppTlsCaPath`, `xmppTlsCertPath`, `xmppTlsKeyPath`, and `xmppAllowUnverifiedTls` parameters, described in full in the [XMPP guide](xmpp.md#tls-and-starttls).
+XMPP negotiates TLS in-band with STARTTLS rather than using the gRPC, HTTP,
+or WebSocket TLS switches. It has its own `xmppTlsPolicy` (`required`,
+`preferred`, or `disabled`), `xmppTlsCaPath`, `xmppTlsCertPath`,
+`xmppTlsKeyPath`, and `xmppAllowUnverifiedTls` parameters, described in full
+in the [XMPP guide](xmpp.md#tls-and-starttls).
 
 #### WebSocket / WSS (server → client)
 
 **Server:**
 ```bash
-electron . protocol=ws mode=server port=8443 useTls=true \
-  tlsCertPath=./certs/server.pem \
-  tlsKeyPath=./certs/server-key.pem
+electron . protocol=ws mode=server port=8443 wsTls=true \
+  wsTlsCertPath=./certs/server.pem \
+  wsTlsKeyPath=./certs/server-key.pem
 ```
 
 **Client — custom CA:**
 ```bash
-electron . protocol=ws mode=client ip=myserver.example.com port=8443 useTls=true \
-  tlsCaPath=./certs/ca.pem
+electron . protocol=ws mode=client ip=myserver.example.com port=8443 wsTls=true \
+  wsTlsCaPath=./certs/ca.pem
 ```
 
 **Client — mTLS:**
 ```bash
-electron . protocol=ws mode=client ip=myserver.example.com port=8443 useTls=true \
-  tlsCaPath=./certs/ca.pem \
-  tlsCertPath=./certs/client.pem \
-  tlsKeyPath=./certs/client-key.pem
+electron . protocol=ws mode=client ip=myserver.example.com port=8443 wsTls=true \
+  wsTlsCaPath=./certs/ca.pem \
+  wsTlsCertPath=./certs/client.pem \
+  wsTlsKeyPath=./certs/client-key.pem
 ```
 
-### Quick reference — parameter mapping
+### Quick reference — gRPC parameter mapping
 
 | Scenario | `useTls` | `tlsCaPath` | `tlsCertPath` | `tlsKeyPath` |
 |----------|:--------:|:-----------:|:-------------:|:------------:|
@@ -510,10 +530,11 @@ electron . protocol=ws mode=client ip=myserver.example.com port=8443 useTls=true
 | Client, mTLS with private CA | ✅ | `ca.pem` | `client.pem` | `client-key.pem` |
 | Server, auto self-signed | ✅ | — | — | — |
 | Server, custom cert | ✅ | — | `server.pem` | `server-key.pem` |
-| Server, custom cert + verify clients (mTLS) | ✅ | `ca.pem` | `server.pem` | `server-key.pem` |
 
 > [!NOTE]
-> Currently the apps pass `tlsCaPath` to trust chain validation on the client side. Server-side client-certificate verification (requiring clients to present certs) is enforced at the TLS handshake level by the server's CA configuration. Both sides must supply `tlsCertPath`/`tlsKeyPath` and trust each other's CA via `tlsCaPath` for full mutual authentication.
+> Logger clients can present a certificate to an external server, but Logger's
+> built-in gRPC, HTTP, and WebSocket servers do not request or verify client
+> certificates. A server-side CA value does not enable mutual authentication.
 
 ## OS certificate stores (client mode)
 
@@ -608,9 +629,16 @@ automated run makes the same choice explicit.
 
 ## Mutual TLS (mTLS)
 
-Mutual TLS requires **both** the server and the client to present a certificate. This provides two-way authentication.
+Mutual TLS requires both peers to present certificates and the server to
+request and verify the client identity. Logger client modes can participate
+when an external server enforces that policy: supply the transport's
+certificate and key fields in addition to enabling TLS.
 
-To enable mTLS on the **client** side, supply both `tlsCertPath` and `tlsKeyPath` in addition to `useTls=true`. The server must be configured to request (and verify) client certificates.
+Logger's built-in gRPC, HTTP, and WebSocket servers authenticate themselves to
+clients but do not request or verify client certificates. Supplying a CA on
+those servers does not turn on mutual authentication. Use an external
+TLS-terminating service that enforces client certificates when server-side
+client authentication is required.
 
 ## TLS trust badge
 
@@ -625,7 +653,7 @@ The icon **shape** and **colour** both encode the configured state or connected 
 | 🔒 | Amber | on | TLS on — OS certificate store, trust level not fully determined |
 | 🔒⚠ | Amber | self-signed | TLS on, self-signed or cert-chain not verified |
 | 🔒✓ | Green | ca-verified | TLS on, CA-verified certificate chain |
-| 🔐 | Blue / cyan | mtls | Mutual TLS — both client and server present certificates |
+| 🔐 | Blue / cyan | mtls | Client and server certificates are configured; confirm that the external server enforces client authentication |
 
 The badge is hidden for TCP and UDP because those transports do not support TLS.
 
@@ -676,19 +704,19 @@ electron . protocol=grpc mode=server port=50051 useTls=true \
   tlsCertPath=./certs/server.pem tlsKeyPath=./certs/server-key.pem
 
 # HTTP client — HTTPS with OS certificate store
-electron . protocol=http mode=client ip=myserver.example.com port=8443 useTls=true
+electron . protocol=http mode=client ip=myserver.example.com port=8443 httpTls=true
 
 # HTTP server — custom cert/key
-electron . protocol=http mode=server port=8443 useTls=true \
-  tlsCertPath=./certs/server.pem tlsKeyPath=./certs/server-key.pem
+electron . protocol=http mode=server port=8443 httpTls=true \
+  httpTlsCertPath=./certs/server.pem httpTlsKeyPath=./certs/server-key.pem
 
 # WebSocket client — WSS with private CA cert
-electron . protocol=ws mode=client ip=myserver.example.com port=8443 useTls=true \
-  tlsCaPath=./certs/ca.pem
+electron . protocol=ws mode=client ip=myserver.example.com port=8443 wsTls=true \
+  wsTlsCaPath=./certs/ca.pem
 
 # WebSocket server — custom cert/key
-electron . protocol=ws mode=server port=8443 useTls=true \
-  tlsCertPath=./certs/server.pem tlsKeyPath=./certs/server-key.pem
+electron . protocol=ws mode=server port=8443 wsTls=true \
+  wsTlsCertPath=./certs/server.pem wsTlsKeyPath=./certs/server-key.pem
 ```
 
 ## Related documentation

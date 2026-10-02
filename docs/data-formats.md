@@ -73,6 +73,14 @@ not given another one. Logger preserves that record-ending LF in the raw capture
 Structured UDP payloads are not given this delimiter, and Logger does not add
 or remove bytes for any format.
 
+The final LF is framing compatibility, not a CSV header or schema signal.
+Logger accepts a complete header-free record with or without a final LF and
+does not infer field names or a schema from the first datagram. In Simulator,
+enable **CSV header row** to consume the source header locally; leave it off to
+send the first row, including any header, as data. Match ArcGIS Velocity's
+has-header setting to the actual bytes on the wire. Logger does not infer a
+schema from either choice.
+
 See the [TCP guide](tcp.md#record-framing) and
 [UDP guide](udp.md#datagram-boundaries-and-size) for delimiter, size, and error
 behavior. A pretty-printed JSON document or quoted CSV field may contain

@@ -27,7 +27,7 @@ purpose and audience.
 - [Develop, test, and debug](docs/developer-guide.md).
 - [Build and release](docs/build-and-release.md).
 
-### In-App Help
+### In-app help
 
 - **`F1`** — Help dialog
 - **`F2`** — About dialog
@@ -36,7 +36,7 @@ purpose and audience.
 - **`Ctrl/Cmd+Shift+P`** — Protocol Settings dialog
 - **Right-click** — Context menu (themes, fonts, opacity, tools)
 
-### Config Templates
+### Config templates
 
 - [Generic launch configuration](docs/examples/launch-config.sample.json)
 - [Server-mode launch configuration](docs/examples/launch-config.server.sample.json)
@@ -58,7 +58,7 @@ purpose and audience.
 - **Error Handling**: Comprehensive error management with user-friendly dialogs
 - **Accessibility**: High contrast themes and keyboard navigation support
 
-## Quick Start
+## Quick start
 
 ### Prerequisites
 - [Node.js](https://nodejs.org/) (v18 or later)
@@ -83,7 +83,7 @@ npm install
 | `npm start` | Run the application |
 | `npm run debug-both` | Run with debugger attached (see the [developer guide](docs/developer-guide.md)) |
 
-## Command Line / Headless Mode
+## Command line / headless mode
 
 The logger can be run with or without a UI. When launched with no parameters, the app starts in normal UI mode and restores all saved behavior from configuration. With `runMode=headless` (or `runMode=silent`) the app runs as a true no-UI process that captures network data — suitable for servers, CI pipelines, and consoles with no GUI support. Headless mode has **no required parameters**: by default it writes captured records to the console (stdout) in the selected `outputFormat`; add `outputFile=<path>` to write to a file instead.
 
@@ -108,7 +108,7 @@ Press <kbd>F3</kbd> in the app (or use **Help → Command Line Interface**, the 
 See the [command-line reference](docs/command-line.md) for the full parameter
 table and the [headless guide](docs/headless.md) for no-UI guidance.
 
-## Building from Source
+## Building from source
 
 ### Current platform
 
@@ -144,11 +144,11 @@ For build options, compression, artifact names, signing, and publishing with
 
 ## Usage
 
-### Connection Types
+### Connection types
 - **TCP Server**: Listen for incoming TCP connections on specified port
 - **TCP Client**: Connect to a remote TCP server
 - **UDP Server**: Listen for UDP packets on specified port
-- **UDP Client**: Receive UDP packets from a compatible custom server after announcing the local reply endpoint
+- **UDP Client**: Bind a stable local endpoint for conventional direct receive, or use explicit Registered compatibility mode with a paired custom server
 - **XMPP Server**: Host a focused C2S service and receive direct or room messages
 - **XMPP Client**: Connect to an XMPP service and receive direct or room messages
 
@@ -160,7 +160,7 @@ For build options, compression, artifact names, signing, and publishing with
 - **Status Indicator**: Visual connection state (connected, disconnected, error)
 - **Status Bar**: Real-time connection status and message counter
 
-### Keyboard Shortcuts
+### Keyboard shortcuts
 - **F1**: Help dialog
 - **F2**: About dialog
 - **F3**: Command Line Interface dialog
@@ -190,19 +190,19 @@ Configuration files are stored in platform-appropriate locations:
 > See the [configuration guide](docs/configuration.md) for options and
 > troubleshooting.
 
-## Status Indicators
+## Status indicators
 
 The application provides real-time status feedback through visual indicators:
 
 | Status | Indicator | Description |
 |--------|-----------|-------------|
 | 🔴 Disconnected | Red dot | No active connection |
-| 🟢 Connected | Green dot | Successfully connected |
+| 🟢 Ready / Listening / Receiving | Green dot | Local UDP receiver is ready, a server is listening, or accepted data is arriving; other transports report Connected |
 | 🟡 Connecting | Yellow dot | Attempting to connect |
 | 🟠 Disconnecting | Orange dot | Closing connection |
 | ⚠️ Error | Warning icon | Connection or configuration error |
 
-## Error Handling
+## Error handling
 
 The application includes comprehensive error handling:
 - **Network Errors**: Connection failures, port conflicts, timeout issues
@@ -232,13 +232,13 @@ controls, tooltips, transports, and themes.
 
 ## Troubleshooting
 
-### Common Issues
+### Common issues
 1. **Port Already in Use**: Try a different port number
 2. **Connection Refused**: Verify host/port and firewall settings
 3. **Configuration Not Saving**: Check file permissions in config directory
 4. **Theme Not Applying**: Restart application after theme changes
 
-### Getting Help
+### Getting help
 - Press **F1** for built-in help
 - Check the [developer guide](docs/developer-guide.md) for development issues.
 - Review the [configuration guide](docs/configuration.md) for configuration

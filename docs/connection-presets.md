@@ -1,5 +1,7 @@
 # Connection presets
 
+[← Documentation index](README.md) · [Repository overview](../README.md#documentation)
+
 Connection presets pre-fill the connection fields for a paired local test
 between the ArcGIS Velocity Logger and the ArcGIS Velocity Simulator. The
 **Preset** dropdown sits at the start of the connection row, ahead of
@@ -66,7 +68,7 @@ Each label names which application listens. In this repository:
 
 | Protocol | Values |
 |---|---|
-| TCP, UDP | Host `127.0.0.1`, port `5565`, Delimited (CSV). Simulator LF-terminates paired delimited UDP publishing by default; see [data formats](data-formats.md#transport-boundaries). |
+| TCP, UDP | Host `127.0.0.1`, port `5565`, Delimited (CSV). UDP defaults to Direct with Local host `127.0.0.1` and Local port `5565`; the inverse Simulator Server / Logger Client preset explicitly selects Registered. Simulator LF-terminates paired delimited UDP publishing by default; see [data formats](data-formats.md#transport-boundaries). |
 | gRPC | Host `127.0.0.1`, port `5565`, Text serialization, Client Streaming, TLS off. |
 | HTTP | Host `127.0.0.1`, port `8080`, Delimited (CSV), path `/`, TLS off. |
 | WebSocket | Host `127.0.0.1`, port `8080`, Delimited (CSV), path `/`, TLS off, no subscription message, first message kept. |
@@ -107,7 +109,7 @@ field lives in **Protocol Settings**, grouped into sections:
 | Protocol | Basics | Security | Advanced |
 |---|---|---|---|
 | TCP | Format, Address family | — | Handshake text, Use escapes |
-| UDP | Format, Address family | — | Registration renewal (client only) |
+| UDP | Format, Address family, UDP mode (client only) | — | Direct Local host/port or Registered renewal interval (client only) |
 | gRPC | Serialization, RPC type | TLS, CA/certificate/key paths, Allow unverified | Endpoint header key and path (client only) |
 | HTTP | Format, path | TLS, CA/certificate/key paths, Allow unverified | — |
 | WebSocket | Format, path | TLS, CA/certificate/key paths, Allow unverified | Subscription message, Skip 1st, headers |

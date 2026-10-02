@@ -35,7 +35,7 @@ The connection row holds only the fields that every protocol shares:
 | Inline | Moved into Protocol Settings |
 |---|---|
 | Preset and the **Modified** badge. | gRPC serialization, RPC type, and endpoint header. |
-| Connection type. | HTTP format and path, and UDP Client registration renewal. |
+| Connection type. | HTTP format and path, and UDP Client mode and mode-specific receive settings. |
 | Host and Port. | WebSocket format, path, subscription message, **Skip 1st**, and headers. |
 | **Settings**. | XMPP domain, conversation, account, room, remote binding, and timing. |
 | **Connect** and **Disconnect**. | TLS toggles, certificate paths, and **Allow unverified**. |
@@ -86,14 +86,15 @@ selected protocol and mode are not offered:
 
 | Section | Holds | Offered for |
 |---|---|---|
-| Basics | Format, TCP/UDP address family, path, serialization, RPC type, XMPP domain, conversation, account, and room fields. | TCP, UDP, gRPC, HTTP, WebSocket, XMPP. |
+| Basics | Format, TCP/UDP address family, UDP Client mode, path, serialization, RPC type, XMPP domain, conversation, account, and room fields. | TCP, UDP, gRPC, HTTP, WebSocket, XMPP. |
 | Security | TLS or the STARTTLS policy, certificate verification, the CA, certificate, and key paths, and XMPP **Allow remote**. | gRPC, HTTP, WebSocket, XMPP. |
-| Advanced | TCP handshake greeting, UDP Client registration renewal, gRPC endpoint header, WebSocket subscription message, **Skip 1st**, headers, and the XMPP timing values. | TCP, UDP Client, gRPC Client, WebSocket, XMPP. |
+| Advanced | TCP handshake greeting, Direct UDP local endpoint or Registered renewal interval, gRPC endpoint header, WebSocket subscription message, **Skip 1st**, headers, and the XMPP timing values. | TCP, UDP Client, gRPC Client, WebSocket, XMPP. |
 | Summary | Every connection setting as a read-only list, warnings first. | Every mode. |
 
 TCP and UDP offer **Basics** for payload Format and the read-only **Summary**.
-UDP Client also offers **Advanced** for its custom Logger/Simulator registration
-renewal interval. See [data formats](data-formats.md) for the format choices.
+UDP Client also offers **Basics** for Direct or Registered mode and **Advanced**
+for the Direct local endpoint or Registered renewal interval. See
+[data formats](data-formats.md) for the format choices.
 HTTP has no Advanced settings, and a gRPC Server has none either because the
 endpoint header applies to client mode only.
 
@@ -194,6 +195,13 @@ channel. The copied text starts with
 `ArcGIS Velocity Logger — connection summary`, then the mode and state, then one
 `Label: value` line per row.
 
+For UDP, the displayed state describes observable receive progress rather than
+claiming a remote connection: Direct UDP Client reports `Ready`, UDP Server
+reports `Listening`, and either reports `Receiving` after the first accepted
+record. Registered UDP Client also reports `Ready` after its local socket and
+registration send complete; that label is not a peer acknowledgment. The
+internal connected state still keeps controls read-only until **Disconnect**.
+
 ## What the summary reports
 
 Row keys are a cross-application contract shared with the ArcGIS Velocity
@@ -225,7 +233,9 @@ destination it sends to.
 | `tcpHandshakeText` | Handshake text | TCP. Presence only. |
 | `tcpHandshakeEscapes` | Decode escapes | TCP. |
 | `udpAddressFamily` | Address family | UDP. |
-| `udpRegistrationInterval` | Registration renewal | UDP Client. |
+| `udpConnectionMode` | UDP mode | UDP Client. |
+| `udpLocalEndpoint` | Local endpoint | Direct UDP Client. |
+| `udpRegistrationInterval` | Registration renewal | Registered UDP Client. |
 | `path` | Path | HTTP, WebSocket. |
 | `wsSubscriptionMessage` | Subscription message | WebSocket. Presence only. |
 | `wsSkipFirstMessage` | Skip first message | WebSocket. |

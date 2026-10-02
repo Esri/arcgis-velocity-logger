@@ -357,9 +357,10 @@ const { isDirectExternalSignableFile } = windowsSignHook._private;
 })();
 
 (function testArtifactSigningRejectsStaleVersions() {
+  const staleVersion = currentVersion === '0.0.0' ? '0.0.1' : '0.0.0';
   assert.throws(
     () => getArtifactSigningPlan({
-      artifactPaths: [path.join('/repo/dist', 'arcgis-velocity-logger-1.1.0-setup.exe')],
+      artifactPaths: [path.join('/repo/dist', `arcgis-velocity-logger-${staleVersion}-setup.exe`)],
     }),
     new RegExp(`Refusing stale-version artifacts; expected ${currentVersion.replace(/\./g, '\\.')}`)
   );

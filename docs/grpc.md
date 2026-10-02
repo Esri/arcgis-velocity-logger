@@ -261,31 +261,31 @@ truck-42,"POLYGON((-118.3 34.0,-118.3 34.1,-118.2 34.1,-118.2 34.0,-118.3 34.0))
 ## CLI / headless usage
 
 ```bash
-# gRPC server mode with Protobuf serialization (default)
-electron . runMode=headless protocol=grpc mode=server ip=0.0.0.0 port=50051
+# Unsecure gRPC server mode with Protobuf serialization
+electron . runMode=headless protocol=grpc mode=server ip=0.0.0.0 port=50051 useTls=false
 
 # gRPC server mode with Protobuf serialization + metadata output
-electron . runMode=headless protocol=grpc mode=server ip=0.0.0.0 port=50051 showMetadata=true
+electron . runMode=headless protocol=grpc mode=server ip=0.0.0.0 port=50051 useTls=false showMetadata=true
 
 # gRPC server mode with Text serialization
-electron . runMode=headless protocol=grpc mode=server ip=0.0.0.0 port=50051 grpcSerialization=text
+electron . runMode=headless protocol=grpc mode=server ip=0.0.0.0 port=50051 useTls=false grpcSerialization=text
 
 # gRPC server mode with Kryo serialization
-electron . runMode=headless protocol=grpc mode=server ip=0.0.0.0 port=50051 grpcSerialization=kryo
+electron . runMode=headless protocol=grpc mode=server ip=0.0.0.0 port=50051 useTls=false grpcSerialization=kryo
 
 # gRPC client mode
-electron . runMode=headless protocol=grpc mode=client ip=127.0.0.1 port=50051 grpcSerialization=protobuf
+electron . runMode=headless protocol=grpc mode=client ip=127.0.0.1 port=50051 useTls=false grpcSerialization=protobuf
 
 # gRPC client mode with metadata output
-electron . runMode=headless protocol=grpc mode=client ip=127.0.0.1 port=50051 showMetadata=true
+electron . runMode=headless protocol=grpc mode=client ip=127.0.0.1 port=50051 useTls=false showMetadata=true
 
 # gRPC client mode with a custom header path
-electron . runMode=headless protocol=grpc mode=client ip=127.0.0.1 port=50051 grpcHeaderPathKey=grpc-path grpcHeaderPath=my.feed.dedicated.uid
+electron . runMode=headless protocol=grpc mode=client ip=127.0.0.1 port=50051 useTls=false grpcHeaderPathKey=grpc-path grpcHeaderPath=my.feed.dedicated.uid
 
 # gRPC client mode with TLS (for connecting to Velocity endpoints with SSL)
-electron . runMode=headless protocol=grpc mode=client ip=mcstest492.esri.com port=7145 useTls=true grpcHeaderPathKey=grpc-path grpcHeaderPath=dedicated.c7bf318b252a4b55bf63bb13da8721fd
+electron . runMode=headless protocol=grpc mode=client ip=grpc.example.com port=7145 useTls=true grpcHeaderPathKey=grpc-path grpcHeaderPath=dedicated.example.uid
 
-# gRPC server mode with TLS (requires cert and key)
+# gRPC server mode with a custom TLS identity
 electron . runMode=headless protocol=grpc mode=server ip=0.0.0.0 port=50051 useTls=true tlsCertPath=./certs/server.pem tlsKeyPath=./certs/server-key.pem
 ```
 
@@ -306,10 +306,10 @@ electron . runMode=headless protocol=grpc mode=server ip=0.0.0.0 port=50051 useT
 | `grpcSendMethod=stream` | Client Streaming RPC - multiplexes all messages over a single persistent HTTP/2 stream (default). Higher throughput, lower per-message overhead. Client mode only. |
 | `grpcSendMethod=unary` | Unary RPC - sends each message as a discrete request/response round-trip. Simpler to trace and debug. Client mode only. |
 | `showMetadata=true` | Write connection/call metadata lines to the output before each received message (default: `false`). For server mode: call headers per incoming RPC. For client mode: connection-established, response-headers, and status lines. |
-| `useTls` | Use TLS (SSL) for the gRPC connection (default: `false`). When `true`, uses SSL credentials instead of plaintext. |
+| `useTls` | Use TLS (SSL) for the gRPC connection (default: `true`). When `false`, uses plaintext credentials. |
 | `tlsCaPath` | Path to a custom CA certificate file (PEM). When omitted with `useTls=true`, OS root certificates are loaded automatically (see [TLS and certificate stores](#tls-and-certificate-stores)). |
-| `tlsCertPath` | Path to a client/server certificate file (PEM) for mutual TLS. Required for TLS server mode. |
-| `tlsKeyPath` | Path to a private key file (PEM) for mutual TLS. Required for TLS server mode. |
+| `tlsCertPath` | Custom server identity or client certificate for an external server that requests one. A server with neither certificate nor key uses an automatic ephemeral self-signed pair. |
+| `tlsKeyPath` | Matching private key. Supply it with `tlsCertPath`; a server with neither uses the automatic pair. |
 | `allowUnverifiedTls` | Client mode only. Explicitly accept an unverified server certificate (default: `false`). The bypass applies to any host, not only localhost. |
 
 ## UI usage
@@ -320,11 +320,11 @@ The following controls appear:
 
 - **Serialization** - `Protobuf` (default), `Kryo`, or `Text`
 - **RPC type** - `Client Streaming` (default) or `Unary`. Selects the gRPC call pattern for sending data. Client Streaming opens a persistent stream for high-throughput ingestion. Unary sends each message as an independent request/response round-trip. Only applies in gRPC Client mode. **Locked while connected** (the streaming vs. unary choice is baked into the transport at connect time).
-- **TLS** - Checkbox to enable TLS (SSL) connections. When checked, additional certificate path fields appear.
+- **TLS** - Checkbox to enable TLS (SSL) connections. It is on by default. When checked, additional certificate path fields appear.
 - **Section** - **Basics** holds Serialization and RPC type; **Security** holds TLS, the certificate paths, and the verification option; **Advanced** holds the client-only endpoint header.
 - **CA cert path** - Path to a custom CA certificate file (PEM). Leave empty to use OS root certificates automatically.
-- **TLS cert path** - Path to a client/server certificate file (PEM) for mutual TLS.
-- **TLS key path** - Path to a private key file (PEM) for mutual TLS.
+- **TLS cert path** - Optional client certificate for an external server that requests one, or a custom server identity. A TLS server with both certificate fields empty generates an ephemeral self-signed pair.
+- **TLS key path** - Private key matching the custom certificate. Provide both custom fields together or leave both empty.
 - **Allow unverified** - Client-only warning checkbox in **Security**, shown when TLS is enabled. Accepts an unverified server certificate for any host. Off by default; see [TLS and SSL security](tls.md#explicit-certificate-verification-bypass).
 - **Header path key** - gRPC endpoint header path key (default: `grpc-path`). Sent as gRPC metadata on every outgoing call. **Visible only in gRPC Client mode.**
 - **Header path** - gRPC endpoint header path value (default: `replace.with.dedicated.uid`). Sent as gRPC metadata on every outgoing call. **Visible only in gRPC Client mode.**
@@ -369,10 +369,14 @@ Connection parameters can be passed on the command line even in UI mode to prepo
 
 ```bash
 # Launch Logger UI with gRPC client preset and TLS enabled
-electron . protocol=grpc mode=client ip=mcstest492.esri.com port=7145 useTls=true grpcHeaderPath=dedicated.c7bf318b252a4b55bf63bb13da8721fd
+electron . protocol=grpc mode=client ip=grpc.example.com port=7145 useTls=true grpcHeaderPath=dedicated.example.uid
 ```
 
-Supported UI-prepopulable parameters: `protocol`, `mode`, `ip`, `port`, `grpcSerialization`, `grpcHeaderPath`, `grpcHeaderPathKey`, `useTls`, `tlsCaPath`, `tlsCertPath`, `tlsKeyPath`.
+Supported UI-prepopulable parameters include `protocol`, `mode`, `ip`, `port`,
+`grpcSerialization`, `grpcSendMethod`, `grpcHeaderPath`,
+`grpcHeaderPathKey`, `useTls`, `tlsCaPath`, `tlsCertPath`, `tlsKeyPath`, and
+`allowUnverifiedTls`. See the [command-line reference](command-line.md) for
+validation and defaults.
 
 ## Compatibility
 
@@ -397,7 +401,7 @@ The merged set is deduplicated and passed to `grpc.credentials.createSsl()`. The
 
 **Client mode - OS root CAs (no custom cert):**
 ```text
-gRPC Client connected to mcstest492.esri.com:7145 [protobuf] grpc-path=dedicated.abc123
+gRPC Client connected to grpc.example.com:7145 [protobuf] grpc-path=dedicated.example.uid
   tls=on, 429 trusted CAs loaded, node-bundled=144, os=Windows certificate store (285)
 ```
 
@@ -454,7 +458,7 @@ When connected, the status bar displays a lock icon reflecting the trust level a
 | 🔒 | Amber | on | TLS on - OS certificate store, trust level not fully determined |
 | 🔒⚠ | Amber | self-signed | TLS on, but self-signed or cert-chain not verified |
 | 🔒✓ | Green | ca-verified | TLS on, CA-verified certificate chain |
-| 🔐 | Blue / cyan | mtls | Mutual TLS - both client and server present certificates |
+| 🔐 | Blue / cyan | mtls | Client and server certificates are configured; confirm that the external server enforces client authentication |
 
 See the [TLS guide](tls.md) for full TLS concepts, certificate file formats, OS trust store behaviour, and setup guides.
 

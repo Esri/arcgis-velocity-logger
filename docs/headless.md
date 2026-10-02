@@ -243,23 +243,22 @@ npm run start:headless
 npm run start:headless -- outputFile=./captured.log protocol=tcp mode=server ip=0.0.0.0 port=5565 maxLogCount=10000 doneFile=./run.done.json
 ```
 
-### UDP client capturing for a fixed duration as JSONL
+### Direct UDP client capturing for a fixed duration as JSONL
 
 ```bash
-npm run start:headless -- outputFile=./captured.jsonl outputFormat=jsonl protocol=udp mode=client ip=192.168.1.25 port=6000 durationMs=60000
+npm run start:headless -- outputFile=./captured.jsonl outputFormat=jsonl protocol=udp mode=client udpConnectionMode=direct udpLocalHost=0.0.0.0 udpLocalPort=6000 durationMs=60000
 ```
 
-On startup, a UDP client sends one `UDP Client connected` registration
-datagram. A paired Simulator UDP server uses that datagram to learn the
-client's reply endpoint before replaying records. Logger renews the
-registration every `udpRegistrationIntervalMs` milliseconds (default `30000`)
-while connected, so a restarted Simulator server can rediscover the endpoint.
-Renewal stops during teardown and does not acknowledge or guarantee delivery.
+Direct is the default for new UDP Client configurations. It binds
+`udpLocalHost` and `udpLocalPort`, sends no marker, and accepts datagrams from
+any source address and port. The connection-row `ip` and `port` values do not
+control this Direct bind.
 
-That registration behavior applies only to
-`udpConnectionMode=registered`. New UDP Client configurations default to
-`udpConnectionMode=direct`, which binds `udpLocalHost` and `udpLocalPort`,
-sends no marker, and accepts datagrams from ephemeral sender ports.
+With `udpConnectionMode=registered`, Logger instead sends one
+`UDP Client connected` registration datagram and renews it every
+`udpRegistrationIntervalMs` milliseconds (default `30000`). A compatible
+paired Simulator UDP server uses that marker to learn the reply endpoint.
+Renewal stops during teardown and does not acknowledge or guarantee delivery.
 
 ### Filter/exclude using regular expressions
 
@@ -270,13 +269,13 @@ npm run start:headless -- outputFile=./errors.log filter=ERROR|WARN exclude=^hea
 ### gRPC server capturing features (default serialization)
 
 ```bash
-npm run start:headless -- outputFile=./captured.log protocol=grpc mode=server ip=0.0.0.0 port=50051 grpcSerialization=protobuf
+npm run start:headless -- outputFile=./captured.log protocol=grpc mode=server ip=0.0.0.0 port=50051 grpcSerialization=protobuf useTls=false
 ```
 
 ### gRPC client connecting to a Velocity endpoint with header path
 
 ```bash
-npm run start:headless -- outputFile=./captured.log protocol=grpc mode=client ip=127.0.0.1 port=50051 grpcSerialization=protobuf grpcHeaderPathKey=grpc-path grpcHeaderPath=my.feed.dedicated.uid
+npm run start:headless -- outputFile=./captured.log protocol=grpc mode=client ip=grpc.example.com port=7145 grpcSerialization=protobuf useTls=true grpcHeaderPathKey=grpc-path grpcHeaderPath=my.feed.dedicated.uid
 ```
 
 ### XMPP server using a launch-config file

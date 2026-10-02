@@ -40,6 +40,13 @@ The custom Logger/Simulator UDP Client renewal cadence is
 `connection.udpRegistrationIntervalMs`, defaulting to `30000` milliseconds.
 `connection.udpAddressFamily` selects `ipv4` (the default) or `ipv6` for the
 UDP socket and host resolution.
+`connection.udpConnectionMode` selects `direct` (the default for new
+configurations) or `registered`. Direct binds
+`connection.udpLocalHost` and `connection.udpLocalPort`; the shared `ip` and
+`port` fields are ignored in that mode. Registered uses `ip` and `port` as its
+exact remote tuple and applies the renewal cadence. Older UDP Client Launch
+Configs without a mode load as Registered to preserve their existing pairing
+behavior.
 `connection.tcpAddressFamily` selects `auto` (the default), `ipv4`, or `ipv6`.
 Automatic preserves operating-system TCP hostname resolution.
 See [data formats](data-formats.md) for the allowed values and their distinction

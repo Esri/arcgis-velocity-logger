@@ -62,14 +62,16 @@ The WebSocket Format dropdown controls the Content-Type associated with each mes
 
 TLS is enabled by default (`Use TLS` checkbox checked), making the connection use the secure `wss://` protocol. When unchecked, the unsecure `ws://` protocol is used.
 
-- **Client mode**: Uses the OS certificate store (macOS Keychain, Windows certificate store, or Linux CA bundles) plus Node.js bundled root certificates to verify the server. Custom CA, client cert, and key can be provided for mutual TLS or enterprise CAs.
-- **Server mode**: Requires a TLS certificate and private key to be provided.
+- **Client mode**: Uses the OS certificate store (macOS Keychain, Windows certificate store, or Linux CA bundles) plus Node.js bundled root certificates to verify the server. A custom CA can trust a private server; a client certificate and key can be presented when an external server requests them.
+- **Server mode**: Uses a supplied certificate and private key when both are
+  present. With both empty, Logger generates an in-memory self-signed pair for
+  the life of the process.
 
 | Field | Description |
 |-------|-------------|
 | **CA cert path** | Path to a custom CA certificate file (PEM). Leave empty to use the OS certificate store. |
-| **TLS cert path** | Path to a client or server certificate file (PEM). Required for server-mode TLS. |
-| **TLS key path** | Path to the private key file (PEM). Required for server-mode TLS. |
+| **TLS cert path** | Path to a client or server certificate file (PEM). Optional for a server using the automatic self-signed pair. |
+| **TLS key path** | Matching private key. Supply it with the custom certificate; leave both empty for an automatic server pair. |
 
 ## Default ports
 
@@ -142,8 +144,8 @@ The following controls appear:
 - **Use TLS** - Checkbox: checked = `wss://` (port 8443), unchecked = `ws://` (port 8080).
 - **Section** - **Basics** holds Format and Path; **Security** holds TLS, the certificate paths, and the verification option; **Advanced** holds the subscription message, **Skip 1st**, and the upgrade headers.
 - **CA cert path** - Custom CA certificate (PEM).
-- **TLS cert path** - Client/server certificate (PEM).
-- **TLS key path** - Private key (PEM).
+- **TLS cert path** - Optional client/server certificate (PEM). A server with both identity fields empty uses an automatic in-memory self-signed pair.
+- **TLS key path** - Matching private key. Provide both custom identity fields together or leave both empty.
 - **Allow unverified** - Client-only warning checkbox in **Security**, shown when TLS is enabled. Accepts an unverified server certificate for any host. Off by default; see [TLS and SSL security](tls.md#explicit-certificate-verification-bypass).
 - **WS Path** - URL path (default `/`).
 - **Subscribe** - Optional subscription message sent after connecting. The connection summary reports only whether it is set, because it may carry a token.
@@ -156,7 +158,7 @@ The following controls appear:
 
 | Mode | Tooltip |
 |------|---------|
-| WebSocket Client | WebSocket Client - connects to a remote WebSocket server (ws:// or wss://) and sends data as text frames. |
+| WebSocket Client | WebSocket Client - connects to a remote WebSocket server (ws:// or wss://) and receives data as text frames. |
 | WebSocket Server | WebSocket Server - starts a local WebSocket server that accepts incoming ws:// or wss:// connections. |
 
 ### Format tooltips
@@ -200,7 +202,7 @@ When connected, the status bar displays a lock icon reflecting the trust level a
 | 🔒 | Amber | on | TLS on - OS certificate store, trust level not fully determined |
 | 🔒⚠ | Amber | self-signed | TLS on, self-signed or cert-chain not verified |
 | 🔒✓ | Green | ca-verified | TLS on, CA-verified certificate chain |
-| 🔐 | Blue / cyan | mtls | Mutual TLS - both client and server present certificates |
+| 🔐 | Blue / cyan | mtls | Client and server certificates are configured; confirm that the external server enforces client authentication |
 
 See the [TLS guide](tls.md) for full TLS concepts, certificate file formats, OS trust store behaviour, and setup guides.
 

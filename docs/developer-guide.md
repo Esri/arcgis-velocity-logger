@@ -82,8 +82,10 @@ with ArcGIS Velocity Simulator. The codec owns the socket format vocabulary,
 payload validation, UTF-8 handling, record framing, and the common byte limits.
 The receiver adapter owns socket lifecycle and callback delivery; each
 application injects its UDP control-packet predicate and diagnostic callbacks.
-Logger supplies the exact registration predicate from `udp-utils.js` in both
-main and headless receivers. Do not put a separate parser in either receive path.
+Logger supplies the exact registration predicate from `udp-utils.js` only for
+Registered UDP Client; Direct UDP Client and UDP Server deliberately treat the
+same marker literal as application data. Main and headless receivers make that
+choice identically. Do not put a separate parser in either receive path.
 The renderer receives complete TCP/UDP records through the existing
 `log-data` event with `{ record: true }` as the second argument, so embedded
 line breaks do not split records or inflate the counter.

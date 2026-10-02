@@ -154,8 +154,8 @@ These parameters only apply when `protocol=grpc`. See the [gRPC guide](grpc.md) 
 | `showMetadata` | `true`, `false` | `false` | No | `showMetadata=true` | When `true`, connection/call metadata lines are written to the output (file or stdout) before each received message. Metadata includes protocol, mode, remote address, and (for gRPC) call headers, response headers, and status. |
 | `useTls` | `true`, `false` | `true` | No | `useTls=true` | Use TLS (SSL) for gRPC connections. When `true`, the connection uses SSL credentials instead of plaintext. |
 | `tlsCaPath` | path, omitted | `(none)` | No | `tlsCaPath=./certs/ca.pem` | Custom CA certificate file (PEM) for gRPC TLS. When omitted, the system default CA bundle is used. Only applies when `useTls=true`. |
-| `tlsCertPath` | path, omitted | `(none)` | No | `tlsCertPath=./certs/client.pem` | Client/server certificate file (PEM) for gRPC mutual TLS (mTLS). Required for TLS server mode. Only applies when `useTls=true`. |
-| `tlsKeyPath` | path, omitted | `(none)` | No | `tlsKeyPath=./certs/client-key.pem` | Private key file (PEM) for gRPC mutual TLS (mTLS). Required for TLS server mode. Only applies when `useTls=true`. |
+| `tlsCertPath` | path, omitted | `(none)` | No | `tlsCertPath=./certs/client.pem` | Client certificate for an external gRPC server that requests one, or a custom Logger server identity. A TLS server with neither certificate nor key uses an automatic ephemeral self-signed pair. |
+| `tlsKeyPath` | path, omitted | `(none)` | No | `tlsKeyPath=./certs/client-key.pem` | Matching private key. Supply it with `tlsCertPath`; leave both empty for the automatic server pair. Only applies when `useTls=true`. |
 | `allowUnverifiedTls` | `true`, `false` | `false` | No | `allowUnverifiedTls=true` | Explicitly accept an unverified gRPC server certificate in client mode. The connection stays encrypted, but the server identity is not checked and the bypass applies to any host, not only localhost. Server mode is unaffected. Only applies when `protocol=grpc`, `mode=client`, and `useTls=true`. |
 
 ### HTTP parameters
@@ -166,10 +166,10 @@ These parameters only apply when `protocol=http`. See the [HTTP guide](http.md) 
 | --- | --- | --- | --- | --- | --- |
 | `httpFormat` | `json`, `delimited`, `esriJson`, `geojson`, `xml` | `delimited` | No | `httpFormat=json` | HTTP data format controlling the `Content-Type` header: `json` (`application/json`), `delimited` (`text/plain`, CSV), `esriJson` (`application/json`), `geojson` (`application/geo+json`), or `xml` (`application/xml`). |
 | `httpPath` | string | `/` | No | `httpPath=/receiver/feed-id` | URL path appended after host:port. In server mode, only POST requests matching this path are accepted; in client mode, this path is used in outgoing POST URLs. |
-| `httpTls` | `true`, `false` | `true` | No | `httpTls=true` | Enable HTTPS (port 8443 by default). Uses the OS certificate store automatically in client mode; server mode requires a certificate and key. |
+| `httpTls` | `true`, `false` | `true` | No | `httpTls=true` | Enable HTTPS (port 8443 by default). Client mode uses the OS certificate store; a server with no custom identity generates an ephemeral self-signed pair. |
 | `httpTlsCaPath` | path, omitted | `(none)` | No | `httpTlsCaPath=./certs/ca.pem` | Custom CA certificate file (PEM) for HTTP TLS. Leave empty to use the OS certificate store. Only applies when `httpTls=true`. |
-| `httpTlsCertPath` | path, omitted | `(none)` | No | `httpTlsCertPath=./certs/server.pem` | Client or server certificate file (PEM) for HTTP TLS. Required for server-mode TLS; only needed in client mode for mutual TLS (mTLS). Only applies when `httpTls=true`. |
-| `httpTlsKeyPath` | path, omitted | `(none)` | No | `httpTlsKeyPath=./certs/server-key.pem` | Private key file (PEM) for HTTP TLS. Required for server-mode TLS and client-side mTLS. Only applies when `httpTls=true`. |
+| `httpTlsCertPath` | path, omitted | `(none)` | No | `httpTlsCertPath=./certs/server.pem` | Client certificate for an external HTTPS server that requests one, or a custom Logger server identity. A server with neither identity field uses an automatic ephemeral self-signed pair. |
+| `httpTlsKeyPath` | path, omitted | `(none)` | No | `httpTlsKeyPath=./certs/server-key.pem` | Matching private key for HTTP TLS. Supply it with the certificate; leave both empty for the automatic server pair. |
 | `httpAllowUnverifiedTls` | `true`, `false` | `false` | No | `httpAllowUnverifiedTls=true` | Explicitly accept an unverified HTTPS server certificate in client mode. The connection stays encrypted, but the server identity is not checked and the bypass applies to any host, not only localhost. Server mode is unaffected. Only applies when `protocol=http`, `mode=client`, and `httpTls=true`. |
 
 ### WebSocket parameters
@@ -183,10 +183,10 @@ These parameters only apply when `protocol=ws`. See the [WebSocket guide](websoc
 | `wsIgnoreFirstMsg` | `true`, `false` | `false` | No | `wsIgnoreFirstMsg=true` | When `true`, the first message received after connecting is silently discarded. Useful when the server sends an initial handshake or acknowledgement. |
 | `wsPath` | string | `/` | No | `wsPath=/feed` | URL path appended after host:port for the WebSocket connection. In server mode, only upgrade requests matching this path are accepted. |
 | `wsSubscriptionMsg` | string, omitted | `(none)` | No | `wsSubscriptionMsg=subscribe:feed1` | Optional text message sent to the server immediately after the WebSocket connection is established. Useful for subscribing to a specific data feed. Only applies when `mode=client`. |
-| `wsTls` | `true`, `false` | `true` | No | `wsTls=true` | Enable WSS (WebSocket Secure, port 8443 by default). Uses the OS certificate store automatically in client mode; server mode requires a certificate and key. |
+| `wsTls` | `true`, `false` | `true` | No | `wsTls=true` | Enable WSS (WebSocket Secure, port 8443 by default). Client mode uses the OS certificate store; a server with no custom identity generates an ephemeral self-signed pair. |
 | `wsTlsCaPath` | path, omitted | `(none)` | No | `wsTlsCaPath=./certs/ca.pem` | Custom CA certificate file (PEM) for WebSocket TLS. Leave empty to use the OS certificate store. Only applies when `wsTls=true`. |
-| `wsTlsCertPath` | path, omitted | `(none)` | No | `wsTlsCertPath=./certs/server.pem` | Client or server certificate file (PEM) for WebSocket TLS. Required for server-mode TLS; only needed in client mode for mutual TLS (mTLS). Only applies when `wsTls=true`. |
-| `wsTlsKeyPath` | path, omitted | `(none)` | No | `wsTlsKeyPath=./certs/server-key.pem` | Private key file (PEM) for WebSocket TLS. Required for server-mode TLS and client-side mTLS. Only applies when `wsTls=true`. |
+| `wsTlsCertPath` | path, omitted | `(none)` | No | `wsTlsCertPath=./certs/server.pem` | Client certificate for an external WSS server that requests one, or a custom Logger server identity. A server with neither identity field uses an automatic ephemeral self-signed pair. |
+| `wsTlsKeyPath` | path, omitted | `(none)` | No | `wsTlsKeyPath=./certs/server-key.pem` | Matching private key for WebSocket TLS. Supply it with the certificate; leave both empty for the automatic server pair. |
 | `wsAllowUnverifiedTls` | `true`, `false` | `false` | No | `wsAllowUnverifiedTls=true` | Explicitly accept an unverified WSS server certificate in client mode. The connection stays encrypted, but the server identity is not checked and the bypass applies to any host, not only localhost. Server mode is unaffected. Only applies when `protocol=ws`, `mode=client`, and `wsTls=true`. |
 
 ### XMPP parameters
@@ -319,7 +319,7 @@ npm run start:headless -- outputFile=./captured.log protocol=tcp mode=server ip=
 ### Headless UDP client capturing for one minute as JSONL
 
 ```bash
-npm run start:headless -- outputFile=./captured.jsonl outputFormat=jsonl protocol=udp mode=client ip=192.168.1.25 port=6000 durationMs=60000
+npm run start:headless -- outputFile=./captured.jsonl outputFormat=jsonl protocol=udp mode=client udpConnectionMode=direct udpLocalHost=0.0.0.0 udpLocalPort=6000 durationMs=60000
 ```
 
 ### Headless TCP client that waits for the server
@@ -341,7 +341,7 @@ npm run start:headless -- protocol=tcp mode=client ip=192.168.1.10 port=5565 con
 Starts a gRPC server on port 50051 using the Velocity external GrpcFeed protocol. The ArcGIS Velocity platform or the ArcGIS Velocity Simulator (in gRPC client mode) can connect and push features:
 
 ```bash
-npm run start:headless -- protocol=grpc mode=server ip=0.0.0.0 port=50051 grpcSerialization=protobuf
+npm run start:headless -- protocol=grpc mode=server ip=0.0.0.0 port=50051 grpcSerialization=protobuf useTls=false
 ```
 
 ### Headless gRPC server (`text` serialization)
@@ -349,7 +349,7 @@ npm run start:headless -- protocol=grpc mode=server ip=0.0.0.0 port=50051 grpcSe
 Uses the internal GrpcFeatureService protocol with plain UTF-8 text payloads — useful for simple human-readable testing:
 
 ```bash
-npm run start:headless -- protocol=grpc mode=server ip=0.0.0.0 port=50051 grpcSerialization=text
+npm run start:headless -- protocol=grpc mode=server ip=0.0.0.0 port=50051 grpcSerialization=text useTls=false
 ```
 
 ### Headless XMPP server using a launch-config file

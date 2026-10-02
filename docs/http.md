@@ -24,8 +24,8 @@ It is intended for users and developers connecting the Logger to an HTTP(S) endp
 
 | Mode | Description |
 |------|-------------|
-| HTTP Client | Receives POST data from an HTTP(S) endpoint |
-| HTTP Server | Connects to an HTTP(S) server to receive data |
+| HTTP Client | Connects to an HTTP(S) endpoint and receives its Server-Sent Events stream |
+| HTTP Server | Listens locally and receives matching HTTP POST requests |
 
 In client mode the Logger subscribes to the endpoint's Server-Sent Events
 stream, which is how a paired ArcGIS Velocity Simulator in HTTP server mode
@@ -45,7 +45,11 @@ Only an explicit disconnect ends the connection.
 
 ## Format options
 
-The HTTP Format dropdown controls the `Content-Type` header used when sending data. These match the formats supported by the ArcGIS Velocity TCP and HTTP Receiver feeds. **Delimited (CSV) is the default**, matching the order used by ArcGIS Velocity:
+The HTTP Format dropdown selects the payload format expected by Logger. HTTP
+Server validates matching POST bodies; HTTP Client validates records from the
+Server-Sent Events stream. These match the formats supported by ArcGIS
+Velocity TCP and HTTP Receiver feeds. **Delimited (CSV) is the default**,
+matching the order used by ArcGIS Velocity:
 
 | UI label | Value | Content-Type | Description |
 |----------|-------|--------------|-------------|
@@ -59,16 +63,19 @@ The HTTP Format dropdown controls the `Content-Type` header used when sending da
 
 TLS is enabled by default (`Use TLS` checkbox checked), making the connection HTTPS. When TLS is enabled:
 
-- **Client mode**: Uses the OS certificate store (macOS Keychain, Windows certificate store, or Linux CA bundles) plus Node.js bundled root certificates to verify the server. Custom CA, client cert, and key can be provided for mutual TLS or enterprise CAs.
-- **Server mode**: Requires a TLS certificate and private key to be provided. The OS certificate store cannot provide a server identity certificate.
+- **Client mode**: Uses the OS certificate store (macOS Keychain, Windows certificate store, or Linux CA bundles) plus Node.js bundled root certificates to verify the server. A custom CA can trust a private server; a client certificate and key can be presented when an external server requests them.
+- **Server mode**: Uses the supplied certificate and private key when both are
+  present. With both fields empty, Logger generates an in-memory self-signed
+  pair for the life of the process. A client must explicitly trust that
+  certificate or opt into unverified local testing.
 
 When TLS is enabled, additional certificate path fields appear:
 
 | Field | Description |
 |-------|-------------|
 | **CA cert path** | Path to a custom CA certificate file (PEM). Leave empty to use the OS certificate store automatically. Only needed for enterprise or self-signed CAs not in the system trust store. |
-| **TLS cert path** | Path to a client or server certificate file (PEM). Required for server-mode TLS. For client mode, only needed for mutual TLS (mTLS) authentication. |
-| **TLS key path** | Path to the private key file (PEM) corresponding to the TLS certificate. Required for server-mode TLS and client-side mTLS. |
+| **TLS cert path** | Path to a client or server certificate file (PEM). Optional for a server using the automatic self-signed pair; in client mode, use it only when an external server requests a client certificate. |
+| **TLS key path** | Matching private key. Supply it with the custom certificate; leave both empty for an automatic server pair. |
 
 ## Default ports
 
@@ -107,8 +114,8 @@ The following controls appear:
 - **TLS** - Checkbox to enable TLS (HTTPS). When checked, the connection uses HTTPS and the port defaults to `8443`. When unchecked, uses plain HTTP with port `8080`. Toggling this checkbox also reveals/hides the certificate path fields.
 - **Section** - **Basics** holds Format and HTTP Path; **Security** holds TLS, the certificate paths, and the verification option.
 - **CA cert path** - Path to a custom CA certificate file (PEM). Leave empty to use the OS certificate store. Only needed for enterprise or self-signed CAs.
-- **TLS cert path** - Path to a client or server certificate file (PEM). Required for server-mode TLS; only needed in client mode for mutual TLS (mTLS).
-- **TLS key path** - Path to the private key file (PEM). Required for server-mode TLS and client-side mTLS.
+- **TLS cert path** - Optional client/server certificate file (PEM). A server with both custom identity fields empty uses an automatic in-memory self-signed pair.
+- **TLS key path** - Matching private key. Provide both custom identity fields together or leave both empty; client mode uses them only with a presented client certificate.
 - **Allow unverified** - Client-only warning checkbox in **Security**, shown when TLS is enabled. Accepts an unverified server certificate for any host. Off by default; see [TLS and SSL security](tls.md#explicit-certificate-verification-bypass).
 - **HTTP Path** - The URL path appended after the host:port (default `/`). In server mode, only POST requests matching this path are accepted. In client mode, this path is used in outgoing POST URLs. Set this to the ArcGIS Velocity feed's system-generated path when connecting to a real endpoint.
 
@@ -159,7 +166,7 @@ When connected, the status bar displays a lock icon reflecting the trust level a
 | 🔒 | Amber | on | TLS on - OS certificate store, trust level not fully determined |
 | 🔒⚠ | Amber | self-signed | TLS on, self-signed or cert-chain not verified |
 | 🔒✓ | Green | ca-verified | TLS on, CA-verified certificate chain |
-| 🔐 | Blue / cyan | mtls | Mutual TLS - both client and server present certificates |
+| 🔐 | Blue / cyan | mtls | Client and server certificates are configured; confirm that the external server enforces client authentication |
 
 See the [TLS guide](tls.md) for full TLS concepts, certificate file formats, OS trust store behaviour, and setup guides.
 
