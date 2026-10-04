@@ -98,10 +98,11 @@ function loggerOptions(protocol, mode, family, host, port, outputFile, maxLogCou
     port,
     tcpAddressFamily: family === 'ipv6' ? 'ipv6' : 'ipv4',
     udpAddressFamily: family,
-    udpConnectionMode: protocol === 'udp' && mode === 'client' ? 'registered' : 'direct',
+    ...(protocol === 'udp' && mode === 'client'
+      ? { udpLocalHost: host, udpLocalPort: port }
+      : {}),
     tcpFormat: 'delimited',
     udpFormat: 'delimited',
-    udpRegistrationIntervalMs: 40,
     outputFile,
     outputFormat: 'jsonl',
     stdout: false,
@@ -175,19 +176,25 @@ async function simulatorClientToLoggerServer(protocol, family, directory) {
 async function simulatorServerToLoggerClient(protocol, family, directory) {
   const host = family === 'ipv6' ? '::1' : '127.0.0.1';
   const simulator = new TransportManager();
+  const requestedPort = protocol === 'udp' ? await reservePort(protocol, host) : 0;
   const connected = await simulator.connect({
-    protocol, mode: 'server', ip: host, port: 0,
+    protocol, mode: 'server', ip: host, port: requestedPort,
     tcpAddressFamily: family, udpAddressFamily: family,
-    udpConnectionMode: protocol === 'udp' ? 'registered' : 'direct',
+    ...(protocol === 'udp' ? { udpLocalHost: host, udpLocalPort: 0 } : {}),
     tcpFormat: 'delimited', udpFormat: 'delimited',
   });
-  const port = connected.address.port;
+  const port = protocol === 'udp' ? requestedPort : connected.address.port;
   const outputFile = path.join(directory, `${protocol}-${family}-sim-server.jsonl`);
+  const readiness = protocol === 'udp'
+    ? readyLogger(/^UDP client receiver ready at /)
+    : null;
   const loggerRun = runHeadlessSession(
     loggerOptions(protocol, 'client', family, host, port, outputFile, 2),
+    readiness ? { logger: readiness.logger } : undefined,
   );
   try {
-    await waitFor(() => simulator.hasRecipients(), `${protocol}/${family} Simulator did not observe Logger`);
+    if (readiness) await readiness.ready;
+    else await waitFor(() => simulator.hasRecipients(), `${protocol}/${family} Simulator did not observe Logger`);
     const payloads = [
       `${protocol},${family},first`,
       protocol === 'udp' ? `${protocol},${family},第二\n` : `${protocol},${family},第二`,
@@ -207,30 +214,27 @@ async function simulatorServerToLoggerClient(protocol, family, directory) {
   await assertPortReusable(protocol, host, port);
 }
 
-async function udpIpv6RenewalSurvivesRestart(directory) {
+async function udpIpv6ReceiverSurvivesPublisherRestart(directory) {
+  const port = await reservePort('udp', '::1');
   const simulator = new TransportManager();
-  const connected = await simulator.connect({
-    protocol: 'udp', mode: 'server', ip: '::1', port: 0,
-    udpAddressFamily: 'ipv6', udpConnectionMode: 'registered', udpFormat: 'delimited',
-  });
-  const port = connected.address.port;
+  const options = {
+    protocol: 'udp', mode: 'server', ip: '::1', port,
+    udpAddressFamily: 'ipv6', udpLocalHost: '::1', udpLocalPort: 0,
+    udpFormat: 'delimited',
+  };
   const outputFile = path.join(directory, 'udp-ipv6-restart.jsonl');
+  const readiness = readyLogger(/^UDP client receiver ready at /);
   const loggerRun = runHeadlessSession(
     loggerOptions('udp', 'client', 'ipv6', '::1', port, outputFile, 2),
+    { logger: readiness.logger },
   );
   try {
-    await waitFor(() => simulator.hasRecipients(), 'IPv6 Simulator did not learn Logger before restart');
+    await readiness.ready;
+    await simulator.connect(options);
     await simulator.send('ipv6,before,restart');
     await simulator.disconnect();
     await wait(140);
-    await simulator.connect({
-      protocol: 'udp', mode: 'server', ip: '::1', port,
-      udpAddressFamily: 'ipv6', udpConnectionMode: 'registered', udpFormat: 'delimited',
-    });
-    await waitFor(
-      () => simulator.hasRecipients(),
-      'IPv6 registration renewal did not rediscover Logger after restart',
-    );
+    await simulator.connect(options);
     await simulator.send('ipv6,after,restart');
     assert.strictEqual(await loggerRun, EXIT_CODES.success);
     assert.deepStrictEqual(readCaptured(outputFile), [
@@ -257,7 +261,7 @@ async function udpIpv6RenewalSurvivesRestart(directory) {
         await simulatorServerToLoggerClient(protocol, 'ipv6', directory);
       }
     }
-    if (ipv6) await udpIpv6RenewalSurvivesRestart(directory);
+    if (ipv6) await udpIpv6ReceiverSurvivesPublisherRestart(directory);
     console.log(`TCP/UDP family cross-app tests passed${ipv6 ? ' (8 cases)' : ' (4 IPv4 cases; IPv6 unavailable)'}`);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });

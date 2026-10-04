@@ -107,7 +107,8 @@ const { buildVelocityConnectionOptions } = require('../src/velocity-connection-o
       assert.strictEqual(request.port, 9010);
       assert.strictEqual(request.host, '192.0.2.10');
       assert.strictEqual(request.udpFormat, 'geo-json');
-      assert.strictEqual(request.udpRegistrationIntervalMs, 30000);
+      assert.strictEqual(Object.hasOwn(request, 'udpRegistrationIntervalMs'), false);
+      assert.strictEqual(Object.hasOwn(request, 'udpConnectionMode'), false);
       assert.ok(!JSON.stringify(request).includes('logger.example.com'));
       listeners.get('udp-connection-state')('disconnected');
       get('connection-type').value = 'tcp-server';

@@ -59,28 +59,16 @@ test('TCP and UDP formats share defaults, validation, and UI/headless values', (
   }
 });
 
-test('UDP registration renewal interval is validated for UI and headless modes', () => {
-  assert.strictEqual(DEFAULT_HEADLESS_OPTIONS.udpRegistrationIntervalMs, 30000);
+test('retired UDP registration options are rejected without exposing values', () => {
   for (const runMode of ['ui', 'headless']) {
-    const result = parseCommandLineArgs(argv(
-      `runMode=${runMode}`,
-      'protocol=udp',
-      'mode=client',
-      'udpRegistrationIntervalMs=45000',
-    ));
-    assert.deepStrictEqual(result.errors, []);
-    const options = runMode === 'ui' ? result.ui.presets : result.headless;
-    assert.strictEqual(options.udpRegistrationIntervalMs, 45000);
-    assert.match(formatExplainOutput(result), /udpRegistrationIntervalMs\s+45000(?:ms)?/);
-  }
-  for (const value of ['0', '-1', '1.5', '2147483648', 'invalid']) {
-    const result = parseCommandLineArgs(argv(
-      'protocol=udp',
-      'mode=client',
-      `udpRegistrationIntervalMs=${value}`,
-    ));
-    assert.strictEqual(result.mode, 'error', value);
-    assert.ok(result.errors.some((error) => error.includes('udpRegistrationIntervalMs')));
+    for (const option of ['udpConnectionMode=registered', 'udpRegistrationIntervalMs=45000']) {
+      const result = parseCommandLineArgs(argv(
+        `runMode=${runMode}`, 'protocol=udp', 'mode=client', option,
+      ));
+      assert.strictEqual(result.mode, 'error');
+      assert.match(result.errors.join('\n'), /Unsupported UDP option/);
+      assert.doesNotMatch(result.errors.join('\n'), /registered|45000/);
+    }
   }
 });
 
@@ -104,14 +92,15 @@ test('UDP address family defaults to IPv4 and accepts explicit IPv6', () => {
   }
 });
 
-test('UDP direct mode is the new default and legacy loaded clients migrate to registered', () => {
-  assert.strictEqual(DEFAULT_HEADLESS_OPTIONS.udpConnectionMode, 'direct');
+test('UDP client binds its local endpoint and missing mode needs no migration', () => {
   assert.strictEqual(DEFAULT_HEADLESS_OPTIONS.udpLocalHost, '127.0.0.1');
   assert.strictEqual(DEFAULT_HEADLESS_OPTIONS.udpLocalPort, 5565);
-  const direct = parseCommandLineArgs(argv(
+  const defaults = parseCommandLineArgs(argv(
     'runMode=headless', 'protocol=udp', 'mode=client',
   ));
-  assert.strictEqual(direct.headless.udpConnectionMode, 'direct');
+  assert.deepStrictEqual(defaults.errors, []);
+  assert.strictEqual(defaults.headless.udpLocalHost, '127.0.0.1');
+  assert.strictEqual(defaults.headless.udpLocalPort, 5565);
   const directWithoutRemote = parseCommandLineArgs(argv(
     'runMode=headless', 'protocol=udp', 'mode=client',
     'ip=', 'udpLocalHost=127.0.0.1', 'udpLocalPort=17001',
@@ -121,26 +110,23 @@ test('UDP direct mode is the new default and legacy loaded clients migrate to re
     'runMode=headless', 'protocol=udp', 'mode=client', 'udpLocalHost=',
   ));
   assert.match(missingLocalHost.errors.join('\n'), /requires 'udpLocalHost/);
-  const explicit = parseCommandLineArgs(argv(
-    'runMode=headless', 'protocol=udp', 'mode=client',
-    'udpConnectionMode=registered',
-  ));
-  assert.strictEqual(explicit.headless.udpConnectionMode, 'registered');
 
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logger-legacy-udp-mode-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logger-direct-udp-mode-'));
   const filename = path.join(dir, 'launch.json');
   try {
     fs.writeFileSync(filename, JSON.stringify({
       connection: { protocol: 'udp', mode: 'client', ip: '127.0.0.1', port: 5565 },
     }));
-    const migrated = parseCommandLineArgs(argv(
+    const loaded = parseCommandLineArgs(argv(
       'runMode=headless', `config=${filename}`,
     ));
-    assert.strictEqual(migrated.headless.udpConnectionMode, 'registered');
-    const overridden = parseCommandLineArgs(argv(
-      'runMode=headless', `config=${filename}`, 'udpConnectionMode=direct',
-    ));
-    assert.strictEqual(overridden.headless.udpConnectionMode, 'direct');
+    assert.deepStrictEqual(loaded.errors, []);
+    assert.strictEqual(loaded.headless.udpLocalPort, 5565);
+    fs.writeFileSync(filename, JSON.stringify({
+      connection: { protocol: 'udp', mode: 'client', udpConnectionMode: 'direct' },
+    }));
+    const obsolete = parseCommandLineArgs(argv('runMode=headless', `config=${filename}`));
+    assert.match(obsolete.errors.join('\n'), /Unsupported UDP option 'udpConnectionMode'/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -200,7 +186,6 @@ test('Launch Config preserves TCP/UDP formats and CLI overrides one field', () =
         tcpHandshakeUseEscapes: false,
         udpFormat: 'esri-json',
         udpAddressFamily: 'ipv6',
-        udpRegistrationIntervalMs: 45000,
       },
     }));
     for (const runMode of ['ui', 'headless']) {
@@ -213,7 +198,6 @@ test('Launch Config preserves TCP/UDP formats and CLI overrides one field', () =
       assert.strictEqual(options.tcpHandshakeUseEscapes, false);
       assert.strictEqual(options.udpFormat, 'esri-json');
       assert.strictEqual(options.udpAddressFamily, 'ipv6');
-      assert.strictEqual(options.udpRegistrationIntervalMs, 45000);
     }
   } finally {
     fs.unlinkSync(filename);

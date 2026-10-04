@@ -27,47 +27,31 @@ Select **IPv4** or **IPv6** to match the local bind address and peer. IPv6 uses
 an IPv6-only socket; use `::1` for local testing or a local IPv6 interface for
 remote peers. IPv4 remains the default.
 
-UDP Client offers two explicit modes:
+**UDP Client** binds the configured Local host and Local port and receives
+datagrams from any source address and port. It remains unconnected and sends
+no control packet. This accepts ArcGIS Velocity outputs and compatible custom
+senders that use an ephemeral source port. The connection-row Host and Port are
+unused for this role.
 
-- **Direct** (the default for new configurations) binds the configured Local
-  host and Local port, sends no registration packet, and accepts datagrams from
-  any source address and port. This matches a conventional UDP receiver and
-  avoids filtering senders that use an ephemeral source port.
-- **Registered** preserves the legacy paired Logger/Simulator behavior.
-  It connects its socket to the configured remote server, sends the exact
-  UTF-8 marker `UDP Client connected` without a newline, and renews that
-  marker every 30 seconds by default. The operating system accepts datagrams
-  only from that configured remote address and port. This convention lets a
-  paired Simulator rediscover the reply endpoint after a restart; it is not
-  part of the ArcGIS Velocity UDP output contract.
-
-Older saved UDP Client configurations without `udpConnectionMode` migrate to
-Registered. The existing inverse-role local preset also selects Registered
-explicitly. New manual and command-line configurations default to Direct.
-
-For a same-machine output, use Direct mode with the exact local interface and
-port configured as the output destination. Only one receiver can own that
+For a same-machine output, bind the exact local interface and port configured
+as the output destination. Only one receiver can own that
 unicast host and port: stop the existing listener before connecting Logger, or
 choose another local port and retarget the output. Logger reports a bind error
 rather than Ready when the endpoint is already occupied. Do not enter another
 computer's address as a local bind address. For a remote Logger, configure the
-output destination to that Logger's reachable address and Direct local port,
+output destination to that Logger's reachable address and local receive port,
 then permit the UDP route and firewall traffic. A wildcard local bind is
 optional and must be selected explicitly; it does not configure routing or a
 firewall.
 
-UDP readiness is local state, not a remote handshake. Direct reports **Ready**
-after its local endpoint binds; UDP Server reports **Listening** after its bind.
-Both change to **Receiving** after the first accepted record. Registered uses a
-connected UDP socket, so a sender using a different address or source port is
-filtered by the operating system. Registration send success is not an
-acknowledgment that the peer received it.
+UDP readiness is local state, not a remote handshake. UDP Client reports
+**Ready** after its local endpoint binds; UDP Server reports **Listening** after
+its bind. Both change to **Receiving** after the first accepted record. Neither
+state acknowledges a remote peer or delivery.
 
-The default local endpoint is `127.0.0.1:5565`. For the inverse Registered
-pairing, select **Local UDP — Simulator Server / Logger Client** in both
-applications, start the Simulator server first, and then connect Logger so it
-can register. For Direct receive, start the Logger receiver first and configure
-the sender's destination to the Logger's bound endpoint.
+The default local endpoint is `127.0.0.1:5565`. For either paired preset, start
+the Logger receiver first and configure the Simulator destination to the
+Logger's bound endpoint.
 
 For paired Delimited (CSV) publishing, ArcGIS Velocity Simulator LF-terminates
 UDP datagrams by default for compatibility with ArcGIS Velocity sampling and
@@ -75,14 +59,10 @@ newline-framed receivers. Logger has no **Append LF** control: it is
 receive-only and preserves the incoming datagram exactly. See
 [data formats](data-formats.md#transport-boundaries) for framing details.
 
-Registered UDP Client sends that custom registration packet but does not count
-it as captured data. Direct UDP Client and UDP Server treat every incoming
-datagram as application data, including the same literal text, so conventional
-payloads are never silently removed. Neither Direct UDP Client nor UDP Server
-sends a registration packet. UDP connections here are unsecure and do not
-provide delivery, ordering, or retransmission guarantees. Registration send
-success is not an acknowledgment, liveness probe, or delivery guarantee.
-Renewal stops on disconnect or transport failure.
+UDP Client and UDP Server treat every incoming datagram as application data,
+including the literal text `UDP Client connected`. Neither role sends a
+registration or acknowledgment packet. UDP connections here are unsecure and
+do not provide delivery, ordering, or retransmission guarantees.
 
 ## Datagram boundaries and size
 
@@ -108,21 +88,17 @@ See [data formats](data-formats.md) for format meanings and capture containers.
 
 ## UI controls
 
-Host and port remain in the connection row. Select **Settings → Basics** to
-change Format, Address family, and UDP Client mode. Select
-**Settings → Advanced** to change the Direct local endpoint or the Registered
-renewal interval while disconnected; the connected Summary is read-only.
-The connection-row Host and Port are disabled and ignored for Direct UDP
-Client, which uses Local host and Local port instead.
+Host and port remain in the connection row for UDP Server. Select
+**Settings → Basics** to change Format and Address family. UDP Client uses
+**Settings → Advanced** for its Local host and Local port; its connection-row
+Host and Port are disabled and ignored. The connected Summary is read-only.
 
 | Control | Default | Tooltip |
 |---|---|---|
 | Format | Delimited (CSV) | UDP payload format: Delimited (CSV). One comma-separated record; quoted fields may contain commas, quotes, and line breaks. |
 | Address family | IPv4 | IPv4 - use IPv4 addresses and resolve hostnames to IPv4. This is the default. |
-| UDP mode | Direct | Direct - use configured endpoints without registration or acknowledgment. |
-| Local host | 127.0.0.1 | Local UDP interface to bind in Direct mode. Loopback is local-only; choose another interface explicitly for remote traffic. |
-| Local port | 5565 | Local UDP bind port in Direct mode. Receivers require a stable port; a publisher may use 0 for an ephemeral port. |
-| Registration renewal | 30000 ms | Renew the custom UDP client registration every 30000 milliseconds. Positive values up to 2147483647 are accepted. This does not apply to ArcGIS Velocity UDP outputs. |
+| Local host | 127.0.0.1 | Local UDP interface to bind. Loopback is local-only; choose another interface explicitly for remote traffic. |
+| Local port | 5565 | Stable local UDP receive port. The sender must target this port. |
 
 ## Tooltip reference
 
@@ -147,36 +123,18 @@ tooltip follows the selected option:
 | IPv4 | IPv4 - use IPv4 addresses and resolve hostnames to IPv4. This is the default. |
 | IPv6 | IPv6 - use IPv6 addresses and resolve hostnames to IPv6. IPv4-mapped addresses are not supported. |
 
-The UDP mode label tooltip is `Choose how UDP Client receives datagrams.
-Direct binds a stable local endpoint and sends no registration. Registered
-preserves the legacy paired-app registration behavior.` The select tooltip
-follows the selected option:
-
-| Option | Tooltip |
-|---|---|
-| Direct | Direct - use configured endpoints without registration or acknowledgment. |
-| Registered | Registered - compatibility pairing using the existing UDP registration marker; not standard UDP behavior. |
-
 The shared Host input follows the selected UDP role and family:
 
 | Mode | Tooltip |
 |---|---|
-| Direct client | Remote Host and Port are not used in Direct UDP receive mode. Configure the stable local receive endpoint in Protocol Settings → Advanced. |
-| Registered client | Destination address: enter a reachable peer IP address or DNS name matching the selected address family. Do not use 0.0.0.0 or :: as a destination. |
+| Client | Remote Host and Port are not used in UDP Client receive mode. Configure the stable local receive endpoint in Protocol Settings → Advanced. |
 | Server, IPv4 | Local bind address: 127.0.0.1 accepts same-machine traffic only. A local LAN IP restricts listening to that interface. Use 0.0.0.0 to listen on all local IPv4 interfaces for remote peers or multiple interfaces. This expands network exposure; firewall rules still apply. |
 | Server, IPv6 | Local bind address: ::1 accepts same-machine traffic only. A local IPv6 address restricts listening to that interface. Use :: to listen on all local IPv6 interfaces for remote peers or multiple interfaces. Explicit IPv6 listeners accept IPv6 only. This expands network exposure; firewall rules still apply. |
 
-The Direct-mode Local host label and input use
-`Local UDP interface to bind in Direct mode. Loopback is local-only; choose
+The Local host label and input use
+`Local UDP interface to bind. Loopback is local-only; choose
 another interface explicitly for remote traffic.` The Local port label and
-input use `Local UDP bind port in Direct mode. Receivers require a stable port;
-a publisher may use 0 for an ephemeral port.`
-
-The Registration renewal label tooltip is `Renew the custom UDP client registration at this interval so a restarted Simulator server can rediscover the reply endpoint. This is not an acknowledgment or delivery check.` The control appears only for Registered UDP Client.
-After initialization or an edit, the input tooltip is `Renew the custom UDP
-client registration every ` followed by the current interval and ` milliseconds.
-Positive values up to 2147483647 are accepted. This does not apply to ArcGIS
-Velocity UDP outputs.`
+input use `Stable local UDP receive port. The sender must target this port.`
 
 ## Command-line usage
 
@@ -189,12 +147,9 @@ npm run start:headless -- protocol=udp mode=server ip=127.0.0.1 port=5565 udpFor
 Set `connection.udpFormat` in a Launch Config to restore the same choice.
 Set `connection.udpAddressFamily` to `ipv4` or `ipv6`; host names resolve only
 within that family, and literal addresses must match it.
-Set `connection.udpRegistrationIntervalMs` to change the custom UDP Client
-renewal cadence. The defaults are `delimited` and `30000`; older configurations
-use `ipv4` and do not need any of these fields.
-Set `connection.udpConnectionMode=direct` with `connection.udpLocalHost` and
-`connection.udpLocalPort` for conventional receive-only operation. Registered
-mode uses `ip` and `port` as the exact remote tuple.
+Set `connection.udpLocalHost` and `connection.udpLocalPort` for UDP Client.
+The retired `udpConnectionMode` and `udpRegistrationIntervalMs` keys are
+rejected; remove them and review the configured local endpoint.
 `outputFormat` remains the capture-file format, not the incoming payload format.
 
 See the [complete option reference](command-line.md) and

@@ -37,7 +37,6 @@ const path = require('path');
 const os = require('os');
 const { formatDidYouMean } = require('./cli-suggestions');
 const { SOCKET_PAYLOAD_FORMAT_SET, DEFAULT_SOCKET_PAYLOAD_FORMAT } = require('./payload-format-utils.js');
-const { normalizeUdpConnectionMode } = require('./udp-utils.js');
 const { decodeTcpHandshake } = require('./tcp-handshake-utils.js');
 const SOCKET_PAYLOAD_FORMAT_VALUES = [...SOCKET_PAYLOAD_FORMAT_SET];
 
@@ -190,10 +189,8 @@ const APP_DEFAULTS = {
   tcpHandshakeUseEscapes: true,
   udpFormat: DEFAULT_SOCKET_PAYLOAD_FORMAT,
   udpAddressFamily: 'ipv4',
-  udpConnectionMode: 'direct',
   udpLocalHost: '127.0.0.1',
   udpLocalPort: 5565,
-  udpRegistrationIntervalMs: 30000,
   grpcHeaderPath: 'replace.with.dedicated.uid',
   grpcHeaderPathKey: 'grpc-path',
   grpcSerialization: 'protobuf',
@@ -338,14 +335,6 @@ const CLI_PARAMETER_DEFINITIONS = [
     purpose: 'In client mode, retry the connection on failure until the server is available. When false (the default), a failed connection attempt immediately aborts the run. Only applies to TCP client mode; ignored in server mode and UDP client mode. Covers both initial connection and automatic reconnection after a server restart. Use connectTimeoutMs to set an overall deadline and connectRetryIntervalMs to tune the retry interval.',
   },
   {
-    key: 'udpRegistrationIntervalMs',
-    defaultValue: DEFAULT_HEADLESS_OPTIONS.udpRegistrationIntervalMs,
-    options: ['integer 1..2147483647'],
-    example: 'udpRegistrationIntervalMs=30000',
-    requiredInHeadless: 'No',
-    purpose: 'Milliseconds between custom UDP client registration renewals. Applies only to UDP client mode for Logger/Simulator pairing; it is not an acknowledgment, delivery check, or ArcGIS Velocity output option.',
-  },
-  {
     key: 'tcpAddressFamily',
     defaultValue: DEFAULT_HEADLESS_OPTIONS.tcpAddressFamily,
     options: ['auto', 'ipv4', 'ipv6'],
@@ -376,14 +365,6 @@ const CLI_PARAMETER_DEFINITIONS = [
     example: 'udpAddressFamily=ipv6',
     requiredInHeadless: 'No',
     purpose: 'UDP socket and host-resolution address family. IPv4 uses udp4; IPv6 uses an IPv6-only udp6 socket. Applies only when protocol=udp.',
-  },
-  {
-    key: 'udpConnectionMode',
-    defaultValue: DEFAULT_HEADLESS_OPTIONS.udpConnectionMode,
-    options: ['direct', 'registered'],
-    example: 'udpConnectionMode=direct',
-    requiredInHeadless: 'No',
-    purpose: 'UDP Client receive mode. Direct binds the configured local endpoint and sends no registration. Registered preserves the legacy paired-app marker and exact remote tuple filtering.',
   },
   {
     key: 'udpLocalHost',
@@ -1238,23 +1219,6 @@ function parseInteger(value, key, errors, { min = null, max = null, allowNull = 
   return parsed;
 }
 
-function parseUdpRegistrationInterval(value, errors) {
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed)) {
-    errors.push(`Invalid integer value for 'udpRegistrationIntervalMs': '${value}'.`);
-    return null;
-  }
-  if (parsed < 1) {
-    errors.push("'udpRegistrationIntervalMs' must be >= 1.");
-    return null;
-  }
-  if (parsed > 2147483647) {
-    errors.push("'udpRegistrationIntervalMs' must be <= 2147483647.");
-    return null;
-  }
-  return parsed;
-}
-
 function parseTcpHandshakeText(value, errors) {
   if (typeof value !== 'string') {
     errors.push('TCP handshake text must be a string.');
@@ -1447,11 +1411,6 @@ function validateHeadlessOptions(values, errors, warnings) {
   if (normalized.connectWaitForServer !== undefined) {
     options.connectWaitForServer = parseBoolean(normalized.connectWaitForServer, 'connectWaitForServer', errors);
   }
-  if (normalized.udpRegistrationIntervalMs !== undefined) {
-    options.udpRegistrationIntervalMs = parseUdpRegistrationInterval(
-      normalized.udpRegistrationIntervalMs, errors
-    );
-  }
   if (normalized.udpAddressFamily !== undefined) {
     const udpAddressFamily = String(normalized.udpAddressFamily).trim().toLowerCase();
     if (!['ipv4', 'ipv6'].includes(udpAddressFamily)) {
@@ -1460,22 +1419,18 @@ function validateHeadlessOptions(values, errors, warnings) {
       options.udpAddressFamily = udpAddressFamily;
     }
   }
-  if (normalized.udpConnectionMode !== undefined) {
-    try {
-      options.udpConnectionMode = normalizeUdpConnectionMode(
-        String(normalized.udpConnectionMode).trim().toLowerCase()
-      );
-    } catch (error) {
-      errors.push(error.message);
-    }
-  }
-  if (normalized.udpLocalHost !== undefined) {
+  const directUdpClient = options.protocol === 'udp' && options.mode === 'client';
+  if (normalized.udpLocalHost !== undefined && directUdpClient) {
     options.udpLocalHost = String(normalized.udpLocalHost).trim();
+  } else if (normalized.udpLocalHost !== undefined) {
+    warnings.push("'udpLocalHost' is ignored outside UDP client mode.");
   }
-  if (normalized.udpLocalPort !== undefined) {
+  if (normalized.udpLocalPort !== undefined && directUdpClient) {
     options.udpLocalPort = parseInteger(
       normalized.udpLocalPort, 'udpLocalPort', errors, { min: 1, max: 65535 }
     );
+  } else if (normalized.udpLocalPort !== undefined) {
+    warnings.push("'udpLocalPort' is ignored outside UDP client mode.");
   }
   if (normalized.tcpAddressFamily !== undefined) {
     const tcpAddressFamily = String(normalized.tcpAddressFamily).trim().toLowerCase();
@@ -1727,12 +1682,11 @@ function validateHeadlessOptions(values, errors, warnings) {
   if (!options.outputFile) {
     warnings.push("No 'outputFile' provided: captured records will be written to the console (stdout) using the selected outputFormat.");
   }
-  if (options.protocol === 'udp' && options.mode === 'client'
-      && options.udpConnectionMode === 'direct' && !options.udpLocalHost) {
-    errors.push("Direct UDP Client mode requires 'udpLocalHost=<local-address>'.");
+  if (options.protocol === 'udp' && options.mode === 'client' && !options.udpLocalHost) {
+    errors.push("UDP client mode requires 'udpLocalHost=<local-address>'.");
   }
   if (options.mode === 'client' && !options.ip
-      && !(options.protocol === 'udp' && options.udpConnectionMode === 'direct')) {
+      && options.protocol !== 'udp') {
     errors.push("Client mode requires 'ip=<address>' (or 'host=<address>').");
   }
   if (options.onError === 'pause' && options.exitOnComplete) {
@@ -1997,12 +1951,11 @@ function parseCommandLineArgs(rawArgv, { isPackaged = false } = {}) {
   }
 
   const mergedValues = { ...configLoad.values, ...rawValues };
-  const loadedLegacyInverseUdp = rawValues.udpConnectionMode === undefined
-    && configLoad.path !== null
-    && configLoad.values.udpConnectionMode === undefined
-    && String(mergedValues.protocol || '').toLowerCase() === 'udp'
-    && String(mergedValues.mode || '').toLowerCase() === 'client';
-  if (loadedLegacyInverseUdp) mergedValues.udpConnectionMode = 'registered';
+  for (const retiredKey of ['udpConnectionMode', 'udpRegistrationIntervalMs']) {
+    if (mergedValues[retiredKey] !== undefined) {
+      errors.push(`Unsupported UDP option '${retiredKey}'. Remove it; UDP receivers no longer send registration traffic.`);
+    }
+  }
 
   const requestedRunMode = (mergedValues.runMode || 'ui').toString().trim().toLowerCase();
   const normalizedRunMode = requestedRunMode === 'silent' ? 'headless' : requestedRunMode;
@@ -2021,8 +1974,7 @@ function parseCommandLineArgs(rawArgv, { isPackaged = false } = {}) {
       'protocol', 'mode', 'ip', 'port', 'tcpFormat', 'tcpAddressFamily',
       'tcpHandshakeText', 'tcpHandshakeUseEscapes',
       'udpFormat', 'udpAddressFamily',
-      'udpConnectionMode', 'udpLocalHost', 'udpLocalPort',
-      'udpRegistrationIntervalMs',
+      'udpLocalHost', 'udpLocalPort',
       'grpcSerialization', 'grpcSendMethod',
       'grpcHeaderPath', 'grpcHeaderPathKey', 'useTls', 'tlsCaPath', 'tlsCertPath', 'tlsKeyPath',
       'allowUnverifiedTls', 'httpAllowUnverifiedTls', 'wsAllowUnverifiedTls',
@@ -2051,11 +2003,6 @@ function parseCommandLineArgs(rawArgv, { isPackaged = false } = {}) {
         presets[key] = mergedValues[key];
       }
     }
-    if (mergedValues.udpRegistrationIntervalMs !== undefined) {
-      presets.udpRegistrationIntervalMs = parseUdpRegistrationInterval(
-        mergedValues.udpRegistrationIntervalMs, errors
-      );
-    }
     if (mergedValues.udpAddressFamily !== undefined) {
       const udpAddressFamily = String(mergedValues.udpAddressFamily).trim().toLowerCase();
       if (!['ipv4', 'ipv6'].includes(udpAddressFamily)) {
@@ -2064,19 +2011,12 @@ function parseCommandLineArgs(rawArgv, { isPackaged = false } = {}) {
         presets.udpAddressFamily = udpAddressFamily;
       }
     }
-    if (mergedValues.udpConnectionMode !== undefined) {
-      try {
-        presets.udpConnectionMode = normalizeUdpConnectionMode(
-          String(mergedValues.udpConnectionMode).trim().toLowerCase()
-        );
-      } catch (error) {
-        errors.push(error.message);
-      }
-    }
-    if (mergedValues.udpLocalHost !== undefined) {
+    const uiDirectUdpClient = String(mergedValues.protocol || '').toLowerCase() === 'udp'
+      && String(mergedValues.mode || '').toLowerCase() === 'client';
+    if (mergedValues.udpLocalHost !== undefined && uiDirectUdpClient) {
       presets.udpLocalHost = String(mergedValues.udpLocalHost).trim();
     }
-    if (mergedValues.udpLocalPort !== undefined) {
+    if (mergedValues.udpLocalPort !== undefined && uiDirectUdpClient) {
       presets.udpLocalPort = parseInteger(
         mergedValues.udpLocalPort, 'udpLocalPort', errors, { min: 1, max: 65535 }
       );
@@ -2193,7 +2133,7 @@ function formatExplainOutput(cliOptions) {
     lines.push(sectionDivider);
 
     const d = DEFAULT_HEADLESS_OPTIONS;
-    const configLines = [
+    let configLines = [
       ['protocol', (presets && presets.protocol) || `(default: ${d.protocol})`],
       ['mode', (presets && presets.mode) || `(default: ${d.mode})`],
       ['ip', (presets && presets.ip) || `(default: ${d.ip})`],
@@ -2205,12 +2145,9 @@ function formatExplainOutput(cliOptions) {
         ? presets.tcpHandshakeUseEscapes : `(default: ${d.tcpHandshakeUseEscapes})`],
       ['udpFormat', (presets && presets.udpFormat) || `(default: ${d.udpFormat})`],
       ['udpAddressFamily', (presets && presets.udpAddressFamily) || `(default: ${d.udpAddressFamily})`],
-      ['udpConnectionMode', (presets && presets.udpConnectionMode) || `(default: ${d.udpConnectionMode})`],
       ['udpLocalHost', (presets && presets.udpLocalHost) || `(default: ${d.udpLocalHost})`],
       ['udpLocalPort', presets && presets.udpLocalPort !== undefined
         ? presets.udpLocalPort : `(default: ${d.udpLocalPort})`],
-      ['udpRegistrationIntervalMs', presets && presets.udpRegistrationIntervalMs !== undefined
-        ? presets.udpRegistrationIntervalMs : `(default: ${d.udpRegistrationIntervalMs})`],
       ['grpcSerialization', (presets && presets.grpcSerialization) || `(default: ${d.grpcSerialization})`],
       ['grpcSendMethod', (presets && presets.grpcSendMethod) || `(default: ${d.grpcSendMethod})`],
       ['grpcHeaderPath', (presets && presets.grpcHeaderPath) || `(default: ${d.grpcHeaderPath})`],
@@ -2226,6 +2163,9 @@ function formatExplainOutput(cliOptions) {
       ['wsPath', (presets && presets.wsPath) || `(default: ${d.wsPath})`],
       ['wsAllowUnverifiedTls', presets && presets.wsAllowUnverifiedTls !== undefined ? presets.wsAllowUnverifiedTls : `(default: ${d.wsAllowUnverifiedTls})`],
     ];
+    if (!presets || presets.protocol !== 'udp' || presets.mode !== 'client') {
+      configLines = configLines.filter(([key]) => !['udpLocalHost', 'udpLocalPort'].includes(key));
+    }
 
     const maxKeyLen = Math.max(...configLines.map(([key]) => key.length));
     configLines.forEach(([key, value]) => {
@@ -2241,8 +2181,13 @@ function formatExplainOutput(cliOptions) {
     lines.push('    connection controls visibility).');
 
     if (presets && presets.protocol && presets.mode) {
-      const addr = `${presets.ip || 'localhost'}:${presets.port || '5000'}`;
-      if (presets.mode === 'server') {
+      const udpClient = presets.protocol === 'udp' && presets.mode === 'client';
+      const addr = udpClient
+        ? `${presets.udpLocalHost || d.udpLocalHost}:${presets.udpLocalPort || d.udpLocalPort}`
+        : `${presets.ip || 'localhost'}:${presets.port || '5000'}`;
+      if (udpClient) {
+        lines.push(`    Transport : UDP client receiver binding on ${addr}`);
+      } else if (presets.mode === 'server') {
         const bindDesc = presets.ip === '0.0.0.0'
           ? 'all interfaces (remote clients can connect)'
           : presets.ip === '127.0.0.1'
@@ -2268,7 +2213,7 @@ function formatExplainOutput(cliOptions) {
     lines.push('  Headless Configuration');
     lines.push(sectionDivider);
 
-    const paramLines = [
+    let paramLines = [
       ['protocol', h.protocol.toUpperCase()],
       ['mode', h.mode],
       ['ip', h.ip],
@@ -2279,10 +2224,8 @@ function formatExplainOutput(cliOptions) {
       ['tcpHandshakeUseEscapes', h.tcpHandshakeUseEscapes],
       ['udpFormat', h.udpFormat],
       ['udpAddressFamily', h.udpAddressFamily],
-      ['udpConnectionMode', h.udpConnectionMode],
       ['udpLocalHost', h.udpLocalHost],
       ['udpLocalPort', h.udpLocalPort],
-      ['udpRegistrationIntervalMs', `${h.udpRegistrationIntervalMs}ms`],
       ['autoConnect', h.autoConnect],
       ['connectWaitForServer', h.connectWaitForServer],
       ['connectRetryIntervalMs', `${h.connectRetryIntervalMs}ms`],
@@ -2303,6 +2246,9 @@ function formatExplainOutput(cliOptions) {
       ['doneFile', h.doneFile || '(none)'],
       ['runId', h.runId || '(none)'],
     ];
+    if (h.protocol !== 'udp' || h.mode !== 'client') {
+      paramLines = paramLines.filter(([key]) => !['udpLocalHost', 'udpLocalPort'].includes(key));
+    }
 
     const maxKeyLen = Math.max(...paramLines.map(([key]) => key.length));
     paramLines.forEach(([key, value]) => {
@@ -2314,7 +2260,9 @@ function formatExplainOutput(cliOptions) {
     lines.push('  Behavior Summary');
     lines.push(sectionDivider);
 
-    if (h.mode === 'server') {
+    if (h.protocol === 'udp' && h.mode === 'client') {
+      lines.push(`    Transport : UDP client receiver binding on ${h.udpLocalHost}:${h.udpLocalPort}`);
+    } else if (h.mode === 'server') {
       const bindDesc = h.ip === '0.0.0.0'
         ? 'all interfaces (remote clients can connect)'
         : h.ip === '127.0.0.1'

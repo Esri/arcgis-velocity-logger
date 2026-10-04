@@ -281,6 +281,10 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
     );
     event({ type: 'click', id: 'protocol-settings-revert' });
     assert.strictEqual(document.getElementById('http-path').value, '/');
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const revertSync = sent.filter(({ channel }) => channel === 'protocol-window-sync').at(-1);
+    assert.ok(revertSync.payload.patches.length > 0,
+      'same-frame Revert forces the authoritative value back into the detached window');
 
     document.getElementById('protocol-settings-btn').click();
     assert.strictEqual(sent.filter(({ channel }) => channel === 'protocol-window-open').length, 2,
@@ -658,61 +662,59 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
     assert.strictEqual(note.hidden, true, 'UDP retains settings while connected');
   });
 
-  await uiTest('UDP registration renewal is Registered-client-only, summarized, validated, and sent', async ({ document, select, type, rows, sent, window }) => {
-    const renewal = document.getElementById('udp-registration-interval');
-    select('connection-type', 'udp-server');
-    assert.strictEqual(renewal.closest('.udp-client-only').style.display, 'none');
-
-    select('connection-type', 'udp-client');
-    const mode = document.getElementById('udp-connection-mode');
-    mode.value = 'registered';
-    mode.dispatchEvent(new window.Event('change', { bubbles: true }));
-    assert.notStrictEqual(renewal.closest('.udp-client-only').style.display, 'none');
-    type('udp-registration-interval', '45000');
-    document.getElementById('protocol-settings-btn').click();
-    document.getElementById('protocol-settings-tab-summary').click();
-    assert.strictEqual(
-      rows('protocol-settings-summary-rows')
-        .find((row) => row.key === 'udpRegistrationInterval').value,
-      '45000 ms',
-    );
-    document.getElementById('connect-btn').click();
-    assert.strictEqual(
-      sent.filter(({ channel }) => channel === 'connect-udp').at(-1).payload.udpRegistrationIntervalMs,
-      45000,
-    );
-    document.getElementById('udp-registration-interval').disabled = false;
-    type('udp-registration-interval', '0');
-    document.getElementById('connect-btn').disabled = false;
-    document.getElementById('connect-btn').click();
-    assert.match(document.getElementById('protocol-settings-alert').textContent, /between 1 and 2147483647/);
+  await uiTest('retired UDP registration controls are absent', async ({ document }) => {
+    assert.strictEqual(document.getElementById('udp-connection-mode'), null);
+    assert.strictEqual(document.getElementById('udp-registration-interval'), null);
   });
 
-  await uiTest('UDP Direct mode binds a stable local endpoint and disables legacy remote fields', async ({ document, select, type, rows, sent, window }) => {
+  await uiTest('UDP Client binds a stable local endpoint and disables unused remote fields', async ({ document, select, type, rows, sent }) => {
     select('connection-type', 'udp-client');
-    const mode = document.getElementById('udp-connection-mode');
     const localHost = document.getElementById('udp-local-host');
     const localPort = document.getElementById('udp-local-port');
-    mode.value = 'direct';
-    mode.dispatchEvent(new window.Event('change', { bubbles: true }));
     assert.strictEqual(document.getElementById('host').disabled, true);
     assert.strictEqual(document.getElementById('port').disabled, true);
-    assert.notStrictEqual(localHost.closest('.udp-direct-only').style.display, 'none');
-    assert.strictEqual(document.getElementById('udp-registration-interval').closest('.udp-registered-only').style.display, 'none');
+    assert.notStrictEqual(localHost.closest('.udp-client-only').style.display, 'none');
     type('udp-local-host', '0.0.0.0');
     type('udp-local-port', '17001');
-    type('udp-registration-interval', '0');
     document.getElementById('protocol-settings-btn').click();
     document.getElementById('protocol-settings-tab-summary').click();
-    assert.strictEqual(rows('protocol-settings-summary-rows').find((row) => row.key === 'udpConnectionMode').value, 'Direct');
     assert.strictEqual(rows('protocol-settings-summary-rows').find((row) => row.key === 'udpLocalEndpoint').value, '0.0.0.0:17001');
     document.getElementById('connect-btn').click();
     const request = sent.filter(({ channel }) => channel === 'connect-udp').at(-1).payload;
-    assert.strictEqual(request.udpConnectionMode, 'direct');
     assert.strictEqual(request.udpLocalHost, '0.0.0.0');
     assert.strictEqual(request.udpLocalPort, 17001);
-    assert.strictEqual(request.udpRegistrationIntervalMs, 0);
+    assert.ok(!Object.hasOwn(request, 'udpConnectionMode'));
+    assert.ok(!Object.hasOwn(request, 'udpRegistrationIntervalMs'));
   });
+
+  await uiTest('locked detached UDP edits are rejected and the editable section returns after disconnect', async ({ document, select, listeners }) => {
+    select('connection-type', 'udp-client');
+    document.getElementById('protocol-settings-btn').click();
+    document.getElementById('protocol-settings-tab-advanced').click();
+    const localPort = document.getElementById('udp-local-port');
+    localPort.value = '17001';
+    localPort.dispatchEvent(new document.defaultView.Event('input', { bubbles: true }));
+
+    listeners.get('udp-connection-state')('connected');
+    assert.strictEqual(
+      document.getElementById('protocol-settings-tab-summary').getAttribute('aria-selected'),
+      'true',
+    );
+    listeners.get('protocol-window-event')({
+      type: 'input', id: 'udp-local-port', value: '17002', revision: 7,
+    });
+    assert.strictEqual(localPort.value, '17001');
+
+    listeners.get('udp-connection-state')('disconnected');
+    assert.strictEqual(
+      document.getElementById('protocol-settings-tab-advanced').getAttribute('aria-selected'),
+      'true',
+    );
+    listeners.get('protocol-window-event')({
+      type: 'input', id: 'udp-local-port', value: '17002', revision: 8,
+    });
+    assert.strictEqual(localPort.value, '17002');
+  }, { detached: true });
 
   await uiTest('UDP address family is shared by both modes and reaches Connect', async ({ document, select, rows, sent, window }) => {
     const family = document.getElementById('udp-address-family');

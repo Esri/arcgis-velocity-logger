@@ -243,22 +243,15 @@ npm run start:headless
 npm run start:headless -- outputFile=./captured.log protocol=tcp mode=server ip=0.0.0.0 port=5565 maxLogCount=10000 doneFile=./run.done.json
 ```
 
-### Direct UDP client capturing for a fixed duration as JSONL
+### UDP client capturing for a fixed duration as JSONL
 
 ```bash
-npm run start:headless -- outputFile=./captured.jsonl outputFormat=jsonl protocol=udp mode=client udpConnectionMode=direct udpLocalHost=0.0.0.0 udpLocalPort=6000 durationMs=60000
+npm run start:headless -- outputFile=./captured.jsonl outputFormat=jsonl protocol=udp mode=client udpLocalHost=0.0.0.0 udpLocalPort=6000 durationMs=60000
 ```
 
-Direct is the default for new UDP Client configurations. It binds
-`udpLocalHost` and `udpLocalPort`, sends no marker, and accepts datagrams from
-any source address and port. The connection-row `ip` and `port` values do not
-control this Direct bind.
-
-With `udpConnectionMode=registered`, Logger instead sends one
-`UDP Client connected` registration datagram and renews it every
-`udpRegistrationIntervalMs` milliseconds (default `30000`). A compatible
-paired Simulator UDP server uses that marker to learn the reply endpoint.
-Renewal stops during teardown and does not acknowledge or guarantee delivery.
+UDP Client binds `udpLocalHost` and `udpLocalPort`, sends no control packet,
+and accepts datagrams from any source address and port. The connection-row
+`ip` and `port` values do not control this bind.
 
 ### Filter/exclude using regular expressions
 

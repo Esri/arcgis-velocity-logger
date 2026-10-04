@@ -154,10 +154,8 @@
     udp: Object.freeze([
       { field: 'udpFormat', defaultValue: 'delimited' },
       { field: 'udpAddressFamily', defaultValue: 'ipv4' },
-      { field: 'udpConnectionMode', defaultValue: 'direct', clientOnly: true },
       { field: 'udpLocalHost', defaultValue: '127.0.0.1', clientOnly: true },
       { field: 'udpLocalPort', defaultValue: 5565, clientOnly: true },
-      { field: 'udpRegistrationIntervalMs', defaultValue: 30000, clientOnly: true },
     ]),
     grpc: Object.freeze([
       { field: 'grpcSerialization', defaultValue: 'protobuf' },
@@ -293,8 +291,7 @@
    */
   function buildConnectionUrl(state) {
     const { protocol } = splitConnectionType(state.connectionType);
-    if (protocol === 'udp' && state.connectionType === 'udp-client'
-        && state.udpConnectionMode !== 'registered') {
+    if (protocol === 'udp' && state.connectionType === 'udp-client') {
       return formatEndpoint(state.udpLocalHost || '127.0.0.1', state.udpLocalPort || 5565);
     }
     const host = formatHostForUrl(state.host) || NOT_SET;
@@ -599,25 +596,13 @@
         }));
       }
       if (protocol === 'udp' && mode === 'client') {
-        const direct = state.udpConnectionMode !== 'registered';
-        rows.push(row('udpConnectionMode', 'UDP mode', direct ? 'Direct' : 'Registered', {
-          isDefault: direct,
-        }));
-        if (direct) {
-          rows.push(row(
-            'udpLocalEndpoint',
-            'Local endpoint',
-            formatEndpoint(state.udpLocalHost || '127.0.0.1', state.udpLocalPort || 5565),
-            { kind: 'endpoint', isDefault: (state.udpLocalHost || '127.0.0.1') === '127.0.0.1'
-              && Number(state.udpLocalPort || 5565) === 5565 },
-          ));
-        } else {
-          const interval = Number(state.udpRegistrationIntervalMs || 30000);
-          rows.push(row('udpRegistrationInterval', 'Registration renewal', `${interval} ms`, {
-            isDefault: interval === 30000,
-            detail: 'Custom Logger/Simulator pairing only; this is not an acknowledgment or delivery check.',
-          }));
-        }
+        rows.push(row(
+          'udpLocalEndpoint',
+          'Local endpoint',
+          formatEndpoint(state.udpLocalHost || '127.0.0.1', state.udpLocalPort || 5565),
+          { kind: 'endpoint', isDefault: (state.udpLocalHost || '127.0.0.1') === '127.0.0.1'
+            && Number(state.udpLocalPort || 5565) === 5565 },
+        ));
       }
       if (protocol === 'udp' && state.expectedDestination
           && typeof state.expectedDestination === 'object') {
@@ -744,7 +729,7 @@
    */
   function describeConnectionRole(state, protocol, mode) {
     const target = buildConnectionUrl(state);
-    if (protocol === 'udp' && mode === 'client' && state.udpConnectionMode !== 'registered') {
+    if (protocol === 'udp' && mode === 'client') {
       return `Listening on ${target}`;
     }
     if (mode === 'server') return `Listening on ${target}`;
@@ -783,8 +768,7 @@
       row('connection', 'Connection', CONNECTION_TYPE_LABELS[connectionType], { group: 'Connection', kind: 'state' }),
       row(
         'endpoint',
-        mode === 'server' || (protocol === 'udp' && mode === 'client'
-          && normalized.udpConnectionMode !== 'registered') ? 'Listening on' : 'Receiving from',
+        mode === 'server' || (protocol === 'udp' && mode === 'client') ? 'Listening on' : 'Receiving from',
         url,
         { group: 'Connection', kind: 'endpoint' },
       ),

@@ -97,7 +97,7 @@
                     <option value="tcp-server" selected title="TCP Server - listens on the specified port and accepts incoming TCP connections from clients. Use when the sender (e.g. ArcGIS Velocity Simulator) connects to this logger.">TCP Server</option>
                     <option value="tcp-client" title="TCP Client - connects to a remote TCP server at the specified host and port to receive data.">TCP Client</option>
                     <option value="udp-server" title="UDP Server - binds to the specified port and receives incoming UDP datagrams. Connectionless; each datagram is independent.">UDP Server</option>
-                    <option value="udp-client" title="UDP Client - receives datagrams from a compatible custom server after announcing its local reply endpoint.">UDP Client</option>
+                    <option value="udp-client" title="UDP Client - binds a stable local endpoint and receives datagrams from any sender.">UDP Client</option>
                     <option value="http-client" title="HTTP Client - sends data via HTTP/HTTPS POST requests to a remote endpoint (e.g. an ArcGIS Velocity HTTP Receiver feed). Supports JSON, CSV, Esri JSON, GeoJSON, and XML formats.">HTTP Client</option>
                     <option value="http-server" title="HTTP Server - starts a local HTTP/HTTPS server that accepts POST requests from clients. Use for receiving data from the Velocity Simulator or other HTTP senders.">HTTP Server</option>
                     <option value="ws-client" title="WebSocket Client - connects to a remote WebSocket server (ws:// or wss://) and receives data as text frames. Supports the same formats as HTTP.">WebSocket Client</option>
@@ -171,12 +171,6 @@
                                     <select id="udp-address-family" data-tooltip="IPv4 - use IPv4 addresses and resolve hostnames to IPv4. This is the default." aria-label="UDP address family: IPv4">
                                         <option value="ipv4" selected data-tooltip="IPv4 - use IPv4 addresses and resolve hostnames to IPv4. This is the default.">IPv4</option>
                                         <option value="ipv6" data-tooltip="IPv6 - use IPv6 addresses and resolve hostnames to IPv6. IPv4-mapped addresses are not supported.">IPv6</option>
-                                    </select>
-                                </label>
-                                <label class="protocol-settings-field udp-client-only" data-tooltip="Choose how UDP Client receives datagrams. Direct binds a stable local endpoint and sends no registration. Registered preserves the legacy paired-app registration behavior." aria-label="UDP connection mode">UDP mode:
-                                    <select id="udp-connection-mode" data-tooltip="Direct - use configured endpoints without registration or acknowledgment." aria-label="UDP mode: Direct">
-                                        <option value="direct" selected data-tooltip="Direct - use configured endpoints without registration or acknowledgment.">Direct</option>
-                                        <option value="registered" data-tooltip="Registered - compatibility pairing using the existing UDP registration marker; not standard UDP behavior.">Registered</option>
                                     </select>
                                 </label>
                             </div>
@@ -296,14 +290,11 @@
                                 </label>
                             </div>
                             <div class="protocol-settings-group" id="udp-advanced" data-protocol="udp" data-section="advanced">
-                                <label class="protocol-settings-field udp-client-only udp-direct-only" data-tooltip="Local UDP interface to bind in Direct mode. Loopback is local-only; choose another interface explicitly for remote traffic." aria-label="UDP local bind host">Local host:
-                                    <input type="text" id="udp-local-host" value="127.0.0.1" data-tooltip="Local UDP interface to bind in Direct mode. Loopback is local-only; choose another interface explicitly for remote traffic." aria-label="UDP local bind host">
+                                <label class="protocol-settings-field udp-client-only" data-tooltip="Local UDP interface to bind. Loopback is local-only; choose another interface explicitly for remote traffic." aria-label="UDP local bind host">Local host:
+                                    <input type="text" id="udp-local-host" value="127.0.0.1" data-tooltip="Local UDP interface to bind. Loopback is local-only; choose another interface explicitly for remote traffic." aria-label="UDP local bind host">
                                 </label>
-                                <label class="protocol-settings-field udp-client-only udp-direct-only" data-tooltip="Local UDP bind port in Direct mode. Receivers require a stable port; a publisher may use 0 for an ephemeral port." aria-label="UDP local bind port">Local port:
-                                    <input type="number" id="udp-local-port" value="5565" min="1" max="65535" data-tooltip="Local UDP bind port in Direct mode. Receivers require a stable port; a publisher may use 0 for an ephemeral port." aria-label="UDP local bind port">
-                                </label>
-                                <label class="protocol-settings-field udp-client-only udp-registered-only" data-tooltip="Renew the custom UDP client registration at this interval so a restarted Simulator server can rediscover the reply endpoint. This is not an acknowledgment or delivery check." aria-label="UDP client registration renewal interval">Registration renewal (ms)
-                                    <input type="number" id="udp-registration-interval" value="30000" min="1" max="2147483647" step="1000" data-tooltip="Renew the custom UDP client registration every 30000 milliseconds. Positive values up to 2147483647 are accepted. This does not apply to ArcGIS Velocity UDP outputs." aria-label="UDP client registration renewal interval in milliseconds">
+                                <label class="protocol-settings-field udp-client-only" data-tooltip="Stable local UDP receive port. The sender must target this port." aria-label="UDP local bind port">Local port:
+                                    <input type="number" id="udp-local-port" value="5565" min="1" max="65535" data-tooltip="Stable local UDP receive port. The sender must target this port." aria-label="UDP local bind port">
                                 </label>
                             </div>
                             <div class="protocol-settings-group" id="grpc-advanced" data-protocol="grpc" data-section="advanced">

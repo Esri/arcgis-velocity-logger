@@ -32,12 +32,7 @@ const path = require('path');
 const net = require('net');
 const dgram = require('dgram');
 const { RunLogger } = require('./run-logger.js');
-const {
-  DEFAULT_UDP_CLIENT_REGISTRATION_INTERVAL_MS,
-  isUdpClientRegistrationMessage,
-  normalizeUdpConnectionMode,
-  startUdpClientRegistration,
-} = require('./udp-utils.js');
+const { assertDirectUdpOptions } = require('./udp-utils.js');
 const {
   formatUdpEndpoint,
   resolveUdpEndpoint,
@@ -152,6 +147,7 @@ function createReceiver(options, {
   writeHandshake = writeTcpHandshake,
 }) {
   const { protocol, mode, ip, port, connectTimeoutMs } = options;
+  if (protocol === 'udp') assertDirectUdpOptions(options);
   let tcpHandshakeBytes = Buffer.alloc(0);
   let stopped = false;
   const closers = [];
@@ -160,7 +156,6 @@ function createReceiver(options, {
   function payloadCallbacks(context) {
     return {
       format: options[`${protocol}Format`],
-      isControlDatagram: isUdpClientRegistrationMessage,
       context,
       onRecord: (raw) => { if (!stopped) onLine(raw); },
       onWarning: (message, remote) => {
@@ -405,35 +400,24 @@ function createReceiver(options, {
         reject(error);
       });
     } else if (protocol === 'udp' && mode === 'client') {
-      const registrationIntervalMs = options.udpRegistrationIntervalMs
-        ?? DEFAULT_UDP_CLIENT_REGISTRATION_INTERVAL_MS;
-      const direct = normalizeUdpConnectionMode(options.udpConnectionMode) === 'direct';
       let socket = null;
-      let registration = null;
-      let registered = false;
       let receivedDatagram = false;
       closers.push(() => new Promise((res) => {
-        if (registration) registration.stop();
         if (!socket) return res();
         try {
-          if (typeof socket.remoteAddress === 'string') {
-            try { socket.disconnect(); } catch (_) {}
-          }
           socket.close(() => res());
         } catch (_) { res(); }
       }));
       resolveUdpEndpoint(
-        direct ? options.udpLocalHost : ip,
+        options.udpLocalHost,
         options.udpAddressFamily,
-        { bind: direct },
+        { bind: true },
       ).then((endpoint) => {
         if (stopped) return;
-        const remoteLabel = formatUdpEndpoint({ address: endpoint.address, port });
         socket = dgram.createSocket(endpoint.socketOptions);
         const callbacks = payloadCallbacks();
         const receivePayload = createUdpPayloadReceiver({
           ...callbacks,
-          isControlDatagram: direct ? undefined : isUdpClientRegistrationMessage,
           onRecord: (raw, remote) => {
             if (!receivedDatagram) {
               receivedDatagram = true;
@@ -444,51 +428,19 @@ function createReceiver(options, {
         });
         socket.on('message', receivePayload);
         socket.on('error', (err) => {
-          if (!direct && registered && err.code === 'ECONNREFUSED') {
-            logger.warn(`UDP endpoint ${remoteLabel} refused a datagram; registration renewal remains active.`);
-            return;
-          }
           clearTimer();
           onError(err);
           reject(err);
         });
-        if (direct) {
-          socket.on('listening', () => {
-            clearTimer();
-            const local = socket.address();
-            logger.info(
-              `UDP client direct receiver ready at ${formatUdpEndpoint(local)}; no registration was sent. Awaiting datagrams from any source address and port.`
-            );
-            resolve();
-          });
-          socket.bind(options.udpLocalPort, endpoint.address);
-          return;
-        }
-        socket.on('connect', () => {
-          registration = startUdpClientRegistration(socket, {
-            intervalMs: registrationIntervalMs,
-            onError: (error) => {
-              logger.warn(`UDP registration renewal failed for ${remoteLabel}: ${error.message}`);
-            },
-          });
-          registration.ready.then(() => {
-            if (stopped) return;
-            clearTimer();
-            registered = true;
-            logger.info(
-              `UDP client socket ready for ${remoteLabel}; registration sent and renews every ${registrationIntervalMs}ms without acknowledgment. Awaiting datagrams from that exact address and port.`
-            );
-            resolve();
-          }).catch((error) => {
-            if (stopped) return;
-            clearTimer();
-            reject(new Error(`UDP client registration failed: ${error.message}`));
-          });
-        });
         socket.on('listening', () => {
-          try { socket.connect(port, endpoint.address); } catch (err) { reject(err); }
+          clearTimer();
+          const local = socket.address();
+          logger.info(
+            `UDP client receiver ready at ${formatUdpEndpoint(local)}. Awaiting datagrams from any source address and port.`
+          );
+          resolve();
         });
-        socket.bind();
+        socket.bind(options.udpLocalPort, endpoint.address);
       }).catch((error) => {
         clearTimer();
         reject(error);

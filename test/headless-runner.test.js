@@ -15,7 +15,7 @@ const grpcTransportModule = require('../src/grpc-transport.js');
 const { createReceiver, runHeadlessSession, EXIT_CODES } = require('../src/headless-runner.js');
 const { DEFAULT_HEADLESS_OPTIONS } = require('../src/cli-options.js');
 const { createHttpClientTransport, createHttpServerTransport, HttpServerTransport } = require('../src/http-transport.js');
-const { UDP_CLIENT_REGISTRATION_MESSAGE } = require('../src/udp-utils.js');
+const UDP_MARKER_LITERAL = 'UDP Client connected';
 const { createWsClientTransport, createWsServerTransport } = require('../src/ws-transport.js');
 
 let passed = 0;
@@ -112,7 +112,6 @@ function baseOptions(overrides) {
     const receiver = createReceiver(baseOptions({
       protocol: 'tcp',
       mode: 'client',
-      udpConnectionMode: 'registered',
       ip: 'retry.example',
       port,
       tcpFormat: 'delimited',
@@ -152,7 +151,6 @@ function baseOptions(overrides) {
     const receiver = createReceiver(baseOptions({
       protocol: 'tcp',
       mode: 'client',
-      udpConnectionMode: 'registered',
       ip: '127.0.0.1',
       port: server.address().port,
       tcpFormat: 'delimited',
@@ -464,41 +462,7 @@ function baseOptions(overrides) {
     fs.unlinkSync(outFile);
   });
 
-  await test('UDP client registers its reply endpoint and captures the response datagram', async () => {
-    const port = await pickFreeUdpPort();
-    const outFile = tmpFile('log');
-    const expected = 'udp,recipient,record';
-    let registration = null;
-    const server = dgram.createSocket('udp4');
-    await new Promise((resolve, reject) => {
-      server.once('error', reject);
-      server.bind(port, '127.0.0.1', resolve);
-    });
-    server.on('message', (message, remote) => {
-      registration = message.toString('utf8');
-      server.send(Buffer.from(expected), remote.port, remote.address);
-    });
-    try {
-      const code = await runHeadlessSession(baseOptions({
-        protocol: 'udp',
-        mode: 'client',
-        udpConnectionMode: 'registered',
-        ip: '127.0.0.1',
-        port,
-        outputFile: outFile,
-        maxLogCount: 1,
-        durationMs: 2000,
-      }));
-      assert.strictEqual(code, EXIT_CODES.success);
-      assert.strictEqual(registration, UDP_CLIENT_REGISTRATION_MESSAGE);
-      assert.strictEqual(fs.readFileSync(outFile, 'utf8'), `${expected}\n`);
-    } finally {
-      await new Promise((resolve) => server.close(resolve));
-      if (fs.existsSync(outFile)) fs.unlinkSync(outFile);
-    }
-  });
-
-  await test('UDP direct client binds a stable local endpoint and accepts ephemeral sender ports', async () => {
+  await test('UDP client binds a stable local endpoint and accepts ephemeral sender ports', async () => {
     const localPort = await pickFreeUdpPort();
     const legacyRemotePort = await pickFreeUdpPort();
     const outFile = tmpFile('log');
@@ -517,7 +481,6 @@ function baseOptions(overrides) {
       mode: 'client',
       ip: '127.0.0.1',
       port: legacyRemotePort,
-      udpConnectionMode: 'direct',
       udpLocalHost: '127.0.0.1',
       udpLocalPort: localPort,
       udpAddressFamily: 'ipv4',
@@ -532,7 +495,7 @@ function baseOptions(overrides) {
       for (const [socket, payload] of [
         [senderA, 'sender,a'],
         [senderB, 'sender,b'],
-        [senderA, UDP_CLIENT_REGISTRATION_MESSAGE],
+        [senderA, UDP_MARKER_LITERAL],
       ]) {
         await new Promise((resolve, reject) => socket.send(
           Buffer.from(payload), localPort, '127.0.0.1',
@@ -541,11 +504,10 @@ function baseOptions(overrides) {
       }
       assert.strictEqual(await run, EXIT_CODES.success);
       assert.deepStrictEqual(fs.readFileSync(outFile, 'utf8').trim().split('\n').sort(), [
-        UDP_CLIENT_REGISTRATION_MESSAGE, 'sender,a', 'sender,b',
+        UDP_MARKER_LITERAL, 'sender,a', 'sender,b',
       ]);
       const diagnostics = fs.readFileSync(logFile, 'utf8');
-      assert.match(diagnostics, /direct receiver ready/);
-      assert.match(diagnostics, /no registration was sent/);
+      assert.match(diagnostics, /receiver ready/);
       assert.match(diagnostics, /any source address and port/);
       assert.deepStrictEqual(unexpectedOutbound, []);
     } finally {
@@ -573,7 +535,6 @@ function baseOptions(overrides) {
       const code = await runHeadlessSession(baseOptions({
         protocol: 'udp',
         mode: 'client',
-        udpConnectionMode: 'direct',
         udpLocalHost: '127.0.0.1',
         udpLocalPort: localPort,
         logFile,
@@ -589,53 +550,7 @@ function baseOptions(overrides) {
     }
   });
 
-  await test('UDP Registered client filters a different source port and reports readiness honestly', async () => {
-    const port = await pickFreeUdpPort();
-    const outFile = tmpFile('log');
-    const logFile = tmpFile('log');
-    const server = dgram.createSocket('udp4');
-    const alternate = dgram.createSocket('udp4');
-    await Promise.all([
-      new Promise((resolve, reject) => {
-        server.once('error', reject);
-        server.bind(port, '127.0.0.1', resolve);
-      }),
-      new Promise((resolve, reject) => {
-        alternate.once('error', reject);
-        alternate.bind(0, '127.0.0.1', resolve);
-      }),
-    ]);
-    server.once('message', async (_message, remote) => {
-      alternate.send(Buffer.from('wrong,source,port'), remote.port, remote.address);
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      server.send(Buffer.from('expected,source,port'), remote.port, remote.address);
-    });
-    try {
-      const code = await runHeadlessSession(baseOptions({
-        protocol: 'udp', mode: 'client', udpConnectionMode: 'registered',
-        ip: '127.0.0.1', port, outputFile: outFile, logFile, logLevel: 'info',
-        maxLogCount: 1, durationMs: 2000,
-      }));
-      assert.strictEqual(code, EXIT_CODES.success);
-      assert.strictEqual(fs.readFileSync(outFile, 'utf8'), 'expected,source,port\n');
-      const diagnostics = fs.readFileSync(logFile, 'utf8');
-      assert.match(diagnostics, /socket ready/);
-      assert.match(diagnostics, /without acknowledgment/);
-      assert.match(diagnostics, /exact address and port/);
-      assert.match(diagnostics, /First UDP datagram received from/);
-      assert.doesNotMatch(diagnostics, /wrong,source,port/);
-    } finally {
-      await Promise.all([
-        new Promise((resolve) => server.close(resolve)),
-        new Promise((resolve) => alternate.close(resolve)),
-      ]);
-      for (const filename of [outFile, logFile]) {
-        if (fs.existsSync(filename)) fs.unlinkSync(filename);
-      }
-    }
-  });
-
-  await test('UDP server preserves all datagrams including the client registration literal', async () => {
+  await test('UDP server preserves all datagrams including the former marker literal', async () => {
     const port = await pickFreeUdpPort();
     const outFile = tmpFile('jsonl');
     const logFile = tmpFile('log');
@@ -650,7 +565,7 @@ function baseOptions(overrides) {
     try {
       await new Promise((resolve) => setTimeout(resolve, 100));
       for (const packet of [
-        Buffer.from(UDP_CLIENT_REGISTRATION_MESSAGE),
+        Buffer.from(UDP_MARKER_LITERAL),
         Buffer.from([0xc3, 0x28]),
         ...records.map((record) => Buffer.from(record)),
       ]) {
@@ -660,7 +575,7 @@ function baseOptions(overrides) {
       assert.strictEqual(await run, EXIT_CODES.success);
       const entries = fs.readFileSync(outFile, 'utf8').trim().split('\n').map(JSON.parse);
       assert.deepStrictEqual(entries.map((entry) => entry.data), [
-        UDP_CLIENT_REGISTRATION_MESSAGE,
+        UDP_MARKER_LITERAL,
         ...records,
       ]);
       assert.strictEqual(JSON.parse(fs.readFileSync(doneFile)).summary.stopReason, 'maxLogCount');

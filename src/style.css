@@ -1046,8 +1046,7 @@ button[id]:disabled {
     text-align-last: left;
 }
 
-#udp-local-port,
-#udp-registration-interval {
+#udp-local-port {
     text-align: right;
     text-align-last: right;
 }

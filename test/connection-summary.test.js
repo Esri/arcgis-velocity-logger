@@ -293,21 +293,20 @@ test('all TCP and UDP format choices appear in Summary and count only nondefault
   }
 });
 
-test('UDP client summary reports registration renewal while UDP server omits it', () => {
+test('UDP client summary reports its local endpoint while UDP server uses inline endpoint', () => {
   const client = buildConnectionSummary({
     ...BASE,
     connectionType: 'udp-client',
-    udpConnectionMode: 'registered',
-    udpRegistrationIntervalMs: 45000,
+    udpLocalHost: '0.0.0.0',
+    udpLocalPort: 17001,
   });
-  assert.strictEqual(rowsByKey(client).udpRegistrationInterval.value, '45000 ms');
+  assert.strictEqual(rowsByKey(client).udpLocalEndpoint.value, '0.0.0.0:17001');
   assert.strictEqual(client.settings.count, 2);
   const server = buildConnectionSummary({
     ...BASE,
     connectionType: 'udp-server',
-    udpRegistrationIntervalMs: 45000,
   });
-  assert.strictEqual(rowsByKey(server).udpRegistrationInterval, undefined);
+  assert.strictEqual(rowsByKey(server).udpLocalEndpoint, undefined);
   assert.strictEqual(server.settings.count, 0);
 });
 
@@ -399,21 +398,13 @@ test('the connection state is echoed for every lifecycle value', () => {
 });
 
 test('UDP connected summaries distinguish Ready, Listening, and Receiving', () => {
-  const direct = buildConnectionSummary({
+  const client = buildConnectionSummary({
     ...BASE,
     connectionType: 'udp-client',
     connectionState: 'connected',
-    udpConnectionMode: 'direct',
   });
-  assert.strictEqual(rowsByKey(direct).status.value, 'Ready');
-  assert.strictEqual(direct.connectionStateLabel, 'Ready');
-  const registered = buildConnectionSummary({
-    ...BASE,
-    connectionType: 'udp-client',
-    connectionState: 'connected',
-    udpConnectionMode: 'registered',
-  });
-  assert.strictEqual(rowsByKey(registered).status.value, 'Ready');
+  assert.strictEqual(rowsByKey(client).status.value, 'Ready');
+  assert.strictEqual(client.connectionStateLabel, 'Ready');
   const server = buildConnectionSummary({
     ...BASE,
     connectionType: 'udp-server',

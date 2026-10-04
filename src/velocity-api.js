@@ -178,6 +178,7 @@ function parseItem(item, direction) {
     if (name === 'udp-client') {
       const udpFields = {
         [`${name}.connectionMode`]: 'udpConnectionMode',
+        [`${name}.registrationIntervalMs`]: 'udpRegistrationIntervalMs',
         [`${name}.localHost`]: 'udpLocalHost',
         [`${name}.localPort`]: 'udpLocalPort',
         [`${name}.sourceHost`]: 'udpSourceHost',

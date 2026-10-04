@@ -53,97 +53,91 @@ test('missing or invalid endpoints fail without fallback', () => {
   assert.throws(() => build({ feedType: 'mqtt', url: 'https://receiver.example.com' }), /supported/);
 });
 
-test('UDP feeds publish as clients while both UDP outputs receive as servers', () => {
-  assert.deepStrictEqual(build({
-    feedType: 'udp-server', host: 'velocity.example.com',
-    port: 17009, format: 'json',
-  }), {
-    connectionType: 'udp-client', ip: 'velocity.example.com', port: 17009, udpFormat: 'json',
-    udpConnectionMode: 'direct', udpAddressFamily: 'ipv4', udpAppendNewline: false,
-  });
-  assert.throws(() => build({
-    feedType: 'udp-client', host: 'velocity.example.com', port: 17012, format: 'delimited',
-  }), /does not advertise its receiving contract/);
-  assert.deepStrictEqual(build({
-    feedType: 'udp-client', host: 'velocity.example.com', port: 17012, format: 'delimited',
-    udpConnectionMode: 'direct', udpLocalHost: 'velocity.example.com', udpLocalPort: 17012,
-  }), {
-    connectionType: 'udp-client', ip: 'velocity.example.com', port: 17012, udpFormat: 'delimited',
-    udpConnectionMode: 'direct', udpAddressFamily: 'ipv4', udpAppendNewline: true,
-  });
-  for (const outputType of ['udp-client', 'udp-server']) {
-    const options = build({
-      outputType, host: 'logger.example.com', port: 17013, format: 'geo-json',
-    });
-    assert.strictEqual(options.connectionType, 'udp-server');
-    assert.strictEqual(options.ip, '127.0.0.1');
-    assert.strictEqual(options.port, 17013);
-    assert.strictEqual(options.udpFormat, 'geo-json');
-    assert.strictEqual(options.udpAddressFamily, 'ipv4');
-    assert.deepStrictEqual(options.expectedDestination, {
-      host: 'logger.example.com', port: 17013, family: 'ipv4',
-    });
-    assert.match(options.routingWarning, /choose a local interface/i);
-    assert.match(options.routingWarning, /No registration datagram is sent/);
+test('both UDP feed types receive and both output types send without registration', () => {
+  for (const type of ['udp-client', 'udp-server']) {
+    for (const format of ['delimited', 'json', 'geo-json', 'esri-json']) {
+      assert.deepStrictEqual(build({
+        feedType: type, host: 'data.example.com', serverApiUrl: 'https://management.example.com/arcgis',
+        udpLocalHost: 'data.example.com', udpLocalPort: '17009',
+        port: '17009', format,
+      }), {
+        connectionType: 'udp-client', ip: 'data.example.com', port: 17009, udpFormat: format,
+        udpAddressFamily: 'ipv4',
+        udpAppendNewline: format === 'delimited',
+      });
+      const output = build({ outputType: type, host: 'destination.example.com', port: 17009, format });
+      assert.strictEqual(output.connectionType, 'udp-server');
+      assert.strictEqual(output.ip, '127.0.0.1');
+      assert.strictEqual(output.udpFormat, format);
+      assert.strictEqual(Object.hasOwn(output, 'udpConnectionMode'), false);
+      assert.strictEqual(Object.hasOwn(output, 'udpRegistrationIntervalMs'), false);
+      assert.deepStrictEqual(output.expectedDestination, { host: 'destination.example.com', port: 17009, family: 'ipv4' });
+      assert.match(output.routingWarning, /destination.example.com:17009/);
+      assert.match(output.routingWarning, /routes to this Logger/);
+      if (type === 'udp-server') assert.match(output.routingWarning, /fixed by the deployment public host name/);
+    }
+    for (const direction of ['feedType', 'outputType']) {
+      for (const host of ['', '0.0.0.0', '*', '::', '[::]', 'bad host']) {
+        assert.throws(() => build({ [direction]: type, host, port: 17009, udpLocalHost: host, udpLocalPort: 17009, serverApiUrl: 'https://management.example.com' }), /host|IPv4/);
+      }
+      for (const port of [0, 65536, 'bad']) assert.throws(() => build({ [direction]: type, host: 'data.example.com', port, udpLocalHost: 'data.example.com', udpLocalPort: port }), /port/);
+      assert.throws(() => build({ [direction]: type, host: 'data.example.com', port: 17009, format: 'xml', udpLocalHost: 'data.example.com', udpLocalPort: 17009 }), /XML/);
+    }
   }
 });
 
-test('UDP mapping supports IPv6 where the connector contract allows it', () => {
-  const feed = build({
-    feedType: 'udp-client', host: '2001:db8::10', port: 17009, format: 'json',
-    udpConnectionMode: 'direct', udpLocalHost: '2001:db8::10', udpLocalPort: 17009,
-  });
-  assert.deepStrictEqual(feed, {
-    connectionType: 'udp-client',
-    ip: '2001:db8::10',
-    port: 17009,
-    udpConnectionMode: 'direct',
-    udpAddressFamily: 'ipv6',
-    udpFormat: 'json',
-    udpAppendNewline: false,
-  });
-  for (const outputType of ['udp-client', 'udp-server']) {
-    const output = build({
-      outputType, host: '2001:db8::20', port: 17010, format: 'json',
-    });
-    assert.strictEqual(output.connectionType, 'udp-server');
-    assert.strictEqual(output.ip, '::1');
-    assert.strictEqual(output.udpAddressFamily, 'ipv6');
-    assert.deepStrictEqual(output.expectedDestination, {
-      host: '2001:db8::20', port: 17010, family: 'ipv6',
-    });
-    assert.match(output.routingWarning, /\[2001:db8::20\]:17010/);
-  }
-  assert.throws(() => build({
-    feedType: 'udp-server', host: '2001:db8::30', port: 17011, format: 'json',
-  }), /bind IPv4 only/);
+test('UDP Client feeds use only the advertised receiving endpoint, never the remote publisher', () => {
+  const remote = { feedType: 'udp-client', host: 'publisher.example.com', port: 5565,
+    serverApiUrl: 'https://management.example.com', udpSourceHost: '192.0.2.30' };
+  assert.throws(() => build(remote), /host|endpoint/i);
+  assert.throws(() => build({ ...remote, udpLocalHost: 'receiver.example.com' }), /port/i);
+  assert.throws(() => build({ ...remote, udpLocalPort: 17009 }), /host|endpoint/i);
+  const options = build({ ...remote, udpLocalHost: 'receiver.example.com', udpLocalPort: 17009 });
+  assert.strictEqual(options.connectionType, 'udp-client');
+  assert.strictEqual(options.ip, 'receiver.example.com');
+  assert.strictEqual(options.port, 17009);
+  assert.strictEqual(Object.hasOwn(options, 'udpSourceHost'), false);
+  assert.strictEqual(Object.hasOwn(options, 'udpConnectionMode'), false);
 });
 
-test('TCP connector roles remain complementary', () => {
+test('all UDP mappings reject obsolete metadata even when the old mode says direct', () => {
+  for (const direction of ['feedType', 'outputType']) {
+    for (const type of ['udp-client', 'udp-server']) {
+      for (const [key, values] of [
+        ['udpConnectionMode', ['direct', 'registered', '', undefined, null]],
+        ['udpRegistrationIntervalMs', [30000, 0, undefined]],
+      ]) {
+        for (const value of values) assert.throws(() => build({
+          [direction]: type, host: 'data.example.com', port: 17009,
+          udpLocalHost: 'receiver.example.com', udpLocalPort: 17010, [key]: value,
+        }), /obsolete|no longer supported/i);
+      }
+    }
+  }
+});
+
+test('TCP connector role inversion is unchanged', () => {
   assert.deepStrictEqual(build({
     feedType: 'tcp-server', serverApiUrl: 'https://velocity.example.com/arcgis',
     port: '17011', format: 'delimited',
   }), {
-    connectionType: 'tcp-client', ip: 'velocity.example.com', port: 17011,
-    tcpAddressFamily: 'ipv4', tcpHandshakeText: '', tcpHandshakeUseEscapes: true,
-    tcpFormat: 'delimited',
+    connectionType: 'tcp-client', ip: 'velocity.example.com', port: 17011, tcpFormat: 'delimited', tcpAddressFamily: 'ipv4', tcpHandshakeText: '', tcpHandshakeUseEscapes: true,
   });
-  assert.deepStrictEqual(build({
+
+  const clientOutput = build({
     outputType: 'tcp-client', host: 'logger.example.com', port: 17013, format: 'esri-json',
-  }), {
-    connectionType: 'tcp-server', ip: '127.0.0.1', port: 17013,
-    tcpAddressFamily: 'auto', tcpHandshakeText: '', tcpHandshakeUseEscapes: true,
-    tcpFormat: 'esri-json',
-    expectedDestination: { host: 'logger.example.com', port: 17013, family: 'auto' },
-    routingWarning: 'Velocity connects to logger.example.com:17013. The Logger bind address defaults to 127.0.0.1; choose a local interface and ensure the advertised destination routes to this Logger.',
   });
+  assert.strictEqual(clientOutput.connectionType, 'tcp-server');
+  assert.strictEqual(clientOutput.ip, '127.0.0.1');
+  assert.strictEqual(clientOutput.tcpFormat, 'esri-json');
+  assert.strictEqual(clientOutput.tcpAddressFamily, 'auto');
+  assert.deepStrictEqual(clientOutput.expectedDestination, { host: 'logger.example.com', port: 17013, family: 'auto' });
+  assert.match(clientOutput.routingWarning, /routes to this Logger/);
   assert.deepStrictEqual(build({
     outputType: 'tcp-server', serverApiUrl: 'https://velocity.example.com:7143/arcgis',
     port: 17011, format: 'json',
   }), {
-    connectionType: 'tcp-client', ip: 'velocity.example.com', port: 17011,
-    tcpAddressFamily: 'ipv4', tcpHandshakeText: '', tcpHandshakeUseEscapes: true,
-    tcpFormat: 'json',
+    connectionType: 'tcp-client', ip: 'velocity.example.com', port: 17011, tcpFormat: 'json', tcpAddressFamily: 'ipv4', tcpHandshakeText: '', tcpHandshakeUseEscapes: true,
   });
   assert.throws(() => build({
     outputType: 'tcp-server', port: 17011, format: 'json',
@@ -164,10 +158,65 @@ test('TCP connector roles remain complementary', () => {
     feedType: 'udp-server', host: '2001:db8::1',
     port: 17009, format: 'json',
   }), /IPv4/);
-  assert.throws(() => build({
-    outputType: 'udp-server', serverApiUrl: 'https://velocity.example.com/arcgis',
-    port: 17009, format: 'json',
-  }), /advertised destination host/);
+});
+
+test('TCP server-role mapping keeps advertised destinations separate from safe local binds', () => {
+  for (const direction of ['feedType', 'outputType']) {
+    for (const type of ['tcp', 'tcp-client']) {
+      for (const [host, family, local] of [
+        ['remote.example.com', 'auto', '127.0.0.1'],
+        ['192.0.2.12', 'ipv4', '127.0.0.1'],
+        ['2001:db8::12', 'ipv6', '::1'],
+      ]) {
+        const options = build({ [direction]: type, host, tcpAddressFamily: family, port: 17009 });
+        assert.strictEqual(options.connectionType, 'tcp-server');
+        assert.strictEqual(options.ip, local);
+        assert.strictEqual(options.port, 17009);
+        assert.deepStrictEqual(options.expectedDestination, { host, port: 17009, family });
+        assert.match(options.routingWarning, /choose a local interface/);
+        if (family === 'ipv6') assert.match(options.routingWarning, /\[2001:db8::12\]:17009/);
+        assert.strictEqual(options.tcpHandshakeText, '');
+      }
+    }
+  }
+});
+
+test('advertised IPv6 selects family only for capable Velocity connectors', () => {
+  for (const host of ['::1', '[::1]']) {
+    const feed = build({ feedType: 'udp-client', host, port: 17009, format: 'delimited', udpLocalHost: host, udpLocalPort: 17009 });
+    assert.strictEqual(feed.udpAddressFamily, 'ipv6');
+    assert.strictEqual(feed.ip, '::1');
+    assert.strictEqual(feed.udpAppendNewline, true);
+    for (const outputType of ['udp-client', 'udp-server']) {
+      const output = build({ outputType, host, port: 17009 });
+      assert.strictEqual(output.udpAddressFamily, 'ipv6');
+      assert.strictEqual(output.ip, '::1');
+      assert.deepStrictEqual(output.expectedDestination, { host: '::1', port: 17009, family: 'ipv6' });
+      assert.match(output.routingWarning, /\[::1\]:17009/);
+    }
+    assert.throws(() => build({ feedType: 'udp-server', host, port: 17009 }), /bind IPv4 only/);
+    for (const direction of ['feedType', 'outputType']) {
+      assert.strictEqual(build({ [direction]: 'tcp-client', host, port: 17009 }).tcpAddressFamily, 'ipv6');
+      assert.throws(() => build({ [direction]: 'tcp-server', host, port: 17009 }), /bind IPv4 only/);
+    }
+  }
+  assert.strictEqual(build({ feedType: 'udp-client', host: 'dual.example', port: 17009, udpLocalHost: 'dual.example', udpLocalPort: 17009 }).udpAddressFamily, 'ipv4');
+  assert.strictEqual(build({ feedType: 'tcp-client', host: 'dual.example', port: 17009 }).tcpAddressFamily, 'auto');
+  for (const protocol of ['tcp', 'udp']) {
+    assert.throws(() => build({ feedType: `${protocol}-client`, host: '::1', port: 17009, udpLocalHost: '::1', udpLocalPort: 17009, [`${protocol}AddressFamily`]: 'ipv4' }), /family/);
+    assert.throws(() => build({ feedType: `${protocol}-client`, host: '127.0.0.1', port: 17009, udpLocalHost: '127.0.0.1', udpLocalPort: 17009, [`${protocol}AddressFamily`]: 'ipv6' }), /family/);
+  }
+});
+
+test('every TCP mapping clears a previous greeting instead of exposing it to a new endpoint', () => {
+  for (const direction of ['feedType', 'outputType']) {
+    for (const type of ['tcp', 'tcp-client', 'tcp-server']) {
+      const options = build({ [direction]: type, host: 'new.example.com', port: 5565,
+        tcpHandshakeText: 'secret-from-another-endpoint', tcpHandshakeUseEscapes: false });
+      assert.strictEqual(options.tcpHandshakeText, '');
+      assert.strictEqual(options.tcpHandshakeUseEscapes, true);
+    }
+  }
 });
 
 test('HTTP Poller and WebSocket feeds map to Simulator server roles', () => {

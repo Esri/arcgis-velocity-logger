@@ -28,10 +28,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const tcpHandshakeUseEscapesCheckbox = document.getElementById('tcp-handshake-use-escapes');
     const udpFormatSelect = document.getElementById('udp-format');
     const udpAddressFamilySelect = document.getElementById('udp-address-family');
-    const udpConnectionModeSelect = document.getElementById('udp-connection-mode');
     const udpLocalHostInput = document.getElementById('udp-local-host');
     const udpLocalPortInput = document.getElementById('udp-local-port');
-    const udpRegistrationIntervalInput = document.getElementById('udp-registration-interval');
     const grpcSerializationSelect = document.getElementById('grpc-serialization');
     const grpcSendMethodSelect = document.getElementById('grpc-send-method');
     const grpcHeaderPathKeyInput = document.getElementById('grpc-header-path-key');
@@ -113,25 +111,6 @@ document.addEventListener('DOMContentLoaded', () => {
         tcpHandshakeTextInput.tcpHandshakeRawValue = raw;
         tcpHandshakeTextInput.value = raw;
     }
-    const UDP_CONNECTION_MODE_TOOLTIPS = {
-        direct: 'Direct - use configured endpoints without registration or acknowledgment.',
-        registered: 'Registered - compatibility pairing using the existing UDP registration marker; not standard UDP behavior.',
-    };
-    function updateUdpConnectionModeTooltip() {
-        if (!udpConnectionModeSelect) return;
-        const tooltip = UDP_CONNECTION_MODE_TOOLTIPS[udpConnectionModeSelect.value]
-            || UDP_CONNECTION_MODE_TOOLTIPS.direct;
-        udpConnectionModeSelect.dataset.tooltip = tooltip;
-        udpConnectionModeSelect.setAttribute('aria-label', `UDP mode: ${udpConnectionModeSelect.selectedOptions[0]?.textContent || 'Direct'}`);
-    }
-    if (udpConnectionModeSelect) {
-        udpConnectionModeSelect.addEventListener('change', () => {
-            updateUdpConnectionModeTooltip();
-            updateProtocolVisibility();
-        });
-        updateUdpConnectionModeTooltip();
-    }
-
     function getTcpHandshakeText() {
         if (!tcpHandshakeTextInput) return '';
         const raw = typeof tcpHandshakeTextInput.tcpHandshakeRawValue === 'string'
@@ -219,19 +198,6 @@ document.addEventListener('DOMContentLoaded', () => {
         updateUdpAddressFamilyTooltip();
     }
 
-    function updateUdpRegistrationIntervalTooltip() {
-        if (!udpRegistrationIntervalInput) return;
-        const value = udpRegistrationIntervalInput.value || '30000';
-        const tooltip = `Renew the custom UDP client registration every ${value} milliseconds. Positive values up to 2147483647 are accepted. This does not apply to ArcGIS Velocity UDP outputs.`;
-        udpRegistrationIntervalInput.dataset.tooltip = tooltip;
-        udpRegistrationIntervalInput.setAttribute('aria-label', tooltip);
-    }
-    if (udpRegistrationIntervalInput) {
-        udpRegistrationIntervalInput.addEventListener('input', updateUdpRegistrationIntervalTooltip);
-        udpRegistrationIntervalInput.addEventListener('change', updateUdpRegistrationIntervalTooltip);
-        updateUdpRegistrationIntervalTooltip();
-    }
-
     function updateGrpcSerializationTooltip() {
         const tooltip = GRPC_SERIALIZATION_TOOLTIPS[grpcSerializationSelect.value] || GRPC_SERIALIZATION_TOOLTIPS.protobuf;
         grpcSerializationSelect.title = tooltip;
@@ -298,7 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'tcp-server': 'TCP Server - listens on the specified port and accepts incoming TCP connections from clients.',
         'tcp-client': 'TCP Client - connects to a remote TCP server at the specified host and port to receive data.',
         'udp-server': 'UDP Server - binds to the specified port and receives incoming UDP datagrams.',
-        'udp-client': 'UDP Client - receives datagrams from a compatible custom server after announcing its local reply endpoint.',
+        'udp-client': 'UDP Client - binds a stable local endpoint and receives datagrams from any sender.',
         'http-client': 'HTTP Client - sends data via HTTP/HTTPS POST requests to a remote endpoint.',
         'http-server': 'HTTP Server - starts a local HTTP/HTTPS server that accepts POST requests from clients.',
         'ws-client': 'WebSocket Client - connects to a remote WebSocket server (ws:// or wss://) and receives data as text frames.',
@@ -311,7 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const DEFAULT_HOST_TOOLTIP = 'Host name or IP address. In a server mode this is the local address to bind; in a client mode it is the remote address to reach.';
     const SOCKET_HOST_TOOLTIPS = {
         client: 'Destination address: enter a reachable peer IP address or DNS name matching the selected address family. Do not use 0.0.0.0 or :: as a destination.',
-        directUdp: 'Remote Host and Port are not used in Direct UDP receive mode. Configure the stable local receive endpoint in Protocol Settings → Advanced.',
+        directUdp: 'Remote Host and Port are not used in UDP Client receive mode. Configure the stable local receive endpoint in Protocol Settings → Advanced.',
         ipv4: 'Local bind address: 127.0.0.1 accepts same-machine traffic only. A local LAN IP restricts listening to that interface. Use 0.0.0.0 to listen on all local IPv4 interfaces for remote peers or multiple interfaces. This expands network exposure; firewall rules still apply.',
         ipv6: 'Local bind address: ::1 accepts same-machine traffic only. A local IPv6 address restricts listening to that interface. Use :: to listen on all local IPv6 interfaces for remote peers or multiple interfaces. Explicit IPv6 listeners accept IPv6 only. This expands network exposure; firewall rules still apply.',
         auto: 'Local bind address: 127.0.0.1 or ::1 is same-machine only. A local LAN IP restricts listening to that interface. Use 0.0.0.0 for all local IPv4 interfaces or :: for the system IPv6 wildcard when remote peers or multiple interfaces need access. Auto preserves system listen behavior. Wildcard binds expand network exposure; firewall rules still apply.',
@@ -329,7 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let tooltip = DEFAULT_HOST_TOOLTIP;
         if (protocol === 'tcp' || protocol === 'udp') {
             if (type.endsWith('-client')) {
-                tooltip = protocol === 'udp' && udpConnectionModeSelect?.value === 'direct'
+                tooltip = protocol === 'udp'
                     ? SOCKET_HOST_TOOLTIPS.directUdp
                     : SOCKET_HOST_TOOLTIPS.client;
             } else if (protocol === 'tcp') {
@@ -448,6 +414,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             applyingPresetValues = false;
         }
+        if (protocolSettingsSource) protocolSettingsSource.reset();
         activePresetId = presetId;
         modifiedFromPresetId = '';
         clearConnectionValidation();
@@ -618,22 +585,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     && connectionTypeSelect.value.endsWith('-client') ? '' : 'none';
             });
             if (connectionLockState === 'disconnected') {
-                const directUdpClient = connectionTypeSelect.value === 'udp-client'
-                    && udpConnectionModeSelect?.value === 'direct';
+                const directUdpClient = connectionTypeSelect.value === 'udp-client';
                 hostInput.disabled = directUdpClient;
                 portInput.disabled = directUdpClient;
                 updateSocketHostTooltip();
             }
-            group.querySelectorAll('.udp-direct-only').forEach((element) => {
-                element.style.display = protocol === 'udp'
-                    && connectionTypeSelect.value.endsWith('-client')
-                    && udpConnectionModeSelect?.value === 'direct' ? '' : 'none';
-            });
-            group.querySelectorAll('.udp-registered-only').forEach((element) => {
-                element.style.display = protocol === 'udp'
-                    && connectionTypeSelect.value.endsWith('-client')
-                    && udpConnectionModeSelect?.value === 'registered' ? '' : 'none';
-            });
         });
         const xmppActions = protocolSettingsDialog?.querySelector('.xmpp-actions');
         if (xmppActions) xmppActions.style.display = isXmppServer ? '' : 'none';
@@ -803,6 +759,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let protocolSettingsOpenSnapshot = null;
     let protocolSettingsOpenPresetState = null;
     let protocolSettingsActiveSection = 'basics';
+    let protocolSettingsLastEditableSection = 'basics';
+    let protocolSettingsSummaryForcedByConnection = false;
     let protocolSettingsReturnFocus = null;
     let connectionLockState = 'disconnected';
     let lastConnectionSummary = null;
@@ -927,6 +885,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const available = getAvailableProtocolSections();
         const target = available.includes(section) ? section : available[0] || 'summary';
         protocolSettingsActiveSection = target;
+        if (target !== 'summary'
+            && (connectionLockState === 'disconnected' || connectionLockState === 'error')) {
+            protocolSettingsLastEditableSection = target;
+        }
         protocolSettingsTabs.forEach((tab) => {
             const selected = tab.dataset.section === target;
             tab.setAttribute('aria-selected', selected ? 'true' : 'false');
@@ -976,10 +938,8 @@ document.addEventListener('DOMContentLoaded', () => {
             tcpHandshakeUseEscapes: checked('tcp-handshake-use-escapes'),
             udpFormat: value('udp-format') || 'delimited',
             udpAddressFamily: value('udp-address-family') || 'ipv4',
-            udpConnectionMode: value('udp-connection-mode') || 'direct',
             udpLocalHost: value('udp-local-host') || '127.0.0.1',
             udpLocalPort: Number(value('udp-local-port') || 5565),
-            udpRegistrationIntervalMs: Number(value('udp-registration-interval') || 30000),
             preset: {
                 id: activePresetId,
                 label: basePreset ? basePreset.label : 'Custom',
@@ -1156,12 +1116,19 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             applyingPresetValues = false;
         }
+        if (protocolSettingsSource) protocolSettingsSource.reset();
     }
 
     /** Applies the read-only rules for the current connection state. */
     function updateProtocolSettingsMode() {
         if (!protocolSettingsDialog) return;
         const locked = connectionLockState !== 'disconnected' && connectionLockState !== 'error';
+        if (locked && protocolSettingsActiveSection !== 'summary') {
+            protocolSettingsSummaryForcedByConnection = true;
+        } else if (!locked && protocolSettingsSummaryForcedByConnection) {
+            protocolSettingsActiveSection = protocolSettingsLastEditableSection;
+            protocolSettingsSummaryForcedByConnection = false;
+        }
         protocolSettingsDialog.dataset.readOnly = locked ? 'true' : 'false';
         protocolSettingsDialog.dataset.mode = connectionLockState === 'connected' ? 'summary' : 'edit';
         if (protocolSettingsReadonlyBanner) {
@@ -1314,6 +1281,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 message.revision,
               );
             }
+            const locked = connectionLockState !== 'disconnected' && connectionLockState !== 'error';
+            const allowedConnectedInput = control === xmppCopyPasswordCheckbox
+                && connectionLockState === 'connected'
+                && connectionTypeSelect.value === 'xmpp-server';
+            if ((locked && !allowedConnectedInput) || control.disabled || !isControlVisible(control)) {
+                protocolSettingsSource.reset();
+                scheduleProtocolSettingsSync();
+                return;
+            }
             if (control.type === 'checkbox' || control.type === 'radio') {
                 if (typeof message.checked === 'boolean') control.checked = message.checked;
             } else if (typeof message.value === 'string') {
@@ -1330,6 +1306,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         if (message.type === 'keydown' && message.key) {
+            const locked = connectionLockState !== 'disconnected' && connectionLockState !== 'error';
+            if ((locked && control !== protocolSettingsTablist) || control.disabled) {
+                protocolSettingsSource.reset();
+                scheduleProtocolSettingsSync();
+                return;
+            }
             control.dispatchEvent(new KeyboardEvent('keydown', {
                 key: message.key,
                 bubbles: true,
@@ -1345,6 +1327,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (useProtocolSettingsWindow) {
         protocolSettingsHost.onReady(() => {
             protocolSettingsWindowReady = true;
+            protocolSettingsAcknowledgedRevision = 0;
             protocolSettingsSource.reset();
             scheduleProtocolSettingsSync();
         });
@@ -2364,10 +2347,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 udpAddressFamilySelect.value = presets.udpAddressFamily;
                 updateUdpAddressFamilyTooltip();
             }
-            if (presets.udpConnectionMode !== undefined && udpConnectionModeSelect) {
-                udpConnectionModeSelect.value = presets.udpConnectionMode;
-                updateUdpConnectionModeTooltip();
-            }
             if (presets.udpLocalHost !== undefined && udpLocalHostInput) {
                 udpLocalHostInput.value = presets.udpLocalHost;
             }
@@ -2384,10 +2363,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (presets.tcpHandshakeUseEscapes !== undefined && tcpHandshakeUseEscapesCheckbox) {
                 tcpHandshakeUseEscapesCheckbox.checked = presets.tcpHandshakeUseEscapes === true
                     || presets.tcpHandshakeUseEscapes === 'true';
-            }
-            if (presets.udpRegistrationIntervalMs !== undefined && udpRegistrationIntervalInput) {
-                udpRegistrationIntervalInput.value = presets.udpRegistrationIntervalMs;
-                updateUdpRegistrationIntervalTooltip();
             }
         }
         if (presets.grpcSerialization !== undefined) grpcSerializationSelect.value = presets.grpcSerialization;
@@ -2518,35 +2493,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const type = connectionType.split('-')[1];
             const udpFormat = udpFormatSelect?.value || 'delimited';
             const udpAddressFamily = udpAddressFamilySelect?.value || 'ipv4';
-            const udpConnectionMode = udpConnectionModeSelect?.value || 'direct';
             const udpLocalHost = udpLocalHostInput?.value || '127.0.0.1';
             const udpLocalPort = Number(udpLocalPortInput?.value || 5565);
-            if (type === 'client' && udpConnectionMode === 'direct'
+            if (type === 'client'
                 && (!udpLocalHost || !Number.isInteger(udpLocalPort)
                     || udpLocalPort < 1 || udpLocalPort > 65535)) {
                 reportConnectionValidationError(
                     !udpLocalHost ? udpLocalHostInput : udpLocalPortInput,
-                    'Direct UDP mode requires a local host and a local port between 1 and 65535.',
+                    'UDP Client requires a local host and a local port between 1 and 65535.',
                 );
                 return;
             }
-            const udpRegistrationIntervalMs = Number(udpRegistrationIntervalInput?.value || 30000);
-            if (type === 'client' && udpConnectionMode === 'registered'
-                && (!Number.isInteger(udpRegistrationIntervalMs)
-                || udpRegistrationIntervalMs < 1 || udpRegistrationIntervalMs > 2147483647)) {
-                reportConnectionValidationError(
-                    udpRegistrationIntervalInput,
-                    'UDP registration renewal must be between 1 and 2147483647 milliseconds.',
-                );
-                return;
-            }
-            const udpTarget = type === 'client' && udpConnectionMode === 'direct'
+            const udpTarget = type === 'client'
                 ? `binding UDP client receiver at ${udpLocalHost}:${udpLocalPort}`
-                : `connecting via UDP ${type} to ${host}:${port}`;
+                : `binding UDP server receiver at ${host}:${port}`;
             setStatus(`${udpTarget} [${udpFormat}]...`, { category: 'connection' });
             window.electronAPI.send('connect-udp', {
-                type, port, host, udpFormat, udpAddressFamily, udpConnectionMode,
-                udpLocalHost, udpLocalPort, udpRegistrationIntervalMs,
+                type, port, host, udpFormat, udpAddressFamily, udpLocalHost, udpLocalPort,
             });
         } else if (connectionType.startsWith('grpc')) {
             const type = connectionType.split('-')[1];

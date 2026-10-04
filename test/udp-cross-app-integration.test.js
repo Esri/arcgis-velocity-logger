@@ -5,7 +5,7 @@ const os = require('os');
 const path = require('path');
 const { runHeadlessSession, EXIT_CODES } = require('../src/headless-runner.js');
 const { DEFAULT_HEADLESS_OPTIONS } = require('../src/cli-options.js');
-const { UDP_CLIENT_REGISTRATION_MESSAGE } = require('../src/udp-utils.js');
+const UDP_MARKER_LITERAL = 'UDP Client connected';
 
 const SIMULATOR_ROOT = process.env.VELOCITY_SIMULATOR_ROOT
   || path.resolve(__dirname, '..', '..', 'arcgis-velocity-simulator');
@@ -123,7 +123,7 @@ async function simulatorClientToLoggerServer(directory) {
       udpFormat: 'delimited',
       udpAppendNewline: false,
     });
-    const payloads = ['  café,雪  \n', UDP_CLIENT_REGISTRATION_MESSAGE, 'final,value'];
+    const payloads = ['  café,雪  \n', UDP_MARKER_LITERAL, 'final,value'];
     for (const payload of payloads) await simulator.send(payload);
     assert.strictEqual(await loggerRun, EXIT_CODES.success);
     const captured = readCaptured(outputFile);
@@ -145,124 +145,63 @@ async function simulatorClientToLoggerServer(directory) {
 }
 
 async function simulatorServerToLoggerClient(directory) {
+  const port = await reserveUdpPort();
   const simulator = new TransportManager();
-  const registrationPayloads = [];
-  simulator.on('data-received', (event) => registrationPayloads.push(event.data));
-  const connected = await simulator.connect({
-    protocol: 'udp',
-    mode: 'server',
-    ip: '127.0.0.1',
-    port: 0,
-    udpConnectionMode: 'registered',
-    udpFormat: 'delimited',
-    udpAppendNewline: false,
-  });
-  const port = connected.address.port;
-  let blocker = null;
-  let firstRun = null;
-  let secondRun = null;
+  let loggerRun = null;
 
   try {
-    const firstOutput = path.join(directory, 'server-to-client-first.jsonl');
-    const firstDone = path.join(directory, 'server-to-client-first.done.json');
-    firstRun = runHeadlessSession(loggerOptions({
-      mode: 'client', port, udpConnectionMode: 'registered',
-      outputFile: firstOutput, doneFile: firstDone, maxLogCount: 1,
-    }));
-    await waitFor(() => simulator.hasRecipients(), 'Simulator did not learn the first Logger endpoint');
-    const firstClientKey = [...simulator.udpServerClients][0];
-    await simulator.send('first,雪\n');
-    assert.strictEqual(await firstRun, EXIT_CODES.success);
-    const firstCaptured = readCaptured(firstOutput);
-    assert.deepStrictEqual(firstCaptured, ['first,雪\n']);
-    assert.deepStrictEqual(firstCaptured.map(Buffer.from), [Buffer.from('first,雪\n')]);
-    assert.strictEqual(JSON.parse(fs.readFileSync(firstDone, 'utf8')).summary.linesReceived, 1);
-
-    const firstPort = Number(firstClientKey.slice(firstClientKey.lastIndexOf(':') + 1));
-    blocker = dgram.createSocket('udp4');
-    await new Promise((resolve, reject) => {
-      blocker.once('error', reject);
-      blocker.bind(firstPort, '127.0.0.1', resolve);
+    const outputFile = path.join(directory, 'server-to-client.jsonl');
+    const doneFile = path.join(directory, 'server-to-client.done.json');
+    const readiness = readyLogger(/^UDP client receiver ready at /);
+    loggerRun = runHeadlessSession(loggerOptions({
+      mode: 'client', udpLocalHost: '127.0.0.1', udpLocalPort: port,
+      outputFile, doneFile, maxLogCount: 2,
+    }), { logger: readiness.logger });
+    await readiness.ready;
+    await simulator.connect({
+      protocol: 'udp', mode: 'server', ip: '127.0.0.1', port,
+      udpLocalHost: '127.0.0.1', udpLocalPort: 0,
+      udpFormat: 'delimited', udpAppendNewline: false,
     });
-
-    const secondOutput = path.join(directory, 'server-to-client-second.jsonl');
-    const secondDone = path.join(directory, 'server-to-client-second.done.json');
-    secondRun = runHeadlessSession(loggerOptions({
-      mode: 'client', port, udpConnectionMode: 'registered',
-      outputFile: secondOutput, doneFile: secondDone, maxLogCount: 1,
-    }));
-    await waitFor(
-      () => simulator.udpServerClients.size >= 2,
-      'Simulator did not learn the reconnected Logger endpoint',
-    );
-    const learned = [...simulator.udpServerClients];
-    assert.notStrictEqual(learned.at(-1), firstClientKey);
-    await simulator.send('second,value');
-    assert.strictEqual(await secondRun, EXIT_CODES.success);
-    assert.deepStrictEqual(readCaptured(secondOutput), ['second,value']);
-    assert.strictEqual(JSON.parse(fs.readFileSync(secondDone, 'utf8')).summary.linesReceived, 1);
-    assert.deepStrictEqual(registrationPayloads, []);
+    for (const payload of ['first,雪\n', 'second,value']) await simulator.send(payload);
+    assert.strictEqual(await loggerRun, EXIT_CODES.success);
+    assert.deepStrictEqual(readCaptured(outputFile), ['first,雪\n', 'second,value']);
+    assert.strictEqual(JSON.parse(fs.readFileSync(doneFile, 'utf8')).summary.linesReceived, 2);
   } finally {
-    if (blocker) await closeSocket(blocker);
     await simulator.disconnect();
-    await Promise.allSettled([firstRun, secondRun].filter(Boolean));
+    if (loggerRun) await loggerRun;
   }
   assert.strictEqual(simulator.connection, null);
-  assert.strictEqual(simulator.udpServerClients.size, 0);
   await assertPortReusable(port);
 }
 
 async function loggerClientSurvivesSimulatorRestart(directory) {
+  const port = await reserveUdpPort();
   const simulator = new TransportManager();
-  let registrationPackets = 0;
-  const countRegistrations = (message) => {
-    if (message.equals(Buffer.from(UDP_CLIENT_REGISTRATION_MESSAGE))) registrationPackets += 1;
-  };
-  const connected = await simulator.connect({
-    protocol: 'udp',
-    mode: 'server',
-    ip: '127.0.0.1',
-    port: 0,
-    udpConnectionMode: 'registered',
-    udpFormat: 'delimited',
-    udpAppendNewline: false,
-  });
-  const port = connected.address.port;
-  simulator.connection.socket.on('message', countRegistrations);
   const outputFile = path.join(directory, 'server-restart.jsonl');
   const doneFile = path.join(directory, 'server-restart.done.json');
+  const readiness = readyLogger(/^UDP client receiver ready at /);
   const loggerRun = runHeadlessSession(loggerOptions({
-    mode: 'client',
-    port,
-    udpConnectionMode: 'registered',
+    mode: 'client', udpLocalHost: '127.0.0.1', udpLocalPort: port,
     outputFile,
     doneFile,
     maxLogCount: 2,
     durationMs: 5000,
-    udpRegistrationIntervalMs: 40,
-  }));
+  }), { logger: readiness.logger });
 
   try {
-    await waitFor(() => simulator.hasRecipients(), 'Simulator did not learn the Logger before restart');
+    await readiness.ready;
+    const options = {
+      protocol: 'udp', mode: 'server', ip: '127.0.0.1', port,
+      udpLocalHost: '127.0.0.1', udpLocalPort: 0,
+      udpFormat: 'delimited', udpAppendNewline: false,
+    };
+    await simulator.connect(options);
     await simulator.send('before,restart');
     await simulator.disconnect();
     await delay(140);
 
-    await simulator.connect({
-      protocol: 'udp',
-      mode: 'server',
-      ip: '127.0.0.1',
-      port,
-      udpConnectionMode: 'registered',
-      udpFormat: 'delimited',
-      udpAppendNewline: false,
-    });
-    simulator.connection.socket.on('message', countRegistrations);
-    await waitFor(
-      () => simulator.hasRecipients(),
-      'Renewal did not register the still-running Logger after Simulator restart',
-      2500,
-    );
+    await simulator.connect(options);
     await simulator.send('after,restart');
     assert.strictEqual(await loggerRun, EXIT_CODES.success);
     assert.deepStrictEqual(readCaptured(outputFile), ['before,restart', 'after,restart']);
@@ -272,15 +211,6 @@ async function loggerClientSurvivesSimulatorRestart(directory) {
       byteCount: Buffer.byteLength('before,restart') + Buffer.byteLength('after,restart'),
       stopReason: 'maxLogCount',
     });
-    assert.ok(registrationPackets >= 2, 'Expected initial and renewed registration packets');
-
-    const stoppedAt = registrationPackets;
-    await delay(140);
-    assert.strictEqual(
-      registrationPackets,
-      stoppedAt,
-      'Registration packets continued after Logger teardown',
-    );
   } finally {
     await Promise.allSettled([loggerRun]);
     await simulator.disconnect();

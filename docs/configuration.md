@@ -36,17 +36,12 @@ App Config controls how the application *looks*. Launch Config controls what the
 TCP and UDP payload choices are Launch Config connection fields:
 `connection.tcpFormat` and `connection.udpFormat`, both defaulting to
 `delimited` when omitted. They are not App Config preferences.
-The custom Logger/Simulator UDP Client renewal cadence is
-`connection.udpRegistrationIntervalMs`, defaulting to `30000` milliseconds.
 `connection.udpAddressFamily` selects `ipv4` (the default) or `ipv6` for the
 UDP socket and host resolution.
-`connection.udpConnectionMode` selects `direct` (the default for new
-configurations) or `registered`. Direct binds
-`connection.udpLocalHost` and `connection.udpLocalPort`; the shared `ip` and
-`port` fields are ignored in that mode. Registered uses `ip` and `port` as its
-exact remote tuple and applies the renewal cadence. Older UDP Client Launch
-Configs without a mode load as Registered to preserve their existing pairing
-behavior.
+UDP Client binds `connection.udpLocalHost` and `connection.udpLocalPort`; the
+shared `ip` and `port` fields are ignored for that role. The retired
+`udpConnectionMode` and `udpRegistrationIntervalMs` keys are rejected with an
+actionable error instead of being silently reinterpreted.
 `connection.tcpAddressFamily` selects `auto` (the default), `ipv4`, or `ipv6`.
 Automatic preserves operating-system TCP hostname resolution.
 See [data formats](data-formats.md) for the allowed values and their distinction
@@ -246,7 +241,7 @@ itself. See [Connection presets](connection-presets.md).
 ### Supported headless keys
 
 - `config`, `runMode`, `explain`
-- `protocol`, `mode`, `ip`, `port`, `tcpHandshakeText`, `tcpHandshakeUseEscapes`, `udpConnectionMode`, `udpLocalHost`, `udpLocalPort`
+- `protocol`, `mode`, `ip`, `port`, `tcpHandshakeText`, `tcpHandshakeUseEscapes`, `udpLocalHost`, `udpLocalPort`
 - `connectTimeoutMs`, `connectWaitForServer`, `connectRetryIntervalMs`
 - `outputFile`, `outputFormat`, `outputEncoding`
 - `maxLogCount`, `durationMs`, `idleTimeoutMs`

@@ -2,10 +2,7 @@ const assert = require('assert');
 const dgram = require('dgram');
 const { buildVelocityConnectionOptions } = require('../src/velocity-connection-options.js');
 const { createUdpPayloadReceiver } = require('../src/socket-payload-receiver.js');
-const {
-  UDP_CLIENT_REGISTRATION_MESSAGE,
-  isUdpClientRegistrationMessage,
-} = require('../src/udp-utils.js');
+const UDP_MARKER_LITERAL = 'UDP Client connected';
 
 function closeSocket(socket) {
   return new Promise((resolve) => {
@@ -66,7 +63,7 @@ async function verifyVelocityOutput(outputType, family) {
 
     const whitespacePayload = '  café,雪  \n';
     await send(sender, whitespacePayload, address.port, host);
-    await send(sender, UDP_CLIENT_REGISTRATION_MESSAGE, address.port, host);
+    await send(sender, UDP_MARKER_LITERAL, address.port, host);
     await new Promise((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('Timed out receiving Velocity UDP datagrams')), 1000);
       const check = () => {
@@ -78,10 +75,10 @@ async function verifyVelocityOutput(outputType, family) {
     });
     await new Promise((resolve) => setTimeout(resolve, 25));
 
-    assert.deepStrictEqual(received, [whitespacePayload, UDP_CLIENT_REGISTRATION_MESSAGE]);
+    assert.deepStrictEqual(received, [whitespacePayload, UDP_MARKER_LITERAL]);
     assert.deepStrictEqual(
       received.map((payload) => Buffer.from(payload)),
-      [Buffer.from(whitespacePayload), Buffer.from(UDP_CLIENT_REGISTRATION_MESSAGE)],
+      [Buffer.from(whitespacePayload), Buffer.from(UDP_MARKER_LITERAL)],
     );
     assert.deepStrictEqual(warnings, []);
     assert.strictEqual(unexpectedOutboundPackets, 0);
@@ -110,10 +107,6 @@ async function verifyVelocityOutput(outputType, family) {
     await verifyVelocityOutput(outputType, 'ipv4');
     if (ipv6Available) await verifyVelocityOutput(outputType, 'ipv6');
   }
-  assert.strictEqual(
-    isUdpClientRegistrationMessage(Buffer.from(UDP_CLIENT_REGISTRATION_MESSAGE)),
-    true,
-  );
   console.log('velocity UDP output tests passed');
 })().catch((error) => {
   console.error(error);

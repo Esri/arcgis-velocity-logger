@@ -80,12 +80,11 @@ of its own — see the parity contract in [`AGENTS.md`](../AGENTS.md). See
 `payload-format-utils.js` and `socket-payload-receiver.js` are shared byte-for-byte
 with ArcGIS Velocity Simulator. The codec owns the socket format vocabulary,
 payload validation, UTF-8 handling, record framing, and the common byte limits.
-The receiver adapter owns socket lifecycle and callback delivery; each
-application injects its UDP control-packet predicate and diagnostic callbacks.
-Logger supplies the exact registration predicate from `udp-utils.js` only for
-Registered UDP Client; Direct UDP Client and UDP Server deliberately treat the
-same marker literal as application data. Main and headless receivers make that
-choice identically. Do not put a separate parser in either receive path.
+The receiver adapter owns socket lifecycle and callback delivery. Logger UDP
+Client and UDP Server treat every datagram as application data, including the
+former marker literal. Main and headless receivers make that choice
+identically and never send UDP control traffic. Do not put a separate parser
+in either receive path.
 The renderer receives complete TCP/UDP records through the existing
 `log-data` event with `{ record: true }` as the second argument, so embedded
 line breaks do not split records or inflate the counter.
