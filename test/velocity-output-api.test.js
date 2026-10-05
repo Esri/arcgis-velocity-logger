@@ -1,6 +1,8 @@
 const assert = require('assert');
 const {
   listAnalyticOutputs,
+  listAnalyticOutputResults,
+  validateVelocityOutputEndpoint,
   getAnalyticOutput,
   parseAnalyticOutput,
   parseStreamUrl,
@@ -57,6 +59,61 @@ const analytic = { id: 'analytic/one', label: 'Vehicle positions', outputs: [str
   await assert.rejects(() => listAnalyticOutputs(async () => ({ results: [] })), /expected an array/);
   await assert.rejects(() => listAnalyticOutputs(async () => [{ name: 'connector-definition' }]), /Analytic ID/);
   await assert.rejects(() => listAnalyticOutputs(async () => [{ ...analytic, outputs: [stream, stream] }]), /duplicate/);
+  for (const failedKind of ['realtime', 'bigdata']) {
+    const partialRequest = async (resource, options) => {
+      assert.deepStrictEqual(options.query, { view: 'admin' });
+      if (resource === `analytics/${failedKind}`) throw new Error('Access denied.');
+      return [analytic];
+    };
+    const partial = await listAnalyticOutputResults(partialRequest, true, { id: 'registered', label: 'Registered server' });
+    assert.strictEqual(partial.items.length, 1);
+    assert.notStrictEqual(partial.items[0].analyticKind, failedKind);
+    assert.deepStrictEqual(partial.errors, [{
+      serverId: 'registered', serverName: 'Registered server', analyticKind: failedKind,
+      message: `analytics/${failedKind}: Access denied.`,
+    }]);
+    await assert.rejects(() => listAnalyticOutputs(partialRequest, true), /Access denied/);
+  }
+  const malformedPartial = await listAnalyticOutputResults(async (resource) =>
+    resource === 'analytics/realtime' ? [analytic] : { results: [] });
+  assert.strictEqual(malformedPartial.items.length, 1);
+  assert.match(malformedPartial.errors[0].message, /analytics\/bigdata.*expected an array/);
+  const failedList = await listAnalyticOutputResults(async () => [{ outputs: [] }]);
+  assert.deepStrictEqual(failedList.items, []);
+  assert.strictEqual(failedList.errors.length, 2);
+  const staleError = Object.assign(new Error('Stale request'), { code: 'STALE_SESSION' });
+  await assert.rejects(() => listAnalyticOutputResults(async () => { throw staleError; }), (error) => error === staleError);
+
+  const validationBase = 'https://public.example.com:7443/team/velocity';
+  const validationLogs = [];
+  const validationOptions = {
+    onLog: (level, message) => validationLogs.push([level, message]),
+    request: async (url, options) => {
+      assert.strictEqual(options.token, 'synthetic-token');
+      assert.ok(url.startsWith(`${validationBase}/analytics/`));
+      if (url.endsWith('/bigdata')) throw Object.assign(new Error('Big-data access denied'), { code: 'ARCGIS_ERROR', httpStatus: 403 });
+      return [analytic];
+    },
+  };
+  assert.deepStrictEqual(await validateVelocityOutputEndpoint(validationBase, 'synthetic-token', validationOptions),
+    { apiBaseUrl: validationBase, profile: 'current' });
+  assert.ok(validationLogs.some(([level, message]) => level === 'warn' && /analytics\/bigdata.*denied/.test(message)));
+  assert.deepStrictEqual(await validateVelocityOutputEndpoint(validationBase, 'synthetic-token', {
+    request: async () => [], profile: 'legacy',
+  }), { apiBaseUrl: validationBase, profile: 'legacy' });
+  for (const invalid of [{ results: [] }, [{ outputs: [] }], [{ ...analytic, outputs: {} }], [{ ...analytic, outputs: [stream, stream] }]]) {
+    await assert.rejects(() => validateVelocityOutputEndpoint(validationBase, 'synthetic-token', {
+      request: async () => invalid,
+    }), /expected an array|Analytic ID|output configuration|duplicate/);
+  }
+  const missingRoute = Object.assign(new Error('Missing route'), { code: 'HTTP_ERROR', httpStatus: 404 });
+  const deniedRoute = Object.assign(new Error('Access denied'), { code: 'ARCGIS_ERROR', httpStatus: 403 });
+  await assert.rejects(() => validateVelocityOutputEndpoint(validationBase, 'synthetic-token', {
+    request: async (url) => { throw url.endsWith('/realtime') ? missingRoute : deniedRoute; },
+  }), (error) => error === deniedRoute);
+  await assert.rejects(() => validateVelocityOutputEndpoint(validationBase, 'synthetic-token', {
+    request: async () => { throw missingRoute; },
+  }), (error) => error === missingRoute);
   const outbound = parseAnalyticOutput(analytic, 'realtime', {
     id: 'http-output', name: 'http', formatName: 'json',
     properties: { 'http.url': 'https://destination.example.com:7443/receive?tenant=demo' },

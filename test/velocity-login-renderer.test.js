@@ -176,6 +176,31 @@ test('aggregate partial failures retain healthy items and source errors while in
   assert.equal(element('item-select').options.length, 2);
 });
 
+test('analytic-kind failures stay visible while healthy TCP and UDP outputs can be applied', async t => {
+  const items = [
+    output({ outputId: 'tcp', outputType: 'tcp-server' }),
+    output({ outputId: 'udp', outputType: 'udp-client' }),
+  ];
+  const { element, signIn, select, calls } = await fixture(t, {
+    listItems: async () => catalogue(items, [{
+      serverId: 'north', serverName: 'North server', analyticKind: 'bigdata',
+      message: 'analytics/bigdata: Access denied.',
+    }]),
+  });
+  await signIn();
+  assert.equal(element('status-banner').classList.contains('warning'), true);
+  assert.match(element('status-banner-text').textContent, /analytic types/);
+  assert.match(element('velocity-server-errors').textContent, /North server: analytics\/bigdata: Access denied/);
+  for (const item of items) {
+    await select(item.id);
+    assert.equal(element('apply-btn').disabled, false);
+    element('apply-btn').click();
+    await tick();
+    assert.equal(calls.filter(([name]) => name === 'apply').at(-1)[1].id, item.id);
+    assert.match(element('velocity-server-errors').textContent, /analytics\/bigdata/);
+  }
+});
+
 test('all-source failures and malformed or stale envelopes never become empty-list success', async t => {
   const { api, element, signIn } = await fixture(t, {
     listItems: async () => catalogue([], [{ serverId: 'north', message: 'Access denied.' }]),

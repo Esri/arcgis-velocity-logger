@@ -297,7 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const hint = unsupportedOnly ? ' Choose All beside Supported to view unsupported outputs.' : '';
     const errors = endpoint.listErrorMessage;
     setStatus(errors ? 'warning' : unsupportedOnly ? 'info' : 'success', errors
-      ? `${count}${hint} Some Velocity servers could not be queried. ${errors}` : `${count}${hint}`);
+      ? `${count}${hint} Some Velocity servers or analytic types could not be queried. ${errors}` : `${count}${hint}`);
   }
 
   function populateTypeDropdown() {

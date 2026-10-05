@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-const { listAnalyticOutputs, getAnalyticOutput, resolveStreamOutput, STREAM_TYPE } = require('./velocity-output-api');
+const { listAnalyticOutputResults, getAnalyticOutput, resolveStreamOutput, STREAM_TYPE } = require('./velocity-output-api');
 
 class VelocityOutputSession {
   constructor({ session, request, apiUrl, requestStreamService, canApply = () => true }) {
@@ -49,7 +49,7 @@ class VelocityOutputSession {
     this.assertRevision(revision);
     const version = ++this.listVersion;
     const result = await this.session.runAll((context, token) => this.withContext(
-      (request) => listAnalyticOutputs(request, adminScope, {
+      (request) => listAnalyticOutputResults(request, adminScope, {
         id: context.serverId,
         label: context.serverName,
         apiBaseUrl: context.apiBaseUrl,
@@ -58,10 +58,11 @@ class VelocityOutputSession {
     ), { serverId });
     this.assertRevision(revision);
     if (version !== this.listVersion) throw new Error('A newer output list request replaced this response.');
-    const items = result.results.flatMap((entry) => entry.value);
+    const items = result.results.flatMap((entry) => entry.value.items);
+    const errors = [...result.errors, ...result.results.flatMap((entry) => entry.value.errors)];
     this.items = new Map(items.map((item) => [item.id, item]));
     this.itemsRevision = revision;
-    return { items, errors: result.errors, revision };
+    return { items, errors, revision };
   }
 
   async details({ id, revision }) {

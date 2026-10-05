@@ -55,10 +55,11 @@ scope aggregates their outputs and displays each server's effective URL,
 detected URL, and status. The picker and detail table identify the source
 server, so equally named outputs on different servers remain distinct.
 
-If one server fails, the dialog retains results from healthy servers and
-shows which servers could not be queried. Select a server to narrow the list
-or investigate its endpoint. Resource access and errors are evaluated for
-each server rather than treating the Portal as one Velocity installation.
+If one server or analytic type fails, the dialog retains results from healthy
+sources and shows which server and query could not be completed. Select a
+server to narrow the list or investigate its endpoint. Resource access and
+errors are evaluated for each server rather than treating the Portal as one
+Velocity installation.
 
 Custom URL editing requires one concrete server. In **All Velocity servers**
 with multiple servers, the custom editor and **Apply URL** are disabled.
@@ -158,6 +159,14 @@ An ArcGIS Portal base URL can contain its own context, such as `/portal`.
 Password authentication uses the Portal's `/sharing/rest/generateToken`;
 OAuth uses `/sharing/rest/oauth2/token`. Neither path moves underneath the
 Velocity public context.
+
+The Logger validates a discovered or custom API base by requesting configured
+real-time and big-data analytics in the user's scope. At least one resource
+must return a valid analytic configuration array; an empty array is valid.
+The Logger does not require feed-list permission to browse outputs. If both
+analytic resources fail, the endpoint remains unavailable and the error stays
+visible. Authorization, certificate, and malformed-response failures are not
+treated as missing routes to guess another public context.
 
 Enter the complete published Portal URL, including its configured context:
 for example, `https://portal.example.com/portal` or
@@ -308,6 +317,7 @@ settings, then connect explicitly when ready.
 |---|---|
 | Sign-in works but listing fails. | Review the effective API URL, deployed route family, and account permissions; successful Portal authentication alone does not establish access to every resource. |
 | Some servers return outputs and others fail. | Keep using healthy results, review the named failures, and select each affected server to inspect its effective URL and permissions. |
+| Real-time or big-data analytics cannot be queried. | Keep using outputs from the healthy analytic type, review the named resource error beside its server, and retry with Refresh or select My Outputs if organization scope is not permitted. |
 | Custom public URL is disabled. | Select one server rather than All Velocity servers before editing its endpoint. |
 | Discovery finds no usable address. | Obtain the complete public API base from the administrator and use Custom public URL. |
 | Detect again finds a different address. | Review it, select Automatic, and choose Apply URL to move the browsing session; a custom override is not overwritten. |

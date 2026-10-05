@@ -16,6 +16,9 @@
 
 const { parseOutputItem } = require('./velocity-api');
 const { buildVelocityConnectionOptions } = require('./velocity-connection-options');
+const { apiUrl, normalizeApiBaseUrl, endpointError } = require('./velocity-endpoints');
+const { jsonRequest, assertArcGISResponse } = require('./velocity-rest-client');
+const { isMissingRoute } = require('./velocity-session');
 
 const ANALYTIC_KINDS = ['realtime', 'bigdata'];
 const STREAM_TYPE = 'stream-lyr-new';
@@ -102,23 +105,72 @@ function parseAnalyticOutput(analytic, analyticKind, output, source = {}) {
   return item;
 }
 
-async function listAnalyticOutputs(request, adminScope = false, source = {}) {
-  const groups = await Promise.all(ANALYTIC_KINDS.map(async (kind) => {
-    const analytics = await request(`analytics/${kind}`, {
-      query: adminScope ? { view: 'admin' } : {},
+function parseAnalyticConfigurations(analytics, kind, source = {}) {
+  if (!Array.isArray(analytics)) throw new Error(`Unexpected response from analytics/${kind}: expected an array.`);
+  const seen = new Set();
+  return analytics.flatMap((analytic) => {
+    return getOutputs(analytic).map((output) => {
+      const item = parseAnalyticOutput(analytic, kind, output, source);
+      if (seen.has(item.key)) throw new Error('The analytic contains duplicate output IDs.');
+      seen.add(item.key);
+      return item;
     });
-    if (!Array.isArray(analytics)) throw new Error(`Unexpected response from analytics/${kind}: expected an array.`);
-    const seen = new Set();
-    return analytics.flatMap((analytic) => {
-      return getOutputs(analytic).map((output) => {
-        const item = parseAnalyticOutput(analytic, kind, output, source);
-        if (seen.has(item.key)) throw new Error('The analytic contains duplicate output IDs.');
-        seen.add(item.key);
-        return item;
+  });
+}
+
+async function collectAnalyticOutputs(request, adminScope, source) {
+  return Promise.all(ANALYTIC_KINDS.map(async (kind) => {
+    try {
+      const analytics = await request(`analytics/${kind}`, {
+        query: adminScope ? { view: 'admin' } : {},
       });
-    });
+      return { kind, items: parseAnalyticConfigurations(analytics, kind, source) };
+    } catch (error) {
+      if (error.code === 'STALE_SESSION') throw error;
+      return { kind, error };
+    }
   }));
-  return groups.flat();
+}
+
+async function listAnalyticOutputs(request, adminScope = false, source = {}) {
+  const groups = await collectAnalyticOutputs(request, adminScope, source);
+  const failed = groups.find((group) => group.error);
+  if (failed) throw failed.error;
+  return groups.flatMap((group) => group.items);
+}
+
+async function listAnalyticOutputResults(request, adminScope = false, source = {}) {
+  const groups = await collectAnalyticOutputs(request, adminScope, source);
+  return {
+    items: groups.flatMap((group) => group.items || []),
+    errors: groups.filter((group) => group.error).map((group) => ({
+      serverId: source.id || '',
+      serverName: source.label || source.id || '',
+      analyticKind: group.kind,
+      message: `analytics/${group.kind}: ${group.error.message}`,
+    })),
+  };
+}
+
+async function validateVelocityOutputEndpoint(apiBaseUrl, token, { request = jsonRequest, onLog, profile = 'current' } = {}) {
+  const context = { apiBaseUrl: normalizeApiBaseUrl(apiBaseUrl), profile };
+  if (!['current', 'legacy'].includes(profile)) throw endpointError('Unknown Velocity API profile.');
+  if (onLog) onLog('info', '[API] Validating the Velocity configured analytics endpoint.');
+  const groups = await collectAnalyticOutputs(
+    async (resource) => assertArcGISResponse(await request(apiUrl(context, resource), { token, onLog })),
+    false, { apiBaseUrl: context.apiBaseUrl },
+  );
+  const failed = groups.filter((group) => group.error);
+  if (failed.length === groups.length) {
+    const failure = failed.find((group) => !isMissingRoute(group.error)) || failed[0];
+    if (onLog) onLog('error', `[API] Velocity analytics validation failed: ${failure.kind}: ${failure.error.message}`);
+    throw failure.error;
+  }
+  for (const group of failed) {
+    if (onLog) onLog('warn', `[API] Velocity analytics/${group.kind} unavailable: ${group.error.message}`);
+  }
+  if (onLog) onLog('info', '[API] Velocity configured analytics endpoint validated.');
+  return context;
 }
 
 async function getAnalyticOutput(request, identity) {
@@ -196,6 +248,8 @@ module.exports = {
   outputKey,
   parseAnalyticOutput,
   listAnalyticOutputs,
+  listAnalyticOutputResults,
+  validateVelocityOutputEndpoint,
   getAnalyticOutput,
   parseStreamUrl,
   resolveStreamOutput,

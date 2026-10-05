@@ -56,8 +56,8 @@ accepts that Portal token.
 The picker shows each output's source server and analytic identity. The
 detail table shows **Source server**, **Analytic**, **Analytic ID**, and
 **Output ID**. The source server's name and ID are separate from the raw
-output ID. Unavailable servers produce an explicit partial-results warning
-without hiding outputs from healthy servers.
+output ID. Unavailable servers or analytic types produce an explicit
+partial-results warning without hiding outputs from healthy sources.
 
 ## Authentication
 
@@ -167,6 +167,14 @@ Malformed responses remain visible errors, not successful empty lists.
 Safe TLS diagnostics are displayed as returned; changing credentials or
 removing the Portal context does not repair certificate trust.
 
+Real-time and big-data analytics are queried independently. If either query
+fails, the picker keeps outputs from the other type and identifies the failed
+`analytics/realtime` or `analytics/bigdata` query beside the source server.
+**Refresh** retries both types in the current scope. If neither succeeds,
+the list remains empty with explicit errors and **Apply** stays disabled.
+For endpoint validation and resource permissions, see
+[Discovery and authentication](velocity-rest-api.md#discovery-and-authentication).
+
 ## Dialog size persistence
 
 The dialog opens at **590 × 840** pixels by default. Its size and position
@@ -206,9 +214,10 @@ and **Close** dismisses the dialog without applying an output.
 
 The detail table includes source and analytic identity, type, URL or host,
 authentication, format, schema fields, and availability. Displayed output
-URLs omit credentials and query parameters. Source-qualified list errors
-remain in the endpoint section while healthy outputs can still be inspected;
-the status banner also reports partial results and can be dismissed.
+URLs omit credentials and query parameters. Source-qualified list errors,
+including the failed analytic type, remain in the endpoint section while
+healthy outputs can still be inspected and applied; the status banner also
+reports partial results and can be dismissed.
 
 ## Tooltip reference
 

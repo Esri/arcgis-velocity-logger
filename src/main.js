@@ -179,12 +179,16 @@ const { jsonRequest, TokenManager } = require('./velocity-rest-client.js');
 const { apiUrl } = require('./velocity-endpoints.js');
 const { VelocitySession } = require('./velocity-session.js');
 const { VelocityOutputSession } = require('./velocity-output-session.js');
+const { validateVelocityOutputEndpoint } = require('./velocity-output-api.js');
 const { registerVelocityLoginIpc } = require('./velocity-login-ipc.js');
 const { buildVelocityConnectionOptions } = require('./velocity-connection-options.js');
 const { shouldSendVelocityTokenByDefault } = require('./velocity-auth-utils.js');
 const velocityRequest = (url, options = {}) => jsonRequest(url, { ...options, onLog: velocityLog });
 const velocityTokenManager = new TokenManager({ request: velocityRequest, onLog: velocityLog });
-const velocitySession = new VelocitySession({ tokenManager: velocityTokenManager, request: velocityRequest, onLog: velocityLog });
+const velocitySession = new VelocitySession({
+  tokenManager: velocityTokenManager, request: velocityRequest, onLog: velocityLog,
+  validateEndpoint: validateVelocityOutputEndpoint,
+});
 let velocitySendAuthToken = false;
 let velocityAuthRevision = null;
 let velocityLoginPending = 0;

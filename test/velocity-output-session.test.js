@@ -111,5 +111,31 @@ const { VelocityOutputSession } = require('../src/velocity-output-session');
   assert.strictEqual(sourceRequests.at(-1), 'second');
   socketOutput.properties['tcp-server.port'] = 0;
   await assert.rejects(() => browser.apply({ id: socketItem.id, revision: 2 }), /port/i);
+  const originalRequest = browser.request;
+  for (const failedKind of ['realtime', 'bigdata']) {
+    browser.request = async (url, options) => {
+      if (url.endsWith(`/analytics/${failedKind}`)) throw new Error('Access denied.');
+      if (url.endsWith('/analytics/bigdata')) return [analytic];
+      return originalRequest(url, options);
+    };
+    const partial = await browser.list({ revision: 2 });
+    assert.strictEqual(partial.items.length, 2);
+    assert.strictEqual(partial.errors.length, 1);
+    assert.strictEqual(partial.errors[0].serverId, 'second');
+    assert.strictEqual(partial.errors[0].analyticKind, failedKind);
+    assert.match(partial.errors[0].message, /Access denied/);
+    const usableStream = partial.items.find((item) => item.outputId === 'out');
+    assert.notStrictEqual(usableStream.analyticKind, failedKind);
+    browser.request = async (url, options) => {
+      if (url.endsWith('/analytics/bigdata/analytic')) return analytic;
+      return originalRequest(url, options);
+    };
+    assert.strictEqual((await browser.apply({ id: usableStream.id, revision: 2 })).supported, true);
+  }
+  browser.request = async () => { throw new Error('Both kinds unavailable.'); };
+  const unavailable = await browser.list({ revision: 2 });
+  assert.strictEqual(unavailable.items.length, 0);
+  assert.strictEqual(unavailable.errors.length, 2);
+  assert.strictEqual(browser.items.size, 0);
   console.log('velocity-output-session tests passed');
 })().catch((error) => { console.error(error); process.exitCode = 1; });
