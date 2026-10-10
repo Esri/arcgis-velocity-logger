@@ -18,17 +18,35 @@ function noListeners(socket) {
 
 (async () => {
   assert.strictEqual(decode().length, 0);
-  assert.strictEqual(decode(' \t ').toString(), ' \t ');
+  assert.strictEqual(decode(' \t ').length, 0);
+  for (const useEscapes of [true, false]) {
+    for (let code = 0; code <= 0x20; code++) {
+      const edge = String.fromCharCode(code);
+      assert.strictEqual(decode(`${edge}hello${edge}`, { useEscapes }).toString(), 'hello');
+    }
+    assert.strictEqual(decode('\0\t hello world\r\n\u001f ', { useEscapes }).toString(), 'hello world');
+    assert.strictEqual(decode('\u00a0hello\u00a0', { useEscapes }).toString(), '\u00a0hello\u00a0');
+    assert.strictEqual(decode('\ufeffhello\u2003', { useEscapes }).toString(), '\ufeffhello\u2003');
+    assert.strictEqual(decode('\u0021hello\u0021', { useEscapes }).toString(), '!hello!');
+    assert.strictEqual(decode('\0 \t\r\n', { useEscapes }).length, 0);
+  }
+  assert.strictEqual(decode(String.raw` \r\nhello\t `).toString(), '\r\nhello\t');
   assert.strictEqual(decode('hi,café,雪').toString(), 'hi,café,雪');
   assert.strictEqual(decode(String.raw`\b\t\n\f\r\\\"\'`).toString(), '\b\t\n\f\r\\"\'');
   assert.strictEqual(decode(String.raw`\u0041\uu0042\uD83D\uDE00`).toString(), 'AB😀');
+  assert.strictEqual(decode(String.raw`\uuu+0041`).toString(), 'A');
+  assert.strictEqual(decode(String.raw`\q\x41`).toString(), 'qx41');
+  assert.strictEqual(decode('hello\\').toString(), 'hello');
+  assert.strictEqual(decode(String.raw`\\n`).toString(), String.raw`\n`);
+  assert.strictEqual(decode(String.raw`\uD800\uDC00\uD800X\uDC00`).toString(), '𐀀?X?');
+  assert.strictEqual(decode('\ud800X\udc00', { useEscapes: false }).toString(), '?X?');
   assert.strictEqual(decode(String.raw`\0\12\377\777`).toString(), '\0\nÿ?7');
-  assert.strictEqual(decode(String.raw` hello\r\n `, { useEscapes: false }).toString(), String.raw` hello\r\n `);
+  assert.strictEqual(decode(String.raw` hello\r\n `, { useEscapes: false }).toString(), String.raw`hello\r\n`);
   assert.strictEqual(decode('x'.repeat(1024 * 1024)).length, 1024 * 1024);
   assert.throws(() => decode(String.raw`\u0041`.repeat(180000)), /character input limit/);
   assert.strictEqual(decode('é'.repeat(512 * 1024)).length, 1024 * 1024);
   assert.throws(() => decode('é'.repeat(512 * 1024) + 'x'), /1 MiB/);
-  for (const text of ['secret\\', 'secret\\q', 'secret\\uXYZ1', 'secret\\u123', 'secret\\uD800', 'secret\\uDC00']) {
+  for (const text of ['secret\\uXYZ1', 'secret\\u123', 'secret\\u', 'secret\\uu+123']) {
     assert.throws(() => decode(text), error => /TCP handshake/.test(error.message) && !error.message.includes('secret'));
   }
   assert.throws(() => decode(17), /string/);
@@ -36,6 +54,7 @@ function noListeners(socket) {
 
   const empty = new Socket(() => { throw new Error('Empty greeting must not write'); });
   assert.deepStrictEqual(await write(empty, decode()), { bytesWritten: 0 });
+  assert.deepStrictEqual(await write(empty, decode('\0 \t\r\n')), { bytesWritten: 0 });
   noListeners(empty);
   const immediate = new Socket((bytes, callback) => {
     assert.deepStrictEqual(bytes, Buffer.from('hi'));

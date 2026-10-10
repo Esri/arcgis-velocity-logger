@@ -348,7 +348,7 @@ const CLI_PARAMETER_DEFINITIONS = [
     options: ['string', 'empty'],
     example: String.raw`tcpHandshakeText=HELLO\r\n`,
     requiredInHeadless: 'No',
-    purpose: 'Optional UTF-8 greeting sent once on every new TCP connection in either mode. Whitespace is preserved; no terminator is added automatically. Content is treated as a secret in summaries and logs.',
+    purpose: 'Optional UTF-8 greeting sent once on every new TCP connection in either mode. Edge characters U+0000 through U+0020 are trimmed before optional escape decoding; no terminator is added automatically. Content is treated as a secret in summaries and logs.',
   },
   {
     key: 'tcpHandshakeUseEscapes',

@@ -140,8 +140,11 @@ first frame.
 Set `tcpHandshakeText` to send an optional UTF-8 greeting after every new TCP
 connection. TCP Client sends it again after each reconnect; TCP Server sends it
 once to each accepted client. `tcpHandshakeUseEscapes=true` decodes explicit
-Java-style terminators such as `\r\n`. Blank text sends nothing, whitespace is
-preserved, no terminator is added automatically, and no reply is awaited.
+Java-style terminators such as `\r\n`. Leading and trailing characters from
+`U+0000` through `U+0020` are trimmed before optional decoding in either escape
+mode; trimmed-empty text sends nothing. Non-breaking spaces are retained.
+No terminator is added automatically and no reply is awaited. See
+[TCP handshake semantics](tcp.md#ui-controls) for the complete decoding rules.
 
 When `mode=client` and `protocol=tcp`, set `connectWaitForServer=true` to **retry the connection automatically** every `connectRetryIntervalMs` milliseconds. This covers two scenarios:
 

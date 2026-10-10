@@ -218,7 +218,7 @@ function baseOptions(overrides) {
   await test('malformed TCP handshake fails cleanly without exposing its value', async () => {
     const doneFile = tmpFile('done.json');
     const logFile = tmpFile('log');
-    const secret = 'do-not-print\\q';
+    const secret = 'do-not-print\\u12';
     try {
       const code = await runHeadlessSession(baseOptions({
         protocol: 'tcp',
@@ -232,7 +232,7 @@ function baseOptions(overrides) {
       assert.strictEqual(code, EXIT_CODES.runtimeError);
       const done = JSON.parse(fs.readFileSync(doneFile, 'utf8'));
       assert.strictEqual(done.success, false);
-      assert.match(done.error.message, /unsupported escape/);
+      assert.match(done.error.message, /invalid Unicode escape/);
       assert.ok(!fs.readFileSync(logFile, 'utf8').includes(secret));
       assert.ok(!JSON.stringify(done).includes(secret));
     } finally {

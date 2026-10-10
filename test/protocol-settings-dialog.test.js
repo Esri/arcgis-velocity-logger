@@ -801,10 +801,10 @@ test('the stylesheet keeps the dialog sticky, layered, and responsive', () => {
 
   await uiTest('malformed TCP handshake errors open Advanced and focus the secret field safely', async ({ document, select, listeners }) => {
     select('connection-type', 'tcp-client');
-    listeners.get('tcp-error')('TCP handshake contains an unsupported escape.');
+    listeners.get('tcp-error')('TCP handshake contains an invalid Unicode escape.');
     const field = document.getElementById('tcp-handshake-text');
     assert.strictEqual(document.getElementById('protocol-settings-alert').hidden, false);
-    assert.match(document.getElementById('protocol-settings-alert').textContent, /unsupported escape/);
+    assert.match(document.getElementById('protocol-settings-alert').textContent, /invalid Unicode escape/);
     assert.strictEqual(field.getAttribute('aria-invalid'), 'true');
     assert.ok((field.getAttribute('aria-describedby') || '').split(/\s+/).includes('protocol-settings-alert'));
     assert.strictEqual(

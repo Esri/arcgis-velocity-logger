@@ -132,7 +132,7 @@ Launch Config. See [data formats](data-formats.md), [TCP](tcp.md), and
 | --- | --- | --- | --- | --- | --- |
 | `tcpFormat` | `delimited`, `json`, `geo-json`, `esri-json` | `delimited` | No | `tcpFormat=json` | Expected TCP payload format; controls record extraction and inspection. |
 | `tcpAddressFamily` | `auto`, `ipv4`, `ipv6` | `auto` | No | `tcpAddressFamily=ipv6` | TCP address family. Automatic preserves operating-system hostname resolution; explicit modes require matching hosts and resolution. |
-| `tcpHandshakeText` | string, empty | empty | No | `tcpHandshakeText=HELLO\r\n` | Optional UTF-8 greeting sent once on every new TCP connection in either role, including reconnects. Whitespace is preserved, no terminator is automatic, no reply is awaited, and summaries hide the content. |
+| `tcpHandshakeText` | string, empty | empty | No | `tcpHandshakeText=HELLO\r\n` | Optional UTF-8 greeting sent once on every new TCP connection in either role, including reconnects. Edge characters U+0000 through U+0020 are trimmed before optional escape decoding, no terminator is automatic, no reply is awaited, and summaries hide the content. |
 | `tcpHandshakeUseEscapes` | `true`, `false` | `true` | No | `tcpHandshakeUseEscapes=true` | Decode Java-style control, Unicode, quote, backslash, and octal escapes in `tcpHandshakeText`. Disable to send backslashes literally. |
 | `udpFormat` | `delimited`, `json`, `geo-json`, `esri-json` | `delimited` | No | `udpFormat=geo-json` | Expected format of one complete record or document per UDP datagram. |
 | `udpAddressFamily` | `ipv4`, `ipv6` | `ipv4` | No | `udpAddressFamily=ipv6` | UDP socket and host-resolution family. IPv6 uses an IPv6-only socket; the host must resolve to or contain a matching address. |

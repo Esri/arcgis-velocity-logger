@@ -77,7 +77,7 @@ async function ipv6Available() {
   const probe = await listenServer(0, () => {});
   const serverPort = probe.address().port;
   await new Promise((resolve) => probe.close(resolve));
-  const greeting = Buffer.from('  hello\r\n');
+  const greeting = Buffer.from('hello\r\n');
   const serverInbound = [];
   const receiver = createReceiver(options({
     port: serverPort,
@@ -98,7 +98,7 @@ async function ipv6Available() {
   second.socket.destroy();
   await receiver.stop();
 
-  const clientGreeting = Buffer.from('  raw\\n  ');
+  const clientGreeting = Buffer.from('raw\\n');
   const received = [];
   const clientInbound = [];
   const peer = await listenServer(0, (socket) => {
