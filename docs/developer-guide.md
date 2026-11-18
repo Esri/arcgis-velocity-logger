@@ -6,7 +6,7 @@ This guide covers day-to-day development of ArcGIS Velocity Logger: repository
 layout, running the app locally, testing, documentation checks, debugging and
 DevTools, logging, and the patterns to follow when adding controls, tooltips,
 transports, or themes. It is intended for developers changing the source, and
-assumes Node.js 18 or later with dependencies installed via `npm install`.
+assumes Node.js 24 LTS with dependencies installed via `npm install`.
 
 ## Table of contents
 
@@ -107,6 +107,8 @@ than introducing renderer-owned tokens or another URL builder.
 |---|---|
 | `npm install` | Install dependencies |
 | `npm start` | Run the app in UI mode with saved configuration restored |
+| `npm run tauri:dev` | Stage the bundled backend and run the native Tauri host |
+| `npm run tauri:prepare` | Stage the verified Node distribution, production dependencies, and browser assets |
 | `npm run start:headless` | Run a headless capture session; add `--` before CLI parameters |
 | `npm run help:cli` | Print the standard command-line help |
 | `npm run help:cli:wide` | Print the wide ASCII help table |
@@ -129,6 +131,37 @@ npm run start:headless -- outputFile=./captured.log port=5566 \
 Exit codes are `0` for success, `1` for a configuration error, and `2` for a
 runtime error.
 
+### Tauri runtime boundary
+
+Install the [native prerequisites](build-and-release.md#prerequisites) before
+using Tauri. `src/desktop-runtime.js` selects Electron by default; only the
+Tauri backend entry selects `src/tauri-host.js`. Both runtimes execute the same
+`src/main.js`, CLI parser, transport modules, and headless runner.
+
+`src-tauri/src/main.rs` owns native windows, menus, file dialogs, clipboard,
+external links, and the bundled child process. It compiles
+`src/tauri-frontend.js` and each existing preload into per-window initialization
+scripts. The webview never receives Node module access. Sender window labels
+come from Rust, and `src/tauri-policy.js` restricts channels by document role.
+Protocol Settings still mirrors the main renderer's authoritative dialog.
+
+GUI communication uses bounded JSON-lines messages on private stdio pipes;
+diagnostics go to stderr and the normal application log. Requests carry IDs,
+errors reject explicitly, and window closure removes the corresponding sender.
+Native-bound frontend requests are limited to 16 MiB per frame. Larger backend
+responses, including source-file results in the companion application, use
+sequential base64 chunks and are reassembled without truncation. Backend
+messages never grant a webview arbitrary shell or filesystem access.
+Headless runs inherit terminal streams and propagate the backend's exit status
+without constructing a GUI. Browser assets are staged under `.tauri/frontend`;
+backend source and dependencies are packaged as resources, never web assets.
+Keep these runtime files byte-identical with ArcGIS Velocity Simulator and
+configure product identity in each repository's manifests.
+
+Tauri uses the platform's native web inspector, not Chromium's remote debugging
+ports. Its Inspect Element action opens that inspector and logs the selected
+DOM element to the console; Electron retains Chromium's direct element picker.
+
 ## Testing
 
 Tests run on Node.js only; no Electron environment or display is required.
@@ -138,6 +171,8 @@ process and exits non-zero if any file fails.
 | Command | Scope |
 |---|---|
 | `npm test` | Every suite |
+| `node test/tauri-runtime.test.js` | Bundled-backend CLI errors, TCP capture and completion, and window-scoped IPC |
+| `node test/package-runtime.test.js` | Runtime selection, artifact names, manifests, and portable packaging |
 | `npm run test:cli` | CLI parsing, mode resolution, aliases, config-file merge, validation |
 | `npm run test:help` | Help workspace and Command Line Interface interactions |
 | `npm run test:headless-runner` | Output formats, stop conditions, filters, `doneFile`, exit codes |

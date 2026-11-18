@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /*
  * Repo-wide Markdown link checker (Node.js)
- * - Finds all .md files (excluding node_modules)
+ * - Finds maintained .md files (excluding dependencies and generated output)
  * - Runs markdown-link-check via npx
  * - Ignores image links (png, jpg, svg, gif, webp, bmp, ico, tiff, heic, heif, data:image)
  */
@@ -14,7 +14,8 @@ const { spawnSync } = require('child_process');
 function findMarkdownFiles(dir, results = []) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
-    if (entry.name === 'node_modules') continue;
+    if (['node_modules', '.git', '.tauri', 'dist'].includes(entry.name)) continue;
+    if (path.basename(dir) === 'src-tauri' && ['target', 'resources', 'gen'].includes(entry.name)) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       findMarkdownFiles(full, results);

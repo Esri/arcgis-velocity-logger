@@ -6,6 +6,12 @@ This guide is the complete parameter reference for launching the **ArcGIS Veloci
 
 This guide is intended for users and developers who automate runs, script CI pipelines, or need to look up an exact flag, default, or example. It assumes Node.js and the project dependencies are already installed; see the repository overview for setup instructions.
 
+All application parameters apply to Electron and Tauri. `npm start` selects
+Electron; a packaged Tauri executable accepts the same `name=value` arguments
+without an `electron .` prefix. See [packaged headless launch patterns](headless.md#launch-patterns).
+Build-time `--runtime`, `--platform`, `--arch`, and `--distribution` belong to
+the [packaging commands](build-and-release.md#local-builds), not this parser.
+
 ## Table of contents
 
 - [Default behavior](#default-behavior)

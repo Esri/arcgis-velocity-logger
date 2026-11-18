@@ -184,7 +184,7 @@ const { isDirectExternalSignableFile } = windowsSignHook._private;
 (function testPackageUsesAfterSignHookForUnpackedExternalSigning() {
   const pkg = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'));
 
-  assert.strictEqual(pkg.build.productName, 'ArcGIS Velocity Logger');
+  assert.strictEqual(pkg.build.productName, 'ArcGIS Velocity Logger Standalone');
   assert.strictEqual(pkg.build.executableName, 'VelocityLogger');
   assert.strictEqual(pkg.build.afterPack, undefined);
   assert.strictEqual(pkg.build.afterSign, 'scripts/external-sign.js');

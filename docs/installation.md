@@ -23,18 +23,26 @@ Download packages only from the repository's official GitHub release page.
 
 | Platform | Package | Use |
 |---|---|---|
-| macOS | `arcgis-velocity-logger-<version>-mac.dmg` | Drag-to-Applications installation. |
-| macOS | `arcgis-velocity-logger-<version>-mac.zip` | Scripted extraction or environments that do not use DMG files. |
-| Windows | `arcgis-velocity-logger-<version>-setup.exe` | Standard installation with shortcuts and an uninstaller. |
-| Windows | `arcgis-velocity-logger-<version>-portable.exe` | Run without installation. |
-| Windows | `arcgis-velocity-logger-<version>-win.zip` | Extract the packaged application manually. |
-| Linux | `arcgis-velocity-logger-<version>-linux.AppImage` | Portable launch on AppImage-compatible distributions. |
-| Debian and Ubuntu | `arcgis-velocity-logger-<version>-linux.deb` | Installation through `apt` or `dpkg`. |
+| macOS | `arcgis-velocity-logger-<version>-<edition>-mac-<arch>.dmg` | Drag-to-Applications installation. |
+| macOS | `arcgis-velocity-logger-<version>-<edition>-mac-<arch>.zip` | Extract the complete application bundle. |
+| Windows | `arcgis-velocity-logger-<version>-<edition>-win-<arch>-setup.exe` | NSIS installation with shortcuts and an uninstaller. |
+| Windows | `arcgis-velocity-logger-<version>-<edition>-win-<arch>-portable.exe` | Self-extracting, no-install launch. |
+| Windows | `arcgis-velocity-logger-<version>-<edition>-win-<arch>.zip` | Extract the application and all supporting files. |
+| Linux | `arcgis-velocity-logger-<version>-<edition>-linux-<arch>.AppImage` | Portable launch on a compatible Linux distribution. |
+| Debian and Ubuntu | `arcgis-velocity-logger-<version>-<edition>-linux-<arch>.deb` | Installation through `apt` or `dpkg`. |
 
-Check the release's architecture before downloading. The v1.0.6 macOS packages
-are for Apple silicon (`arm64`), Windows packages are `x64`, and Linux packages
-are `arm64`. An Intel Mac requires an `x64` or universal macOS package; an
-`x86_64` Linux system requires a matching Linux package.
+`<edition>` is `standalone` or `compact`; `<arch>` is `x64` or `arm64`.
+Download only a format and architecture actually listed in the release.
+Previously published asset names are unchanged. **Standalone** uses Electron
+and bundles Chromium; **Compact** uses Tauri with WKWebView on macOS, WebView2
+on Windows, and WebKitGTK on Linux. Compact includes the pinned Node runtime and production transport
+dependencies, not Electron.
+
+Windows Tauri portable EXE and ZIP packages require an installed WebView2
+runtime; the portable launcher does not install it or register an application.
+Linux Tauri requires WebKitGTK 4.1 and the native libraries for the target
+distribution. An AppImage is not a guarantee of compatibility with every Linux
+release. See the [native prerequisites](build-and-release.md#prerequisites).
 
 ## Install and launch
 
@@ -46,22 +54,27 @@ To install from a DMG:
 2. verify the GitHub-published SHA-256 digest if your workflow requires an
    integrity check;
 3. open the DMG;
-4. drag `VelocityLogger.app` to `/Applications`; and
+4. drag the contained application bundle to `/Applications`; and
 5. open the application from `/Applications`.
 
-Alternatively, extract the macOS ZIP and move `VelocityLogger.app` into
+Alternatively, extract the macOS ZIP and move its application bundle into
 `/Applications`. Quit any running copy before replacing it, then launch the
 installed application rather than a copy inside the mounted DMG.
+The Compact bundle is `ArcGIS Velocity Logger Compact.app`, with a separate
+application identifier and settings directory, so it can coexist with Electron.
+The Standalone bundle is `ArcGIS Velocity Logger Standalone.app`.
 
 To check the downloaded DMG, set `VERSION` to the version you downloaded
 (for example, `1.0.6`):
 
 ```bash
 VERSION=x.y.z
+EDITION=compact
+ARCH=arm64
 hdiutil verify \
-  "$HOME/Downloads/arcgis-velocity-logger-${VERSION}-mac.dmg"
+  "$HOME/Downloads/arcgis-velocity-logger-${VERSION}-${EDITION}-mac-${ARCH}.dmg"
 shasum -a 256 \
-  "$HOME/Downloads/arcgis-velocity-logger-${VERSION}-mac.dmg"
+  "$HOME/Downloads/arcgis-velocity-logger-${VERSION}-${EDITION}-mac-${ARCH}.dmg"
 ```
 
 `hdiutil verify` checks the disk image's internal integrity. Compare the
@@ -81,9 +94,9 @@ application and use this workaround:
 
 ```bash
 xattr -dr com.apple.quarantine \
-  "/Applications/VelocityLogger.app"
+  "/Applications/ArcGIS Velocity Logger Compact.app"
 
-open "/Applications/VelocityLogger.app"
+open "/Applications/ArcGIS Velocity Logger Compact.app"
 ```
 
 Afterward, launch this installed copy normally from Finder. Quarantine removal
@@ -115,15 +128,19 @@ For an AppImage:
 
 ```bash
 VERSION=x.y.z
-chmod +x "arcgis-velocity-logger-${VERSION}-linux.AppImage"
-"./arcgis-velocity-logger-${VERSION}-linux.AppImage"
+EDITION=compact
+ARCH=x64
+chmod +x "arcgis-velocity-logger-${VERSION}-${EDITION}-linux-${ARCH}.AppImage"
+"./arcgis-velocity-logger-${VERSION}-${EDITION}-linux-${ARCH}.AppImage"
 ```
 
 For Debian or Ubuntu:
 
 ```bash
 VERSION=x.y.z
-sudo apt install "./arcgis-velocity-logger-${VERSION}-linux.deb"
+EDITION=compact
+ARCH=x64
+sudo apt install "./arcgis-velocity-logger-${VERSION}-${EDITION}-linux-${ARCH}.deb"
 ```
 
 ## Find diagnostic logs
@@ -136,6 +153,10 @@ write timestamped files in both UI and headless modes:
 | macOS | `~/Library/Logs/arcgis-velocity-logger/` |
 | Windows | `%APPDATA%\arcgis-velocity-logger\logs\` |
 | Linux | `~/.config/arcgis-velocity-logger/logs/` |
+
+For Tauri, replace the `arcgis-velocity-logger` directory component with
+`arcgis-velocity-logger-tauri`. Saved UI settings and remembered sign-in
+preferences are also separate; see [configuration file locations](configuration.md#file-location).
 
 For example, the same timestamped log is written as:
 
@@ -159,7 +180,9 @@ usual default.
 |---|---|
 | macOS says the application is damaged. | Check disk-image integrity and the published SHA-256 digest first. Do not bypass a checksum mismatch. For an intact, trusted official package blocked by Gatekeeper, see [Unsigned package workaround](#unsigned-package-workaround). |
 | macOS shows `ENOENT: no such file or directory, mkdir '/logs'`. | Install v1.0.6 or later and launch the copy in `/Applications`. Default logs no longer depend on Finder's working directory. If the error persists, check for an explicit `logFile` override; do not create `/logs` or run the app with `sudo`. |
-| macOS says the application is unsupported. | The package architecture does not match the Mac. The current package requires Apple silicon. |
+| macOS says the application is unsupported. | Check both the package architecture and the runtime's supported macOS version. Choose `arm64` for Apple silicon or `x64` for an Intel Mac. |
+| Tauri reports that its bundled backend is missing. | Extract or reinstall the complete package. Do not copy just the executable or remove `node`, `backend`, or application resources. |
+| Windows Tauri portable does not open a window. | Confirm WebView2 is installed and the package architecture matches the machine. |
 | Windows shows a SmartScreen warning. | Confirm the package came from the official release page and verify its publisher before continuing. |
 | Linux cannot execute the AppImage. | Add execute permission with `chmod +x` and confirm the distribution supports AppImage. |
 | The application starts but cannot connect. | Open [Protocol settings and presets](connection-presets.md), then use the guide for the selected transport. |

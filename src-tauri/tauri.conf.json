@@ -1,0 +1,31 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ArcGIS Velocity Logger Compact",
+  "version": "../package.json",
+  "identifier": "com.esri.arcgis-velocity-logger.tauri",
+  "build": {
+    "frontendDist": "../.tauri/frontend"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'self'; frame-src 'none'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg", "nsis", "appimage", "deb"],
+    "icon": ["../src/assets/icon.png", "../src/assets/installerIcon.ico"],
+    "resources": {
+      "resources/": ""
+    },
+    "category": "Utility",
+    "publisher": "Esri",
+    "shortDescription": "Capture and inspect ArcGIS Velocity data",
+    "windows": {
+      "nsis": {
+        "displayLanguageSelector": false
+      }
+    }
+  }
+}

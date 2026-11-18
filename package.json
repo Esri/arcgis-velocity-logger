@@ -8,6 +8,10 @@
   "scripts": {
     "start": "node scripts/start-helper.js",
     "start:headless": "node scripts/start-helper.js runMode=headless",
+    "package:runtime": "node scripts/package-runtime.js",
+    "package:tauri": "node scripts/package-runtime.js --runtime tauri",
+    "tauri:dev": "node scripts/package-runtime.js --runtime tauri --dev",
+    "tauri:prepare": "node scripts/prepare-tauri.js",
     "help:cli": "node scripts/start-helper.js help=true",
     "help:cli:wide": "node scripts/start-helper.js help-table-wide=true",
     "help:cli:narrow": "node scripts/start-helper.js help-table-narrow=true",
@@ -72,13 +76,17 @@
   },
   "license": "Apache-2.0",
   "devDependencies": {
+    "@tauri-apps/cli": "^2.10.0",
     "electron": "^41.2.1",
     "electron-builder": "^26.15.0",
     "jsdom": "^29.0.2"
   },
+  "tauriRuntime": {
+    "nodeVersion": "24.19.0"
+  },
   "build": {
     "appId": "com.esri.arcgis-velocity-logger",
-    "productName": "ArcGIS Velocity Logger",
+    "productName": "ArcGIS Velocity Logger Standalone",
     "executableName": "VelocityLogger",
     "afterSign": "scripts/external-sign.js",
     "afterAllArtifactBuild": "scripts/external-sign.js",
@@ -97,30 +105,15 @@
         "dmg",
         "zip"
       ],
-      "artifactName": "arcgis-velocity-logger-${version}-mac.${ext}"
+      "artifactName": "arcgis-velocity-logger-${version}-standalone-mac-${arch}.${ext}"
     },
     "win": {
       "icon": "src/assets/icon.png",
-      "artifactName": "arcgis-velocity-logger-${version}-win.${ext}",
+      "artifactName": "arcgis-velocity-logger-${version}-standalone-win-${arch}.${ext}",
       "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "x64"
-          ]
-        }
+        "nsis",
+        "portable",
+        "zip"
       ]
     },
     "linux": {
@@ -129,17 +122,17 @@
         "AppImage",
         "deb"
       ],
-      "artifactName": "arcgis-velocity-logger-${version}-linux.${ext}",
+      "artifactName": "arcgis-velocity-logger-${version}-standalone-linux-${arch}.${ext}",
       "category": "Utility",
       "maintainer": "Hanoch Kalmanovich <hkalmanovich@esri.com>"
     },
     "nsis": {
-      "artifactName": "arcgis-velocity-logger-${version}-setup.${ext}",
+      "artifactName": "arcgis-velocity-logger-${version}-standalone-win-${arch}-setup.${ext}",
       "installerIcon": "src/assets/installerIcon.ico",
       "uninstallerIcon": "src/assets/installerIcon.ico"
     },
     "portable": {
-      "artifactName": "arcgis-velocity-logger-${version}-portable.${ext}"
+      "artifactName": "arcgis-velocity-logger-${version}-standalone-win-${arch}-portable.${ext}"
     }
   },
   "dependencies": {

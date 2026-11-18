@@ -58,6 +58,25 @@ npm start -- runMode=headless
 
 `runMode=silent` is an alias for `runMode=headless`.
 
+A packaged Compact (Tauri) executable accepts the same parameters directly. For example,
+on macOS:
+
+```bash
+"/Applications/ArcGIS Velocity Logger Compact.app/Contents/MacOS/VelocityLogger" \
+  runMode=headless protocol=tcp mode=server port=5565 \
+  maxLogCount=5 outputFile=./captured.log doneFile=./run.done.json
+```
+
+Tauri resolves the startup mode, including a Launch Config's `runMode`, before
+initializing a webview. Help, invalid-argument exits, and headless capture run
+through the bundled Node backend with the same stdout, output-file, exit-code,
+and `doneFile` behavior. No separately installed Node or Electron is needed.
+Use the native executable rather than a desktop shortcut when a caller needs
+the exit status or inherited terminal streams.
+The installed Linux Compact executable is `VelocityLogger-compact`; on Windows
+it remains `VelocityLogger.exe` inside the Compact installation or extracted
+portable folder.
+
 ## In-app command line interface dialog
 
 While the UI is open, press <kbd>F3</kbd> to open the dedicated **Command Line Interface** dialog. You can also open it from **Help → Command Line Interface**, the context menu, or the toolbar `>_` button.

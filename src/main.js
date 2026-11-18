@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-const { app, BrowserWindow, ipcMain, nativeTheme, dialog, clipboard, shell, Menu, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeTheme, dialog, clipboard, shell, Menu, screen } = require('./desktop-runtime');
 const path = require('path');
 const net = require('net');
 const dgram = require('dgram');
@@ -79,11 +79,12 @@ const { resolveAppLogFile } = require('./app-log-path.js');
 
 const appLogFile = resolveAppLogFile({
   explicitLogFile: cliOptions.logFile,
-  appSlug: 'arcgis-velocity-logger',
+  appSlug: app.runtime === 'tauri' ? 'arcgis-velocity-logger-tauri' : 'arcgis-velocity-logger',
   filePrefix: 'velocity-logger',
   isPackaged: app.isPackaged,
   homePath: app.getPath('home'),
-  userDataPath: path.join(app.getPath('appData'), 'arcgis-velocity-logger'),
+  userDataPath: app.runtime === 'tauri' ? app.getPath('userData')
+    : path.join(app.getPath('appData'), 'arcgis-velocity-logger'),
 });
 
 const appLogger = new RunLogger({
