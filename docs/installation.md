@@ -37,12 +37,21 @@ Previously published asset names are unchanged. **Standalone** uses Electron
 and bundles Chromium; **Compact** uses Tauri with WKWebView on macOS, WebView2
 on Windows, and WebKitGTK on Linux. Compact includes the pinned Node runtime and production transport
 dependencies, not Electron.
+For why each edition uses its runtime and how the application logic is shared,
+see [Desktop runtime choices](developer-guide.md#desktop-runtime-choices).
 
 Windows Tauri portable EXE and ZIP packages require an installed WebView2
 runtime; the portable launcher does not install it or register an application.
 Linux Tauri requires WebKitGTK 4.1 and the native libraries for the target
 distribution. An AppImage is not a guarantee of compatibility with every Linux
 release. See the [native prerequisites](build-and-release.md#prerequisites).
+Compact Linux packages built with the local container target Debian 12
+(glibc 2.36) or a compatible newer system; Ubuntu 22.04/glibc 2.35 is not a
+validated target for those artifacts. Standalone has its own Electron platform
+requirements.
+Compact is not always the smaller download: its Linux AppImage bundles required
+GTK/WebKit libraries for portability and can be larger than Standalone.
+The DEB instead declares distribution dependencies that must be installed.
 
 ## Install and launch
 

@@ -43,7 +43,8 @@ npm run check:build-prereqs        # backwards-compatible alias for prereqs:chec
 | `gh` GitHub CLI, authenticated | Creating releases and uploading assets | `brew install gh` then `gh auth login` |
 
 Tauri additionally requires a stable Rust toolchain (`cargo` and `rustc`) and
-a matching native OS/architecture host. macOS needs Xcode Command Line Tools.
+a matching native OS/architecture host unless an explicit cross-build route
+is selected below. macOS needs Xcode Command Line Tools.
 Windows needs the MSVC C++ build tools, WebView2, and NSIS `makensis` for the
 portable executable. Linux needs a C compiler, `pkg-config`, GTK 3, WebKitGTK
 4.1 development libraries, and the native packaging dependencies. Follow
@@ -121,8 +122,73 @@ npm run package:runtime -- --runtime tauri --platform mac --arch arm64 --dry-run
 
 `--distribution installer` selects DMG, Windows NSIS, or DEB; `portable`
 selects macOS ZIP, Windows portable EXE plus ZIP, or Linux AppImage. `both`
-selects all formats for that OS. Tauri rejects non-native OS/architecture
-targets rather than labeling a host build as a cross-build.
+selects all formats for that OS. Compact supports explicit `--windows-cross`
+from macOS and `--linux-container` for a local Linux environment. Other
+unsupported targets fail rather than bundling the wrong architecture.
+
+### Windows cross-builds from macOS
+
+Install the host tools and selected Rust target:
+
+```bash
+brew install llvm lld nsis
+rustup target add x86_64-pc-windows-msvc
+cargo install --locked cargo-xwin
+npm run package:runtime -- --runtime tauri --platform win --arch x64 --windows-cross
+```
+
+The wrapper discovers standard Homebrew LLVM/LLD paths without changing the
+shell configuration. It stages the official Windows Node executable, checks
+its PE architecture, cross-compiles with `cargo-xwin`, and uses macOS-native
+ZIP and NSIS tools. The external Windows signer runs on the Mac at application
+and final-installer boundaries. A cross-build is not a Windows runtime smoke
+test; verify the packages on a supported Windows system. `--windows-cross`
+cannot be combined with `--dev`.
+
+### Local Linux container builds
+
+On an Apple silicon Mac, an approved local Docker-compatible Linux engine can
+build Linux ARM64 artifacts without a separate Linux machine or GitHub Actions:
+
+```bash
+npm run package:runtime -- --runtime tauri --platform linux --arch arm64 \
+  --linux-container --distribution both
+```
+
+`--linux-container` is opt-in. The helper does not install or start Docker,
+change the active Docker context, or use a remote daemon. Start the local
+engine first and allocate sufficient memory and disk for Rust, WebKitGTK, and
+packaging; 8 GB of memory and 20 GB of free disk is a useful starting point.
+The image includes digest-pinned Node and Rust toolchains and Linux native
+dependencies, including WebKitGTK 4.1. The selected architecture must be
+supported by the engine; the container verifies its actual architecture.
+
+The helper snapshots tracked build inputs with their current local changes,
+plus its explicitly enumerated new helper files. It excludes `.git`,
+dependency caches, ignored settings, credentials, signing files, and unrelated
+documentation. Other new build source files require explicit review rather
+than being silently omitted or copied. Symlink inputs are rejected.
+
+The source snapshot is mounted read-only. Only a temporary artifact directory
+is mounted writable; the source checkout, home directory, Docker socket, and
+signing credentials are never mounted. Builds use neither privileged mode nor
+FUSE devices: AppImage tooling runs in extraction mode. Network access is
+needed for package downloads. The local builder image remains cached for
+later builds; temporary source/output snapshots are removed on completion.
+
+Validated outputs replace only `dist/tauri/linux-arm64/` for the example above.
+An unsuccessful build leaves previous artifacts intact. The manifest records
+the original Git commit and dirty state, the snapshot digest, actual container
+architecture, builder image ID, and installed package inventory. Base images
+and dependency lockfiles pin toolchains and application dependencies; Debian
+security package updates can still change a newly built image, so this is not
+a promise of byte-identical artifacts.
+
+Use the Linux artifacts on a compatible Linux system, not directly on macOS.
+This container targets Debian 12 (bookworm), whose glibc baseline is 2.36.
+Do not treat its Compact artifacts as compatible with Ubuntu 22.04/glibc 2.35
+or older systems without a separate build and validation for that baseline.
+Headless package checks do not replace Linux GUI validation.
 
 `scripts/prepare-tauri.js` downloads the exact Node version pinned in
 `package.json`, verifies the official archive's SHA-256, installs production
@@ -213,7 +279,8 @@ native SDK and bundled Node requirements for Tauri. The Tauri bundle is named
 
 Windows 10 (1903 or later) and Windows 11 are supported; Windows 8.1 and
 Server 2012 R2 are not. Electron defaults to x64; select `--arch arm64` explicitly
-when building that target. Tauri must build on the selected architecture.
+when building that target. Compact uses the selected native architecture or
+the explicit macOS Windows cross-build route.
 Tauri portable EXE is an NSIS self-extractor of the full application/resources,
 not a renamed installer. It forwards arguments, waits for the application,
 and propagates its exit code. ZIP and portable EXE require existing WebView2;
@@ -292,6 +359,13 @@ npm run package:win:zip
 ```
 
 ### External Windows signing script
+
+The repository-local
+[Build, sign and release skill](../.github/skills/build-sign-release/SKILL.md)
+locates the existing tools. An optional ignored `.release.local.json` can hold
+a personal `signScript` path. This is a discovery hint for the skill, not an
+automatically loaded release-script configuration; pass `--sign-script`
+explicitly. The external tool owns its own configuration.
 
 Windows builds can delegate signing to an external script such as Esri's
 `sign.sh`, either from a build or from a release:
@@ -399,6 +473,9 @@ It runs the full pipeline:
 | `--platform mac\|win\|linux\|all` | Select platforms; defaults to all for Electron, current host for Tauri or both. |
 | `--arch x64\|arm64` | Select architecture. Upload-only can collect available architectures when omitted. |
 | `--distribution portable\|installer\|both` | Select formats; defaults to both. |
+| `--linux-container` | Build selected Linux targets in the approved local Docker-compatible engine. Build-only; upload-only still consumes validated manifests. |
+| `--windows-cross` | Build Compact Windows targets on macOS with the cross toolchain; build-only, not an upload selector. |
+| `--notes-file <path>` | Use a reviewed Markdown release body verbatim instead of generated commit notes. Preview it with `--dry-run` before publishing. |
 | `--dry-run`, `--simulate` | Simulate the whole release without writing files, committing, or publishing. Prints each artifact that would be uploaded with its size, plus a full preview of the release notes. |
 | `--re-release` | Republish an already-released version with rebuilt artifacts and refreshed notes. Generates the changelog against the previous good tag, deletes the existing GitHub release and git tag, and recreates them pinned to the current `HEAD`. The clean-tree and version-gate checks still apply. |
 | `--seq` | Build platforms sequentially instead of in parallel. Slower, but the output is not interleaved. Not required for external Windows signing, which is serialized separately. |
@@ -460,8 +537,9 @@ unpacked applications, other versions, and incomplete targets.
 
 ### Host-OS support matrix
 
-The following cross-build matrix applies to Electron only. Tauri builds must
-run on the selected native OS and architecture. Collect those target folders
+The following matrix applies to Electron. Compact supports native builds,
+macOS Windows cross-builds with `--windows-cross`, and local Linux builds with
+`--linux-container`. Collect the resulting target folders
 with their manifests before using `--upload-only --runtime both --platform all`.
 
 | Host | `.dmg` | mac `.zip` | Windows `setup.exe`, `portable.exe`, `.zip` | `.AppImage` | `.deb` |

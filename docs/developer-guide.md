@@ -11,6 +11,7 @@ assumes Node.js 24 LTS with dependencies installed via `npm install`.
 ## Table of contents
 
 - [Repository structure](#repository-structure)
+- [Desktop runtime choices](#desktop-runtime-choices)
 - [Local development](#local-development)
 - [Testing](#testing)
 - [Documentation checks](#documentation-checks)
@@ -101,6 +102,85 @@ the shared endpoint controls and `velocity-preferences.js` owns persistence.
 Keep these shared foundations aligned with ArcGIS Velocity Simulator rather
 than introducing renderer-owned tokens or another URL builder.
 
+## Desktop runtime choices
+
+The application has two desktop editions that share its JavaScript application
+logic. These are current architectural tradeoffs, not separate implementations
+of the transports, authentication, or capture engine.
+
+### Why and when to use each edition
+
+**Standalone uses Electron.** Electron packages Chromium and Node.js together
+and provides the desktop APIs used by the application's main process and
+preload bridges. Bundling Chromium makes browser behavior less dependent on
+the system webview version and fits the existing Node.js desktop architecture.
+Choose Standalone when that browser consistency and a bundled browser runtime
+matter more than reducing the download size. Operating-system permissions can
+still affect features.
+
+**Compact uses Tauri.** It reuses the operating system's webview rather than
+shipping Chromium, which can reduce downloads where the required system
+dependencies are available. Choose Compact when the target system meets those
+requirements and its webview supports the features you need. Webview versions
+and rendering can differ between operating systems; Compact is not a promise
+of identical browser behavior.
+
+The package format also matters. Compact's Linux AppImage bundles required
+GTK/WebKit libraries and can be larger than Standalone; the DEB uses declared
+distribution dependencies instead. Do not assume every system webview library
+is preinstalled or that every Compact format reduces download size.
+
+Tauri does not mean rewriting the application in Rust. Native desktop
+integration is implemented in Rust, but the HTML/CSS/JavaScript user interface,
+network transports, ArcGIS Velocity authentication, configuration, and capture
+logic remain in the existing application modules. Compact bundles its own
+Node.js backend. Users install neither Node.js nor Rust for either edition.
+Developers building Compact need Rust/Cargo and the platform's native build
+toolchain in addition to the JavaScript development tools.
+
+For platform webview requirements and package selection, see
+[Installation](installation.md). Runtime-specific persisted settings are
+described in [Configuration](configuration.md), and native toolchains and
+packaging commands in [Build and release](build-and-release.md#prerequisites).
+
+### How the shared runtime works
+
+`src/main.js` imports `src/desktop-runtime.js`, which selects Electron by
+default or the Tauri adapter when launched by the Compact backend.
+`src/tauri-backend.js` selects that adapter and starts the same application
+entry point; it also supports the native host's command-line mode probe.
+
+`src/tauri-host.js` implements the desktop API surface needed by the shared
+main process and relays native operations to Rust.
+`src/tauri-frontend.js` supplies the webview IPC bridge used by the existing
+preload scripts, without giving the document Node.js access.
+`src/tauri-policy.js` restricts channels by document, while
+`src/tauri-wire.js` frames backend messages and chunks large responses.
+Diagnostics are kept separate from the desktop message stream.
+
+`src-tauri/src/main.rs` owns native windows, menus, dialogs, clipboard access,
+the bundled backend process, and command-line lifecycle. It derives sender
+identity from the calling webview rather than trusting a document-supplied
+identity. The remaining `src-tauri/` files define native capabilities and bundle
+configuration. Browser assets are staged separately from backend source and
+production dependencies.
+
+Keep the shared adapter modules aligned with ArcGIS Velocity Simulator. Form
+state and transport decisions remain in their existing owners: for example,
+the authoritative Protocol Settings form is mirrored by the detached window,
+not reimplemented in Rust.
+
+GUI communication uses bounded JSON-lines messages on private stdio pipes.
+Native-bound frontend requests are limited to 16 MiB per frame. Larger backend
+responses use sequential base64 chunks and are reassembled without truncation.
+Requests carry IDs, errors reject explicitly, and window closure removes the
+corresponding sender. Headless runs inherit terminal streams and propagate the
+backend's exit status without constructing a GUI.
+
+Tauri uses the platform's native web inspector, not Chromium's remote debugging
+ports. Its Inspect Element action opens that inspector and logs the selected
+DOM element to the console; Electron retains Chromium's direct element picker.
+
 ## Local development
 
 | Command | Purpose |
@@ -131,36 +211,9 @@ npm run start:headless -- outputFile=./captured.log port=5566 \
 Exit codes are `0` for success, `1` for a configuration error, and `2` for a
 runtime error.
 
-### Tauri runtime boundary
-
-Install the [native prerequisites](build-and-release.md#prerequisites) before
-using Tauri. `src/desktop-runtime.js` selects Electron by default; only the
-Tauri backend entry selects `src/tauri-host.js`. Both runtimes execute the same
-`src/main.js`, CLI parser, transport modules, and headless runner.
-
-`src-tauri/src/main.rs` owns native windows, menus, file dialogs, clipboard,
-external links, and the bundled child process. It compiles
-`src/tauri-frontend.js` and each existing preload into per-window initialization
-scripts. The webview never receives Node module access. Sender window labels
-come from Rust, and `src/tauri-policy.js` restricts channels by document role.
-Protocol Settings still mirrors the main renderer's authoritative dialog.
-
-GUI communication uses bounded JSON-lines messages on private stdio pipes;
-diagnostics go to stderr and the normal application log. Requests carry IDs,
-errors reject explicitly, and window closure removes the corresponding sender.
-Native-bound frontend requests are limited to 16 MiB per frame. Larger backend
-responses, including source-file results in the companion application, use
-sequential base64 chunks and are reassembled without truncation. Backend
-messages never grant a webview arbitrary shell or filesystem access.
-Headless runs inherit terminal streams and propagate the backend's exit status
-without constructing a GUI. Browser assets are staged under `.tauri/frontend`;
-backend source and dependencies are packaged as resources, never web assets.
-Keep these runtime files byte-identical with ArcGIS Velocity Simulator and
-configure product identity in each repository's manifests.
-
-Tauri uses the platform's native web inspector, not Chromium's remote debugging
-ports. Its Inspect Element action opens that inspector and logs the selected
-DOM element to the console; Electron retains Chromium's direct element picker.
+Use `npm start` for Standalone development and `npm run tauri:dev` for Compact.
+See [Desktop runtime choices](#desktop-runtime-choices) for the architecture
+and [Build and release](build-and-release.md#prerequisites) for native prerequisites.
 
 ## Testing
 
