@@ -209,6 +209,14 @@ assets and packages `node` (or `node.exe`), its license, and `backend/` as
 resources. Electron is not included in the backend. Development staging lives
 in `.tauri/` and `src-tauri/resources/`, both ignored by Git.
 
+Staged production dependencies omit npm's generated executable shims
+(`node_modules/.bin`); the application loads the package modules directly.
+Package implementation files remain intact, and developer dependency installs
+are unchanged. Staging is recreated on every preparation, and runtime resource
+trees must contain only regular files and directories before packaging.
+Unexpected symbolic links or special files fail the build rather than embedding
+a build-host path in an archive.
+
 The following legacy commands continue to build Electron:
 
 | Script | Platforms | Compression | Produces |
