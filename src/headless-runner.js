@@ -597,7 +597,7 @@ function createReceiver(options, {
  * - terminates when maxLogCount / durationMs / idleTimeoutMs is reached
  * - writes a done file (if requested) and exits the Electron app with a stable code
  */
-async function runHeadlessSession(options, { app = null, logger = null } = {}) {
+async function runHeadlessSession(options, { app = null, logger = null, signal = null } = {}) {
   if (!logger) {
     logger = new RunLogger({
       logLevel: options.logLevel,
@@ -646,7 +646,7 @@ async function runHeadlessSession(options, { app = null, logger = null } = {}) {
     stopController.resolve();
   };
 
-  const receiver = createReceiver(options, {
+  const receiver = options.autoConnect === false ? null : createReceiver(options, {
     logger,
     onLine: (line) => {
       if (stopController.triggered) return;
@@ -679,18 +679,26 @@ async function runHeadlessSession(options, { app = null, logger = null } = {}) {
     },
   });
 
+  const abort = () => triggerStop(typeof signal.reason === 'string' ? signal.reason : 'interrupted');
+  if (signal) {
+    signal.addEventListener('abort', abort, { once: true });
+    if (signal.aborted) abort();
+  }
+
+  // Node-only sessions need a live handle even when no receiver is connected.
+  const sessionLifetime = setInterval(() => {}, 60_000);
   try {
     logger.info(`Starting headless capture → ${options.outputFile ? options.outputFile : 'stdout'} (${options.outputFormat})`);
     if (options.autoConnect === false) {
       logger.info('autoConnect=false: receiver will not be started.');
     } else {
-      await receiver.startedPromise;
+      await Promise.race([receiver.startedPromise, finished]);
     }
 
-    if (options.durationMs) {
+    if (!stopController.triggered && options.durationMs) {
       durationTimer = setTimeout(() => triggerStop('durationMs'), options.durationMs);
     }
-    if (options.idleTimeoutMs && options.idleTimeoutMs > 0) {
+    if (!stopController.triggered && options.idleTimeoutMs && options.idleTimeoutMs > 0) {
       const checkIdle = () => {
         if (stopController.triggered) return;
         const idleFor = Date.now() - lastReceivedAt;
@@ -709,11 +717,13 @@ async function runHeadlessSession(options, { app = null, logger = null } = {}) {
     stopReason = stopReason || 'error';
     logger.error(`Headless run failed: ${err.message}`);
   } finally {
+    clearInterval(sessionLifetime);
+    signal?.removeEventListener('abort', abort);
     if (durationTimer) clearTimeout(durationTimer);
     if (idleTimer) clearTimeout(idleTimer);
     const teardownContext = runtimeError ? 'after a failed run' : 'after the run';
     try {
-      await receiver.stop(teardownContext);
+      await receiver?.stop(teardownContext);
     } catch (err) {
       // Teardown is total: it is reported, never allowed to fail a completed run.
       logger.warn(`[Transport] Teardown ${teardownContext} reported: ${err.message}`);
@@ -742,9 +752,12 @@ async function runHeadlessSession(options, { app = null, logger = null } = {}) {
 
   const exitCode = success ? EXIT_CODES.success : EXIT_CODES.runtimeError;
 
-  if (!options.exitOnComplete) {
+  if (!options.exitOnComplete && !signal?.aborted) {
     logger.info('exitOnComplete=false: keeping process alive. Terminate externally to exit.');
-    return new Promise(() => {});
+    await new Promise(resolve => {
+      const keepAlive = setInterval(() => {}, 60_000);
+      signal?.addEventListener('abort', () => { clearInterval(keepAlive); resolve(); }, { once: true });
+    });
   }
 
   if (app) {

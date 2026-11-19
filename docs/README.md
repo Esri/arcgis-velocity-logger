@@ -26,7 +26,7 @@ by purpose and audience.
 | 🛠️ | [Developer guide](developer-guide.md) | Covers repository structure, local development, testing, debugging, and extension patterns. | Developers |
 | 🔌 | [gRPC transport](grpc.md) | Documents gRPC modes, serialization, TLS, RPC behavior, and metadata. | Users and developers |
 | 🖥️ | [Headless mode](headless.md) | Explains no-UI capture, output formats, completion files, and automation. | Users and developers |
-| 💻 | [Installation](installation.md) | Choose Standalone or Compact, install release packages, and troubleshoot startup. | Users |
+| 💻 | [Installation](installation.md) | Choose a platform package, install it, and troubleshoot startup. | Users |
 | 🌐 | [HTTP transport](http.md) | Documents HTTP and HTTPS modes, formats, paths, TLS, and metadata. | Users and developers |
 | ⌘ | [Keyboard shortcuts](keyboard-shortcuts.md) | Lists global, dialog, context-menu, and navigation shortcuts. | Users |
 | 🔌 | [TCP transport](tcp.md) | Documents TCP roles, payload selection, UTF-8 record framing, and limits. | Users and developers |

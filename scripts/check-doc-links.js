@@ -14,8 +14,7 @@ const { spawnSync } = require('child_process');
 function findMarkdownFiles(dir, results = []) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
-    if (['node_modules', '.git', '.tauri', 'dist'].includes(entry.name)) continue;
-    if (path.basename(dir) === 'src-tauri' && ['target', 'resources', 'gen'].includes(entry.name)) continue;
+    if (['node_modules', '.git', '.tauri', '.build', 'dist'].includes(entry.name)) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       findMarkdownFiles(full, results);

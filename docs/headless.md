@@ -46,36 +46,45 @@ The default behavior, when you run the app without any parameters, is **normal U
 
 ## Launch patterns
 
-The logger can be launched in headless mode two equivalent ways:
+For development, use the Node-only entry without starting Electron:
 
 ```bash
-# explicit script
 npm run start:headless
-
-# regular launcher + runMode
-npm start -- runMode=headless
 ```
 
 `runMode=silent` is an alias for `runMode=headless`.
 
-A packaged Compact (Tauri) executable accepts the same parameters directly. For example,
-on macOS:
+A packaged executable accepts the same parameters directly. On Linux, both
+the DEB launcher and AppImage route help, invalid arguments, and headless runs
+through Electron's bundled Node runtime before Chromium starts. Neither
+`DISPLAY`, `WAYLAND_DISPLAY`, nor Xvfb is required. No extra Node installation
+or CLI-only download is needed:
 
 ```bash
-"/Applications/ArcGIS Velocity Logger Compact.app/Contents/MacOS/VelocityLogger" \
+./arcgis-velocity-logger-1.1.1-linux-arm64.AppImage \
   runMode=headless protocol=tcp mode=server port=5565 \
   maxLogCount=5 outputFile=./captured.log doneFile=./run.done.json
 ```
 
-Tauri resolves the startup mode, including a Launch Config's `runMode`, before
-initializing a webview. Help, invalid-argument exits, and headless capture run
-through the bundled Node backend with the same stdout, output-file, exit-code,
-and `doneFile` behavior. No separately installed Node or Electron is needed.
-Use the native executable rather than a desktop shortcut when a caller needs
-the exit status or inherited terminal streams.
-The installed Linux Compact executable is `VelocityLogger-compact`; on Windows
-it remains `VelocityLogger.exe` inside the Compact installation or extracted
-portable folder.
+No-display operation does not imply musl compatibility. Alpine 3.23.7 remains
+unsupported even in headless mode; see the
+[Linux package and ABI policy](installation.md#choose-a-package).
+
+Use the package matching your CPU (`arm64` or `x64`). The installed Linux
+executable is `/opt/ArcGIS Velocity Logger/VelocityLogger`. Startup mode also honors `runMode` in a Launch
+Config. GUI launches still start Electron normally; macOS and Windows keep
+their native Electron entry points. `npm start -- runMode=headless` runs
+through Electron and is not the no-display development entry.
+
+Node-only diagnostics go to stderr and the configured log file so stdout
+remains suitable for captured records. `SIGINT` and `SIGTERM` stop the receiver,
+flush output, and write `doneFile` before exiting with `130` or `143`.
+For an AppImage using extraction-and-run, the outer runtime supervises a child:
+terminal signals or job-wide process-group signals reach the capture process,
+but signaling only the outer PID may not. Use the installed DEB launcher or
+an extracted application launcher when a scheduler terminates only one PID.
+The AppImage supervisor can itself terminate by signal, reported by shells as
+status `130` or `143`; this is distinct from a normal exit with that code.
 
 ## In-app command line interface dialog
 
@@ -235,6 +244,9 @@ When `doneFile=./path/to/run.done.json` is set, the runner writes a JSON artifac
 When `outputFile` is omitted, `outputFile` is `null` and `outputSink` is `"stdout"`.
 
 On failure, `success=false` and an `error` block with `message`/`stack` plus `failedAt` is included.
+For a graceful signal shutdown, `summary.stopReason` records `SIGINT` or
+`SIGTERM`; `success` describes capture/flush success, while the process exits
+with the signal-derived nonzero code.
 
 ## Exit codes
 

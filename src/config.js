@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-const { app } = require('./desktop-runtime');
+const { app } = require('electron');
 const fs = require('fs');
 const path = require('path');
 

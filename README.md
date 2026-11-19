@@ -10,10 +10,9 @@
 
 A cross-platform desktop application for capturing and logging network data from TCP and UDP connections. Designed to help debug and monitor ArcGIS Velocity feeds and other data sources.
 
-Choose **Standalone** (Electron) or **Compact** (Tauri) for the same capture
-workflows. Electron remains the default development runtime. Compact uses the operating system's
-webview and a bundled Node backend; neither release requires a separate Node
-installation. See [runtime and package selection](docs/installation.md).
+Release packages include Electron and need no separate Node.js installation.
+Choose the package for your operating system and architecture in the
+[installation guide](docs/installation.md).
 
 ## Documentation
 
@@ -86,7 +85,6 @@ npm install
 | Command | Purpose |
 |---------|---------|
 | `npm start` | Run the application |
-| `npm run tauri:dev` | Run Tauri with the native prerequisites in the [build guide](docs/build-and-release.md) |
 | `npm run debug-both` | Run with debugger attached (see the [developer guide](docs/developer-guide.md)) |
 
 ## Command line / headless mode

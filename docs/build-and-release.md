@@ -2,12 +2,9 @@
 
 [← Documentation index](README.md) · [Repository overview](../README.md#documentation)
 
-This guide covers everything needed to produce and publish distributable
-packages of ArcGIS Velocity Logger for macOS, Windows, and Linux: build
-prerequisites, local build scripts, per-platform packaging formats, code
-signing, and the release workflow driven by `scripts/release.sh`. It is
-intended for developers who build artifacts or cut releases, and assumes
-Node.js 24 LTS, npm, and `npm install` have already been run.
+This guide covers building, signing, verifying, and publishing ArcGIS Velocity
+Logger packages. It is for maintainers with Node.js 24 LTS, npm, Git, and the
+repository dependencies installed. Electron is the desktop runtime.
 
 ## Table of contents
 
@@ -22,687 +19,233 @@ Node.js 24 LTS, npm, and `npm install` have already been run.
 
 ## Prerequisites
 
-The existing Electron `package:*` scripts verify their tooling before building.
-Run the Electron prerequisite check directly at any time:
-
 ```bash
-npm run prereqs:check              # all build targets
-npm run prereqs:check:mac          # macOS build toolchain
-npm run prereqs:check:win          # Windows build toolchain
-npm run prereqs:check:linux        # Linux toolchain (dpkg, fakeroot, GNU ar)
-npm run prereqs:check:release      # also verifies git, gh, and gh auth
-npm run check:build-prereqs        # backwards-compatible alias for prereqs:check
+npm ci
+npm run prereqs:check:release
 ```
 
-| Requirement | Used for | Install (macOS) |
-|---|---|---|
-| Node.js 24 LTS and npm | Development and packaging | [nodejs.org](https://nodejs.org/) |
-| `node_modules/` (electron-builder) | Building | `npm install` |
-| `dpkg`, `fakeroot`, GNU `ar` | Building `.deb` packages | `brew install dpkg fakeroot binutils` |
-| `git` with push access | Committing and pushing the version bump | Ships with macOS, or `brew install git` |
-| `gh` GitHub CLI, authenticated | Creating releases and uploading assets | `brew install gh` then `gh auth login` |
-
-Tauri additionally requires a stable Rust toolchain (`cargo` and `rustc`) and
-a matching native OS/architecture host unless an explicit cross-build route
-is selected below. macOS needs Xcode Command Line Tools.
-Windows needs the MSVC C++ build tools, WebView2, and NSIS `makensis` for the
-portable executable. Linux needs a C compiler, `pkg-config`, GTK 3, WebKitGTK
-4.1 development libraries, and the native packaging dependencies. Follow
-[Tauri's platform prerequisites](https://v2.tauri.app/start/prerequisites/).
-The Electron prerequisite installer does not install these Tauri tools.
-
-Compact Linux dialog support uses the default `rfd` portal backend. Runtime
-hosts need `libdbus-1`, Zenity, and a supported GTK, GNOME, or KDE desktop portal
-backend. Installing these only in the build container does not provide them to
-an AppImage user's host. See [Linux installation requirements](installation.md#choose-a-package).
-
-> [!WARNING]
-> On macOS the system `/usr/bin/ar` is BSD `ar` and silently produces a
-> malformed ~100-byte `.deb` stub instead of a real Debian package. After
-> `brew install binutils` the build scripts auto-discover Homebrew's GNU `ar`
-> — no `PATH` edit is required.
-
-### Installing prerequisites
-
-`scripts/check-build-prereqs.js` defines *what* is required;
-`scripts/install-prereqs.js` knows *how* to install each item on the host OS.
-
-| Command | Installs |
-|---|---|
-| `npm run setup` | `npm install` plus any missing build prerequisites for this host |
-| `npm run prereqs:install` | All build targets (no `git`/`gh`) |
-| `npm run prereqs:install:mac` | macOS build prerequisites |
-| `npm run prereqs:install:win` | Windows build prerequisites |
-| `npm run prereqs:install:linux` | Linux build prerequisites |
-| `npm run prereqs:install:release` | Build prerequisites plus `git` and `gh` |
-
-Preview the plan without changing anything:
+Use the existing host-controlled build tools. macOS packaging needs macOS and
+Xcode command-line tools. Windows packaging from macOS uses the existing
+Electron builder tools; test the result on Windows. Linux DEB packaging on
+macOS needs `dpkg`, `fakeroot`, and GNU `ar` from Homebrew `binutils`.
+Native Linux validation requires the target distribution and architecture.
 
 ```bash
-node scripts/install-prereqs.js --dry-run
-node scripts/install-prereqs.js --dry-run --release
+npm run prereqs:check:mac
+npm run prereqs:check:win
+npm run prereqs:check:linux
+npm run prereqs:install -- --dry-run
 ```
 
-Set `INSTALL_PREREQS=1` to let a build install what it is missing and continue:
-
-```bash
-INSTALL_PREREQS=1 npm run package:linux
-```
-
-Host behavior:
-
-- **macOS** — installs through Homebrew.
-- **Linux** — detects `apt-get`, `dnf`, or `pacman`. Privileged installs are
-  reported as manual steps unless you re-run with `--use-sudo` (requires an
-  interactive TTY). `gh` is always a manual step because it requires adding
-  GitHub's apt/dnf repository.
-- **Windows** — uses `winget`, falling back to `choco`. `.deb` artifacts cannot
-  be built natively on Windows; use WSL for that target.
-
-Never auto-installed:
-
-- **Node.js major upgrades** — the installer prints a manual instruction rather
-  than changing the host's Node.js version.
-- **`gh auth login`** — interactive; run it yourself once `gh` is on `PATH`.
-- **Code-signing tools and credentials** (`codesign`, `signtool`, `CSC_LINK`,
-  `WIN_CSC_LINK`, `APPLE_*`) — see [Code signing](#code-signing).
+The prerequisite installer is opt-in. It does not configure signing credentials
+or upgrade the host Node.js major version. Release upload requires authenticated
+`gh`; packaging does not need a GitHub token.
 
 ## Local builds
 
-Electron remains the default. Final artifacts are isolated in
-`dist/<runtime>/<os>-<arch>/`; rebuilding a target does not remove another
-runtime or architecture. Each successful target writes a manifest with exact
-filenames, sizes, SHA-256 digests, version, architecture, and source revision.
-Public editions are **Standalone** (`electron`) and **Compact** (`tauri`).
-Filenames use `standalone` or `compact`; the internal `--runtime` values and
-output-directory names remain `electron` and `tauri`.
+Final outputs live in `dist/electron/<platform>-<arch>/`. A build cleans only its
+selected target, not another platform or architecture. Each successful target
+writes a local manifest recording version, architecture, source commit, dirty
+state, exact filenames, byte sizes, and SHA-256 digests.
 
 ```bash
-npm run package:runtime -- --runtime electron --platform mac --arch arm64
-npm run package:runtime -- --runtime tauri --platform mac --arch arm64
-npm run package:runtime -- --runtime both --platform mac --arch arm64
-npm run package:tauri -- --distribution portable
-npm run package:runtime -- --runtime tauri --platform mac --arch arm64 --dry-run
-```
-
-`--distribution installer` selects DMG, Windows NSIS, or DEB; `portable`
-selects macOS ZIP, Windows portable EXE plus ZIP, or Linux AppImage. `both`
-selects all formats for that OS. Compact supports explicit `--windows-cross`
-from macOS and `--linux-container` for a local Linux environment. Other
-unsupported targets fail rather than bundling the wrong architecture.
-
-Package-only Electron commands always pass `--publish=never`, including
-sequential, parallel, and container builds. Explicit requests for another
-publishing mode fail before output cleanup. CI tags or environment variables
-must not turn a packaging check into an upload. Publish verified outputs
-separately with the release workflow.
-
-### Tauri builds
-
-The Compact build checks that the Tauri CLI is installed and any explicitly
-requested Windows signer is readable before running build tools or recreating
-staging. Restore a missing CLI with `npm ci`; correct an invalid signer path
-rather than accepting an unsigned fallback. These checks do not submit a
-signing request or guarantee service connectivity.
-
-### Windows cross-builds from macOS
-
-Install the host tools and selected Rust target:
-
-```bash
-brew install llvm lld nsis
-rustup target add x86_64-pc-windows-msvc
-cargo install --locked cargo-xwin
-npm run package:runtime -- --runtime tauri --platform win --arch x64 --windows-cross
-```
-
-The wrapper discovers standard Homebrew LLVM/LLD paths without changing the
-shell configuration. It stages the official Windows Node executable, checks
-its PE architecture, cross-compiles with `cargo-xwin`, and uses macOS-native
-ZIP and NSIS tools. The external Windows signer runs on the Mac at application
-and final-installer boundaries. A cross-build is not a Windows runtime smoke
-test; verify the packages on a supported Windows system. `--windows-cross`
-cannot be combined with `--dev`.
-
-### Local Linux container builds
-
-On an Apple silicon Mac, an approved local Docker-compatible Linux engine can
-build Linux ARM64 artifacts without a separate Linux machine or GitHub Actions:
-
-```bash
-npm run package:runtime -- --runtime tauri --platform linux --arch arm64 \
-  --linux-container --distribution both
-```
-
-`--linux-container` is opt-in. The helper does not install or start Docker,
-change the active Docker context, or use a remote daemon. Start the local
-engine first and allocate sufficient memory and disk for Rust, WebKitGTK, and
-packaging; 8 GB of memory and 20 GB of free disk is a useful starting point.
-The image includes digest-pinned Node and Rust toolchains and Linux native
-dependencies, including WebKitGTK 4.1. The selected architecture must be
-supported by the engine; the container verifies its actual architecture.
-
-The helper snapshots tracked build inputs with their current local changes,
-plus its explicitly enumerated new helper files. It excludes `.git`,
-dependency caches, ignored settings, credentials, signing files, and unrelated
-documentation. Other new build source files require explicit review rather
-than being silently omitted or copied. Symlink inputs are rejected.
-
-The source snapshot is mounted read-only. Only a temporary artifact directory
-is mounted writable; the source checkout, home directory, Docker socket, and
-signing credentials are never mounted. Builds use neither privileged mode nor
-FUSE devices: AppImage tooling runs in extraction mode. Network access is
-needed for package downloads. The local builder image remains cached for
-later builds; temporary source/output snapshots are removed on completion.
-
-Validated outputs replace only `dist/tauri/linux-arm64/` for the example above.
-An unsuccessful build leaves previous artifacts intact. The manifest records
-the original Git commit and dirty state, the snapshot digest, actual container
-architecture, builder image ID, and installed package inventory. Base images
-and dependency lockfiles pin toolchains and application dependencies; Ubuntu
-security package updates can still change a newly built image, so this is not
-a promise of byte-identical artifacts.
-
-Use the Linux artifacts on a compatible Linux system, not directly on macOS.
-This container targets Ubuntu 24.04 LTS with glibc 2.39, using only its official
-updates and security repositories for native libraries. Digest-pinned Node and
-Rust stages supply toolchains, not cross-distribution GTK/WebKit libraries.
-The LTS baseline provides a stable set of supported prebuilt dependencies
-without requiring a private WebKit build. The verifier checks declared DEB
-runtime dependencies before promoting artifacts. See
-[Linux package compatibility](installation.md#choose-a-package) for the
-architecture, ABI, distribution dependencies, tested systems, and GUI limits;
-a `.deb` suffix alone does not establish Debian or Ubuntu compatibility.
-Known advisories without a supported distribution fix remain explicitly
-reported; no custom WebKit build or incompatible override is used.
-
-`scripts/prepare-tauri.js` downloads the exact Node version pinned in
-`package.json`, verifies the official archive's SHA-256, installs production
-dependencies, and stages a separate web-only frontend. Tauri embeds browser
-assets and packages `node` (or `node.exe`), its license, and `backend/` as
-resources. Electron is not included in the backend. Development staging lives
-in `.tauri/` and `src-tauri/resources/`, both ignored by Git.
-
-Staged production dependencies omit npm's generated executable shims
-(`node_modules/.bin`); the application loads the package modules directly.
-Package implementation files remain intact, and developer dependency installs
-are unchanged. Staging is recreated on every preparation, and runtime resource
-trees must contain only regular files and directories before packaging.
-Unexpected symbolic links or special files fail the build rather than embedding
-a build-host path in an archive.
-
-The following legacy commands continue to build Electron:
-
-| Script | Platforms | Compression | Produces |
-|---|---|---|---|
-| `npm run dist` | Current host OS | normal | Host-native artifacts |
-| `npm run package:mac` | macOS | normal | DMG, ZIP |
-| `npm run package:win` | Windows | normal | NSIS installer, portable EXE, ZIP |
-| `npm run package:win:zip` | Windows | normal | ZIP only |
-| `npm run package:linux` | Linux | normal | AppImage, DEB |
-| `npm run package` | All three, parallel | normal | Alias of `package:all` |
-| `npm run package:all` | All three, parallel | normal | All artifacts |
-| `npm run package:all:clean` | All three, parallel | normal | Cleans selected Electron targets first |
-| `npm run package:seq` | All three, sequential | normal | All artifacts |
-| `npm run package:seq:clean` | All three, sequential | normal | Cleans selected Electron targets first |
-| `npm run package:mac:max` | macOS | maximum | DMG, ZIP |
-| `npm run package:win:max` | Windows | maximum | NSIS installer, portable EXE, ZIP |
-| `npm run package:linux:max` | Linux | maximum | AppImage, DEB |
-| `npm run package:all:max` | All three, parallel | maximum | All artifacts |
-| `npm run package:all:max:clean` | All three, parallel | maximum | Cleans selected Electron targets first |
-| `npm run package:seq:max` | All three, sequential | maximum | All artifacts |
-| `npm run package:seq:max:clean` | All three, sequential | maximum | Cleans selected Electron targets first |
-| `npm run clean` | — | — | Deletes `dist/` |
-
-Build only for your current OS while iterating — it is the fastest loop.
-Electron cross-platform builds (for example a Windows installer from macOS) require Wine
-or a host running the target OS.
-
-Sequential builds (`scripts/timed-seq-build.js`) run one platform at a time and
-print a per-step summary table; a failing step stops the run and exits non-zero.
-Parallel builds (`scripts/timed-parallel-build.js`) start every platform at once
-with label-prefixed interleaved output; failing steps are marked in the summary
-and the process exits non-zero while the other steps still finish.
-
-### Compression
-
-The default is `normal`, which favors build speed. The `:max` variants add
-`--config.compression=maximum` at invocation time for smaller artifacts and
-slower builds; no config file edits are needed.
-
-### Key build settings
-
-Defined under `package.json → "build"`:
-
-| Setting | Value | Notes |
-|---|---|---|
-| `asar` | `true` | App source is bundled into a single ASAR archive |
-| `compression` | `"normal"` | The `:max` scripts override this at invocation time |
-| `buildResources` | `"src/assets"` | Icons and platform resources |
-| `files` | `src/**/*`, `package.json` | Source included in the package |
-| `executableName` | `VelocityLogger` | Executable name; packaged display names append Standalone or Compact while the canonical top-level `productName` stays unchanged |
-
-## Platform packaging
-
-For every artifact below, `{edition}` is `standalone` or `compact`, and `{arch}` is
-the architecture actually built (`x64` or `arm64`). Universal is not used as a
-label for a single-architecture build. This naming applies to newly generated
-assets, not assets already published in a release.
-
-### macOS
-
-| Format | Artifact | Use for |
-|---|---|---|
-| DMG | `arcgis-velocity-logger-{version}-{edition}-mac-{arch}.dmg` | End-user distribution; drag-to-Applications install |
-| ZIP | `arcgis-velocity-logger-{version}-{edition}-mac-{arch}.zip` | CI pipelines and scripted distribution |
-
-Apple Silicon (arm64) and Intel (x64) are both supported. Standalone requires
-macOS 13 or later with Electron 44; `build.mac.minimumSystemVersion` declares
-that floor in `package.json`. Compact requires macOS 13.5 or later, matching
-the bundled Node runtime; `bundle.macOS.minimumSystemVersion`
-in `src-tauri/tauri.conf.json` declares that floor. See the
-[macOS installation requirements](installation.md#macos). The Compact bundle is named
-`ArcGIS Velocity Logger Compact.app` and uses identifier
-`com.esri.arcgis-velocity-logger.tauri` to coexist with Electron.
-
-### Windows
-
-| Format | Artifact | Use for |
-|---|---|---|
-| NSIS installer | `arcgis-velocity-logger-{version}-{edition}-win-{arch}-setup.exe` | Standard end-user and managed deployments; adds Start Menu shortcut, uninstaller, and Add/Remove Programs entry |
-| Portable EXE | `arcgis-velocity-logger-{version}-{edition}-win-{arch}-portable.exe` | Self-extracting no-install launch |
-| ZIP | `arcgis-velocity-logger-{version}-{edition}-win-{arch}.zip` | Complete unpacked application; `npm run package:win:zip` builds the Electron ZIP alone |
-
-Windows 10 (1903 or later) and Windows 11 are supported; Windows 8.1 and
-Server 2012 R2 are not. Electron defaults to x64; select `--arch arm64` explicitly
-when building that target. Compact uses the selected native architecture or
-the explicit macOS Windows cross-build route.
-Tauri portable EXE is an NSIS self-extractor of the full application/resources,
-not a renamed installer. It forwards arguments, waits for the application,
-and propagates its exit code. ZIP and portable EXE require existing WebView2;
-they do not install it or register an application.
-
-Executable metadata uses the product name **ArcGIS Velocity Logger**, while
-artifact filenames keep the `arcgis-velocity-logger` slug prefix so download
-scripts stay stable.
-
-### Linux
-
-| Format | Artifact | Use for |
-|---|---|---|
-| AppImage | `arcgis-velocity-logger-{version}-{edition}-linux-{arch}.AppImage` | Portable launch on a compatible distribution |
-| DEB | `arcgis-velocity-logger-{version}-{edition}-linux-{arch}.deb` | Debian-family systems that want app-menu integration and `apt` management |
-
-The Compact Linux executable is `VelocityLogger-compact`, avoiding an installed
-binary collision with Standalone. On macOS and Windows the executable name
-remains `VelocityLogger` or `VelocityLogger.exe` inside the edition's own bundle.
-
-> [!NOTE]
-> Linux builds target the build machine's host architecture. Cross-architecture
-> builds such as arm64 require additional tooling or a CI host of that
-> architecture.
-
-## Code signing
-
-Unsigned builds run, but they trigger OS security warnings on first launch.
-Signing is optional for internal tools and recommended for wider distribution.
-
-| Platform | Needed for distribution | Certificate source | Suppresses the warning immediately |
-|---|---|---|---|
-| macOS | Strongly recommended | Apple Developer Program | Yes, after notarization |
-| Windows | Recommended | DigiCert, Sectigo, or GlobalSign | Only with an EV certificate |
-| Linux | Not applicable | — | — |
-
-### macOS signing and notarization
-
-Requires a paid Apple Developer account, a Developer ID Application certificate
-exported as `.p12`, an app-specific password, and your 10-character Team ID.
-Without signing and notarization, Gatekeeper blocks the app on first launch.
-
-```bash
-export CSC_LINK=/path/to/DeveloperID.p12       # or a base64-encoded p12
-export CSC_KEY_PASSWORD=your-cert-password
-export APPLE_ID=your@apple-id.com
-export APPLE_APP_SPECIFIC_PASSWORD=xxxx-xxxx-xxxx-xxxx
-export APPLE_TEAM_ID=XXXXXXXXXX
 npm run package:mac
-```
-
-`scripts/release.sh` picks up the same variables — export them in your shell or
-source them from a local, git-ignored file before invoking the script.
-
-Users installing an unsigned test package should follow
-[Installing and running the application](installation.md#unsigned-package-workaround).
-
-For Tauri, set `APPLE_SIGNING_IDENTITY` to the installed Developer ID identity.
-The wrapper signs the bundled Node executable with its JIT entitlements before
-Tauri signs the outer application bundle. Without an identity the Node binary
-receives an ad hoc signature; that is not notarization. Tauri supports its own
-Apple signing/notarization configuration, while Electron uses electron-builder.
-Do not assume Electron's `CSC_*` settings configure Tauri.
-
-### Windows signing
-
-Without signing, SmartScreen shows "Windows protected your PC" on first run. EV
-certificates suppress that warning immediately; standard OV certificates require
-a reputation build-up period.
-
-```bash
-export WIN_CSC_LINK=/path/to/certificate.pfx   # or a base64-encoded pfx
-export WIN_CSC_KEY_PASSWORD=your-cert-password
 npm run package:win
+npm run package:linux -- --arm64
+npm run package:linux -- --x64
 npm run package:win:zip
 ```
 
-### External Windows signing script
-
-The repository-local
-[Build, sign and release skill](../.github/skills/build-sign-release/SKILL.md)
-locates the existing tools. An optional ignored `.release.local.json` can hold
-a personal `signScript` path. This is a discovery hint for the skill, not an
-automatically loaded release-script configuration; pass `--sign-script`
-explicitly. The external tool owns its own configuration.
-
-Windows builds can delegate signing to an external script such as Esri's
-`sign.sh`, either from a build or from a release:
+`npm run package:all` runs platform builds in parallel; `npm run package:seq`
+runs them sequentially. The legacy single-platform scripts default to the host
+architecture except Windows, which defaults to `x64`. The target selector
+builds both Linux architectures unless an explicit architecture is supplied:
 
 ```bash
-npm run package:win -- --sign-script /absolute/path/to/sign.sh
-
-./scripts/release.sh v1.2.3 \
-  --sign-script /absolute/path/to/sign.sh \
-  --sign-share-dir '\\storm\upload\DigitalSign\Velocity' \
-  --sign-product-names "ArcGIS Velocity Logger"
+npm run package:targets -- --platform linux --linux-container
 ```
 
-| Option | Required | Passed to the external script |
-|---|---|---|
-| `--sign-script <path>` | Optional | The script to run. Absolute, relative (`../../../sign.sh`), and `~` paths are resolved to an absolute path before use. If omitted or unreadable, the build logs a warning and falls back to normal electron-builder signing or unsigned output. |
-| `--sign-share-dir <UNC>` | Optional | `--share-dir <UNC>` |
-| `--sign-timeout-minutes <minutes>` | Optional | `--timeout-minutes <minutes>`. Default `60`; must be a positive whole number. |
-| `--sign-product-names <names>` | Optional | `--product-names <names>`. Defaults to `ArcGIS Velocity Logger`; use comma-separated names for multiple source directories. |
+The local Ubuntu container snapshots reviewed source and validates each output
+before promotion. On an ARM64 Mac, its x64 AppImage checks explicitly use and
+record the distribution's QEMU executor; this is emulated validation, not a
+native x64 execution claim. Neither QEMU nor the build-time Node installation
+is added to the released application.
 
-When a usable script is supplied, a path-aware hook signs in two phases:
+Specify architecture explicitly when building a single target.
+`ia32` and labels such as `universal` are not substitutes for a real supported
+build. Both `x64` and `arm64` are 64-bit architectures.
 
-| Phase | Auto `--source-dirs` | Files signed externally |
-|---|---|---|
-| Unpacked Electron app (`afterSign`) | `dist/electron/win-<arch>/win-unpacked` | Top-level `*.exe;*.msi;*.msp` after electron-builder finishes Windows resource editing |
-| Final Electron artifacts (`afterAllArtifactBuild`) | `dist/electron/win-<arch>/` | Only this target's current-version setup and portable executables |
+Package-only wrappers enforce `--publish=never`, including under CI. An explicit
+request for another publishing mode fails before output cleanup. Publish only
+through the release workflow after validation.
 
-Tauri uses the same external signer through `scripts/tauri-sign.js` for the
-native executable and NSIS output, and signs the final portable wrapper after
-assembly. An explicitly configured but unreadable Tauri signer fails the build.
-Tauri's NSIS helper DLLs also use that signer, with each requested DLL's exact
-filename as the signing mask. This does not add a DLL wildcard to Electron's
-unpacked-app signing batch or allow unrelated file types.
+### Compression
 
-The hook skips electron-builder's built-in Authenticode signing only for those
-direct files; nested helpers such as
-`dist/electron/win-<arch>/win-unpacked/resources/elevate.exe` remain eligible for normal
-electron-builder or `signtool` signing. ZIP, DMG, DEB, and AppImage artifacts
-are never signed by this Windows path.
+Compression defaults to `normal`. The existing `:max` scripts pass
+`--config.compression=maximum`; they trade build time for smaller output.
+Do not edit source configuration just to choose compression.
 
-Before each platform build, the wrapper removes existing artifacts for that
-platform. The final Windows signing hook also rejects any Logger artifact whose
-filename version differs from `package.json`, so a platform-only retry cannot
-submit stale installers or portable executables.
+### Key build settings
 
-The current Esri signing script mounts SMB shares on macOS with soft,
-no-cache semantics and transfers files with visible `rsync` progress. In an
-interactive terminal, the wrapper refreshes that progress in place on one
-line; redirected logs retain each update as a separate line. Each transfer
-uses a `.partial-<pid>` name, verifies the byte size, and atomically renames
-the file before submitting or replacing an artifact. Shared staging cleanup
-fails closed if stale files cannot be removed.
+`package.json` owns the version and Electron builder configuration. Preserve
+`build.appId` and `build.executableName` when changing presentation or packaging;
+they affect application identity, shortcuts, and installation behavior.
+Application code is packaged in ASAR, while `src/assets` supplies icons.
 
-> [!WARNING]
-> External signing invocations are serialized by a cross-process lock at
-> `${TMPDIR}/arcgis-velocity-external-sign.lock` (or the platform temp
-> equivalent). The lock is held only around each external signing invocation, so
-> `npm run package:all:clean` still builds all three platforms in parallel while
-> guaranteeing a single active signing job. The companion ArcGIS Velocity
-> Simulator repository uses the same lock name, so two local builds cannot
-> submit external signing jobs simultaneously.
+## Platform packaging
 
-Signing output streams live inside the nested signing log, including lock
-acquisition, process start, output, and lock release. The external script runs
-with stdin closed so interactive prompts fail visibly instead of hanging the
-build. Each signing process has a watchdog timeout of at least 45 minutes.
+Public filenames contain the version, platform, and actual architecture, with
+no edition suffix:
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `VELOCITY_SIGN_TIMEOUT_MS` | 45 minutes | Watchdog timeout for a signing process. Set to `0` to disable it. |
-| `VELOCITY_SIGN_PROGRESS_INTERVAL_MS` | `30000` | Minimum silence before a "Still waiting" heartbeat, and the minimum interval between heartbeats. Set to `0` to disable heartbeat logging. |
-| `VELOCITY_SIGN_POLL_INTERVAL_MS` | `5000` | How often the silence clock is checked internally. Must be less than or equal to `VELOCITY_SIGN_PROGRESS_INTERVAL_MS`; it is clamped automatically. |
+```text
+arcgis-velocity-logger-<version>-mac-<arch>.dmg
+arcgis-velocity-logger-<version>-mac-<arch>.zip
+arcgis-velocity-logger-<version>-win-<arch>-setup.exe
+arcgis-velocity-logger-<version>-win-<arch>-portable.exe
+arcgis-velocity-logger-<version>-win-<arch>.zip
+arcgis-velocity-logger-<version>-linux-<arch>.deb
+arcgis-velocity-logger-<version>-linux-<arch>.AppImage
+```
 
-Running `./scripts/release.sh --dry-run` with a valid `--sign-script` invokes
-the external script in its own dry-run mode (without `--run`) for existing
-signable Windows files in the selected `dist/electron/win-<arch>/` target.
+The release matrix is macOS ARM64, Windows x64, and Linux ARM64 plus x64:
+nine application packages and four local target manifests. macOS requires
+version 13 or later. Linux targets Ubuntu 24.04 LTS and Debian 13; Alpine is
+not supported. See [package selection](installation.md#choose-a-package) for
+the difference between DEB installation and AppImage portability.
 
-## Releasing
+`build.toolsets.appimage` pins the official builder toolset `1.0.3` with its
+static AppImage runtime. Validate the actual executable in a clean runtime
+image, not only on a build host with development libraries installed.
 
-`scripts/release.sh`, run from the repository root, is the supported way to cut
-a release:
+The Linux after-pack hook retains the native Electron executable as
+`<executableName>.bin` and installs a launcher at the original executable path.
+It dispatches help, validation errors, and headless capture through the bundled
+Node runtime before Chromium starts. GUI execution remains normal Electron.
+No separate Node download or CLI package is required.
+
+## Code signing
+
+### macOS signing and notarization
+
+Configure the normal Electron builder `CSC_*` and `APPLE_*` credentials for
+Developer ID signing and notarization. Ad-hoc signing verifies bundle integrity
+but is not Developer ID trust or notarization. Never describe these as
+equivalent. User Gatekeeper guidance belongs in
+[installation troubleshooting](installation.md#troubleshooting).
+
+### Windows signing
+
+Use a readable external signing-script path explicitly:
 
 ```bash
-./scripts/release.sh <version>
+npm run package:win -- --sign-script /path/to/sign.sh
 ```
 
-It runs the full pipeline:
+The build signs the unpacked application after resource editing, then signs
+the completed setup and portable executables in one outer-artifact batch.
+The external signer owns its credentials, service configuration, and staging.
+Use its documented configuration rather than copying secrets into this repo.
+An ignored `.release.local.json` may hold a local `signScript` pointer, but
+the scripts do not load it automatically: pass `--sign-script`.
 
-1. Verifies tooling (Node.js, npm, `node_modules`, `git`, `gh` plus
-   authentication, and on macOS `dpkg`, `fakeroot`, GNU `ar` for `.deb`) and
-   that the working tree is clean — no uncommitted changes apart from
-   `package.json`, and no unpushed commits.
-2. Validates the requested version against `package.json` and blocks downgrades.
-3. Bumps `package.json` and synchronizes `package-lock.json`.
-4. Builds the selected runtime, platform, architecture, and distribution.
-5. Commits and pushes the version bump, only when the version changed.
-6. Validates all selected target manifests and artifact hashes, creates a draft,
-   uploads the validated application packages, and then publishes it with
-   generated notes. Missing selected targets or changed artifact hashes fail
-   rather than silently producing a partial release.
-
-Local manifests remain mandatory validation and provenance records, not public
-release downloads. A complete two-edition release uploads 14 application
-packages while retaining its six manifests locally.
-
-### Options
-
-| Option | Description |
-|---|---|
-| `<version>` | Release version such as `v1.2.3` or `1.2.3`. Must be greater than or equal to the current `package.json` version. Not required with `--upload-only`. |
-| `--runtime electron\|tauri\|both` | Select runtimes; defaults to Electron. |
-| `--platform mac\|win\|linux\|all` | Select platforms; defaults to all for Electron, current host for Tauri or both. |
-| `--arch x64\|arm64` | Select architecture. Upload-only can collect available architectures when omitted. |
-| `--distribution portable\|installer\|both` | Select formats; defaults to both. |
-| `--linux-container` | Build selected Linux targets in the approved local Docker-compatible engine. Build-only; upload-only still consumes validated manifests. |
-| `--windows-cross` | Build Compact Windows targets on macOS with the cross toolchain; build-only, not an upload selector. |
-| `--notes-file <path>` | Use a reviewed Markdown release body verbatim instead of generated commit notes. Preview it with `--dry-run` before publishing. |
-| `--dry-run`, `--simulate` | Simulate the whole release without writing files, committing, or publishing. Prints each artifact that would be uploaded with its size, plus a full preview of the release notes. |
-| `--re-release` | Republish an already-released version with rebuilt artifacts and refreshed notes. Generates the changelog against the previous good tag, deletes the existing GitHub release and git tag, and recreates them pinned to the current `HEAD`. The clean-tree and version-gate checks still apply. |
-| `--seq` | Build platforms sequentially instead of in parallel. Slower, but the output is not interleaved. Not required for external Windows signing, which is serialized separately. |
-| `--prepare-only` | Run steps 1–5 (checks, bump, build, commit, push) and exit before touching GitHub. Compatible with `--seq`, `--install-prereqs`, and `--dry-run`. |
-| `--upload-only` | Validate selected manifests and publish their artifacts. Reads the version from `package.json`; requires Node.js, Git, and authenticated `gh`, but no build toolchain. Compatible with `--re-release` and `--dry-run`. |
-| `--install-prereqs`, `--install-deps` | Auto-install missing build and release prerequisites before the checks run. Combine with `--dry-run` to preview the plan. Signing tools and signing environment variables are never auto-installed. |
-| `--sign-script <path>` | External Windows signing script; see [External Windows signing script](#external-windows-signing-script). |
-| `--sign-share-dir <UNC>` | Signing share passed through as `--share-dir <UNC>`. Only used with `--sign-script`. |
-| `--sign-timeout-minutes <minutes>` | External signing timeout passed through as `--timeout-minutes <minutes>`. Default `60`. |
-| `--sign-product-names <names>` | External signing product names passed through as `--product-names <names>`. Defaults to `ArcGIS Velocity Logger`. |
-| `--list` | List published GitHub releases as a **TAG · DATE · STATUS · URL** table and exit, alongside the local `package.json` version. Requires an authenticated `gh`. |
-| `--limit <n>` | Maximum number of releases shown by `--list`. Default `10`. |
-| `--help` | Print usage information and exit. |
-
-Flag order is flexible, and unknown long options are matched against the
-supported flags by edit distance to produce a `Did you mean …?` suggestion.
-
-```bash
-./scripts/release.sh --dry-run v1.2.3                 # preview before anything real
-./scripts/release.sh v1.2.3                           # standard release
-./scripts/release.sh --seq v1.2.3                     # sequential build output
-./scripts/release.sh --re-release v1.2.3              # recover a broken release
-./scripts/release.sh --install-prereqs v1.2.3         # install missing tooling first
-./scripts/release.sh --list --limit 5                 # inspect recent releases
-```
-
-### Two-phase release
-
-`--prepare-only` and `--upload-only` split the pipeline so artifacts can be
-inspected, signed, or moved between machines before publishing:
-
-```bash
-./scripts/release.sh --prepare-only v1.2.3
-# inspect or sign dist/ artifacts, then:
-./scripts/release.sh --upload-only
-```
-
-This also covers building on one machine and uploading from another, and
-publishing artifacts produced by CI without rebuilding.
-
-> [!WARNING]
-> `--prepare-only` and `--upload-only` cannot be combined; the script aborts if
-> both are passed. `--upload-only` skips the clean-working-tree and build-tool
-> checks, so confirm `gh auth login` has been run and `dist/` holds the expected
-> artifacts before using it.
-
-### Manual release
-
-If you need to publish without the script:
-
-Build first, then inspect the exact validated file list before uploading:
-
-```bash
-node scripts/release-artifacts.js --runtime both --platform mac --arch arm64 --packages-only
-```
-
-Upload only those application packages. Do not glob `dist/`: it can contain
-unpacked applications, other versions, and incomplete targets.
-
-### Verification and recovery
-
-Before resuming an interrupted release, validate the existing matrix without
-building or uploading:
-
-```bash
-node scripts/release-artifacts.js --runtime both --platform all --distribution both
-node scripts/release-artifacts.js --runtime both --platform all --distribution both --packages-only
-./scripts/release.sh --upload-only --runtime both --platform all --notes-file /path/to/reviewed-notes.md --dry-run
-```
-
-The validator checks recorded hashes, version, target, and required formats.
-`--packages-only` changes the returned file list, not the manifest or checksum
-requirements; it is the list the release workflow uploads.
-Also confirm each manifest's source commit and dirty flag match the intended
-release. Reuse only outputs whose producer and final signed bytes are verified;
-do not rewrite an old manifest to claim a newer commit. Upload-only publishes
-after its uploads complete, so use the dry run for inspection.
-
-An interrupted signing request is different from an interrupted upload.
-Acceptance is not completion: retain its unique request identity, require
-terminal success and verified copy-back, and do not resubmit when correlation
-is uncertain. Let the external signing tool own its staging and cleanup.
-Shared signing clients stay serialized even when local builds run in parallel.
+The wrappers also accept `--sign-share-dir`, `--sign-product-names`, and
+`--sign-timeout-minutes`. Use `--help` for their exact defaults. Preserve the
+shared signing lock, unique request correlation, terminal success checks,
+copy-back verification, and failure behavior. Never submit competing clients,
+delete an unexplained marker, or repost an ambiguously accepted request.
 
 ### Ready-file signing batches
 
-One signing request can contain several independent, fully prepared files.
-The explicit adapter batch mode signs at least two regular EXE, DLL, or MSI
-files from one flat, regular-file-only directory in one locked request:
+Independent, fully prepared EXE, DLL, and MSI files can use the neutral adapter:
 
 ```bash
-VELOCITY_SIGN_SCRIPT=/path/to/sign.sh node scripts/tauri-sign.js --batch /ready/application.exe /ready/node.exe /ready/helper.dll
+VELOCITY_SIGN_SCRIPT=/path/to/sign.sh node scripts/sign-windows-files.js --batch /ready/application.exe /ready/helper.dll
 ```
 
-Only the listed exact filenames are selected. Nested directories and links are
-rejected so signer scan-depth settings cannot broaden the batch. Wildcards, multiple source
-directories, duplicate names, case-only collisions, and space-to-hyphen
-collisions are rejected. Prepare a deliberate batch directory if ready inputs
-are scattered, retain their original mapping and hashes, and verify every
-signed result before copying it back.
+Use one flat directory of regular files and exact distinct filenames. Links,
+nested directories, wildcards, duplicates, case collisions, and signer filename
+normalization collisions are rejected. Inner files must be signed before
+assembling the outer packages. Verify every result against its own pre-sign
+input, allowing only Authenticode certificate, directory, and checksum changes.
 
-Batch independent inner payloads only after their bytes are final; assemble
-installers and ZIPs after those inputs are signed. Newly assembled setup and
-portable EXEs can form another batch. Do not combine installer `NSS` and
-portable `UNK` app variants under the same basename, return success from a
-Tauri hook before its file is signed, or run competing clients against shared
-signing directories. The normal Tauri callback remains synchronous and
-single-file; batch mode is an explicit preparation workflow, not a deferred
-signing queue.
+## Releasing
 
-### Host-OS support matrix
+`scripts/release.sh` is the release entry point. Use reviewed notes when
+generated commit messages are not appropriate for publication.
 
-The following matrix applies to Electron. Compact supports native builds,
-macOS Windows cross-builds with `--windows-cross`, and local Linux builds with
-`--linux-container`. Collect the resulting target folders
-with their manifests before using `--upload-only --runtime both --platform all`.
+```bash
+bash scripts/release.sh --help
+bash scripts/release.sh --dry-run 1.1.1
+```
 
-| Host | `.dmg` | mac `.zip` | Windows `setup.exe`, `portable.exe`, `.zip` | `.AppImage` | `.deb` |
-|---|:---:|:---:|:---:|:---:|:---:|
-| macOS | Yes | Yes | Yes, unsigned without signing variables | Yes | Yes, with `dpkg`, `fakeroot`, `binutils` |
-| Linux | No | No | Yes, unsigned | Yes | Yes |
-| Windows | No | No | Yes | Via WSL | Via WSL |
+The full workflow checks prerequisites and source state, updates and commits
+the version when necessary, builds from that clean commit, pushes it after
+successful packaging, creates a draft release, uploads
+validated application packages, and publishes only after all uploads succeed.
+Local manifests are mandatory provenance records, not public downloads.
 
-> [!NOTE]
-> `.dmg` cannot be cross-built and requires a macOS host, as does notarization
-> with `xcrun notarytool`. Windows Electron signing uses `WIN_CSC_LINK` and
-> `WIN_CSC_KEY_PASSWORD` or the explicit external signer. Selected release targets
-> must all be present and pass manifest validation.
+### Verification and recovery
 
-### Versioning
+Validate prepared outputs and preview publication without rebuilding:
 
-Follow [Semantic Versioning](https://semver.org/): patch for fixes, minor for
-backward-compatible features, major for breaking changes. Tags are the version
-prefixed with `v`, for example `v1.2.3`.
+```bash
+node scripts/release-artifacts.js --platform all --packages-only
+bash scripts/release.sh --upload-only --platform all --notes-file /path/to/reviewed-notes.md --dry-run
+```
+
+The validator checks manifest completeness, version, architecture, hashes, and
+source provenance. `--packages-only` changes the output list, not validation.
+Do not rename old packages or rewrite their manifests to claim a newer producer.
+Omit a global architecture override when collecting mixed-architecture targets.
+
+An interrupted upload leaves a draft; inspect its exact assets before resuming.
+An accepted signing request is not a completed signing request. Preserve its
+identity and resolve its actual state rather than retrying blindly.
+
+### Two-phase release
+
+`--prepare-only` still commits and pushes; it is not a local-only build mode.
+`--upload-only` validates prepared artifacts and publishes them without building.
+These options are mutually exclusive.
+
+### Replacing a release
+
+`--re-release` deletes and recreates the selected release and tag. Before using
+it, preserve the old release metadata and all original bytes, verify every
+replacement target, freeze its source commit, and prepare the intended notes.
+Never use it to recover from an unknown upload or signing state.
 
 ## Release checklist
 
-1. `npm test` passes and `npm run docs:link-check` reports no broken links.
-2. Documentation is updated for any behavior, option, or tooltip change.
-3. The working tree is clean and all commits are pushed.
-4. `npm run prereqs:check:release` passes on the release host.
-5. Signing variables are exported if the release must be signed.
-6. `./scripts/release.sh --dry-run <version>` shows the expected artifacts and
-   release notes.
-7. `./scripts/release.sh <version>` completes, and the published release lists
-   every expected macOS, Windows, and Linux artifact.
-
-Inspect archive entry types and link targets before comparing file contents;
-following a link into the build checkout can hide a non-portable archive.
-Use ordinary safe extraction and reject unexpected links, including absolute,
-escaping, or dangling links inside application payloads. The documented
-DMG-root `Applications` link to `/Applications` is allowed outside the `.app`
-bundle for drag-to-Applications installation; it is not a runtime resource.
-Compact Windows ZIP and portable payloads must match by entry type and contents.
-The Compact NSIS application uses the `NSS` bundle marker while the portable
-and ZIP application uses `UNK`; verify each variant against its own signing
-input rather than requiring their complete executables to be identical.
-
-When Windows signing is configured, Tauri NSIS signs helper DLLs as well as
-executables. Keep their exact filename
-masks and verify the signed helpers embedded in the installer. Verify primary
-application signatures separately from outer installer signatures; neither
-proves native Windows startup, CLI argument handling, or portable extraction
-works on a target machine.
+- Run `npm test`, `npm run docs:link-check`, and `git diff --check`.
+- Freeze the reviewed source and build every selected architecture.
+- Verify executable versions, architecture, signatures, and pre-sign payloads.
+- Inspect archive entry types and targets before extraction or file hashing.
+  Reject unexpected absolute, escaping, and dangling runtime links. The
+  DMG-root `Applications` link to `/Applications` is the deliberate exception.
+- Test Linux GUI launch and actual no-display headless capture on Ubuntu 24.04
+  and Debian 13, with both architectures; do not use Xvfb as headless proof.
+- Exercise help, invalid arguments, Launch Config, signals, stop conditions,
+  output files, `doneFile`, and transport/TLS behavior in real packages.
+- Test Windows startup, installation, portable extraction, and command-line
+  behavior; a valid signature does not establish that these work.
+- Preview the exact upload set, then verify remote asset names, sizes, digests,
+  release body, timestamp, and tag after publication.
 
 ## Troubleshooting
 
-| Symptom | Cause and fix |
+| Symptom | Action |
 |---|---|
-| `.deb` is roughly 100 bytes | BSD `ar` was used. Run `brew install dpkg fakeroot binutils` and rebuild. |
-| Prerequisite check fails on a fresh machine | Run `npm run setup`, or `npm run prereqs:install:release` for release tooling. |
-| Release aborts on a dirty working tree | Commit or revert everything except the `package.json` version bump, and push outstanding commits. |
-| Release aborts with a version error | The requested version is lower than `package.json`. Choose a higher version, or use `--re-release` to republish the same one. |
-| `gh` errors while publishing | Run `gh auth login`, then resume with `./scripts/release.sh --upload-only`. |
-| External signing appears to hang | Check the nested signing log for lock acquisition and heartbeat lines. Tune `VELOCITY_SIGN_PROGRESS_INTERVAL_MS`, or raise `VELOCITY_SIGN_TIMEOUT_MS`. Interactive prompts fail rather than hang because stdin is closed. |
-| Windows artifacts are unsigned | Export `WIN_CSC_LINK` and `WIN_CSC_KEY_PASSWORD`, or pass `--sign-script` with a readable script path. |
-| Gatekeeper reports that the application is damaged or cannot be checked | The macOS build is unsigned or not notarized. Use a signed and notarized package for distribution. User launch troubleshooting belongs in [Installing and running the application](installation.md#troubleshooting). |
-| SmartScreen warns on launch | The Windows build is unsigned. See [Code signing](#code-signing). |
-| A parallel build's output is unreadable | Rebuild with `npm run package:seq` or release with `--seq`. |
+| DEB is suspiciously small | Check GNU `ar`, `dpkg`, and `fakeroot`; rebuild and verify extraction. |
+| Packaging attempts to publish | Use the package wrappers with enforced `--publish=never`; do not supply a token as a workaround. |
+| Signing appears stalled | Inspect correlated request state and heartbeat output. Do not retry an accepted request. |
+| An artifact changed after packaging | Investigate the changed bytes; rebuild the intended target and regenerate its manifest honestly. |
+| Linux headless needs a display | Use the packaged launcher, not the native `.bin` executable; verify its Node-only dispatch. |
+| A downloaded package will not start | See [installation troubleshooting](installation.md#troubleshooting). |
 
 ## Related documentation
 
-- [Developer guide](developer-guide.md) — local development, testing, and debugging
-- [Installation](installation.md) — release packages, first launch, deployed logs, and startup troubleshooting
-- [Command-line reference](command-line.md) — CLI parameters for the packaged app
-- [Configuration](configuration.md) — persisted settings and launch configuration
-- [Repository overview](../README.md)
+- [Installation](installation.md)
+- [Developer guide](developer-guide.md)
+- [Headless mode](headless.md)
+- [Command-line reference](command-line.md)

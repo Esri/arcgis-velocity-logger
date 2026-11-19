@@ -1892,8 +1892,10 @@ function formatCliStartupErrorOutput(cliArgs, {
  * - validation errors and non-fatal warnings
  * - fully normalized headless options when applicable
  */
-function parseCommandLineArgs(rawArgv, { isPackaged = false } = {}) {
-  const rawArgs = sliceUserArgs(rawArgv, isPackaged);
+function parseCommandLineArgs(rawArgv, { isPackaged = false, isAppImage = false } = {}) {
+  // AppRun owns this Chromium switch; it is not an application parameter.
+  const rawArgs = sliceUserArgs(rawArgv, isPackaged)
+    .filter(arg => !isAppImage || arg !== '--no-sandbox');
   const { values: rawValues, positional, helpLayout: rawHelpLayout, unknownFlags } = parseRawArgs(rawArgs);
   let helpLayout = rawHelpLayout;
 

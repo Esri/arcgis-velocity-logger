@@ -8,11 +8,10 @@
 
 # Build output
 /dist
+.build/
 /.release.local.json
+# Preserved historical build evidence (not part of current packaging)
 .tauri/
-src-tauri/resources/
-src-tauri/target/
-src-tauri/gen/
 
 # Logs
 logs

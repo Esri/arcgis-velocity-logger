@@ -74,13 +74,6 @@ discovery and override workflows.
 | Windows | `%APPDATA%\arcgis-velocity-logger\config.json` |
 | Linux | `~/.config/arcgis-velocity-logger/config.json` |
 
-These are Electron locations. Tauri uses `arcgis-velocity-logger-tauri` in place
-of `arcgis-velocity-logger` on each platform. The two runtimes do not concurrently
-write the same settings or remembered sign-in file. Use **Save App Configuration
-To...** and **Apply App Configuration From...** to transfer UI settings
-explicitly. Launch Config files and CLI option names are shared unchanged;
-switching runtimes never requires disabling TLS verification.
-
 ## Configuration structure
 
 ```json

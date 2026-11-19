@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-const { app, BrowserWindow, ipcMain, nativeTheme, dialog, clipboard, shell, Menu, screen } = require('./desktop-runtime');
+const { app, BrowserWindow, ipcMain, nativeTheme, dialog, clipboard, shell, Menu, screen } = require('electron');
 const path = require('path');
 const net = require('net');
 const dgram = require('dgram');
@@ -69,7 +69,10 @@ function requestGracefulCliExit(exitCode) {
 // mode and restores saved behavior from the configuration file. With runMode=headless
 // (or runMode=silent) the app runs without any UI. help / help-table-wide /
 // help-table-narrow print terminal help and exit without launching the app.
-const cliOptions = parseCommandLineArgs(process.argv, { isPackaged: app.isPackaged });
+const cliOptions = parseCommandLineArgs(process.argv, {
+  isPackaged: app.isPackaged,
+  isAppImage: process.platform === 'linux' && Boolean(process.env.APPIMAGE),
+});
 
 // ─── Application Logger (works in both UI and headless modes) ────────────────
 // Initialised immediately after CLI parsing so every subsequent print — including
@@ -79,12 +82,11 @@ const { resolveAppLogFile } = require('./app-log-path.js');
 
 const appLogFile = resolveAppLogFile({
   explicitLogFile: cliOptions.logFile,
-  appSlug: app.runtime === 'tauri' ? 'arcgis-velocity-logger-tauri' : 'arcgis-velocity-logger',
+  appSlug: 'arcgis-velocity-logger',
   filePrefix: 'velocity-logger',
   isPackaged: app.isPackaged,
   homePath: app.getPath('home'),
-  userDataPath: app.runtime === 'tauri' ? app.getPath('userData')
-    : path.join(app.getPath('appData'), 'arcgis-velocity-logger'),
+  userDataPath: path.join(app.getPath('appData'), 'arcgis-velocity-logger'),
 });
 
 const appLogger = new RunLogger({
