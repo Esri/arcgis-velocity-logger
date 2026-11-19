@@ -65,6 +65,14 @@ UI mode, headless mode, help output, or an error exit. IPC is the only channel
 between main and renderer, and `src/preload.js` whitelists every allowed
 channel, so the renderer has no direct Node.js or system access.
 
+The `package.json` overrides constrain only the affected minimatch 9 and 10
+dependencies of the packaging tools to patched minimatch 11.0.3. That release
+permits Node.js 18 in its own engine range; this is not a claim that the entire
+application or toolchain is validated on Node.js 18. Current validation uses
+Node.js 24.22.3. Older minimatch consumers keep their own versions; do not
+replace this with an unrestricted override. `test/package-runtime.test.js`
+exercises the actual builder file-selection and universal-bundle matching APIs.
+
 Shared logic belongs in a dedicated module rather than in each transport.
 `tls-utils.js`, `format-utils.js`, and `tooltip-utils.js` are the reference
 examples: gRPC, HTTP, WebSocket, and XMPP transports consume them instead of

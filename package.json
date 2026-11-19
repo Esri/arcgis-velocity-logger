@@ -77,12 +77,20 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "@tauri-apps/cli": "^2.10.0",
-    "electron": "^41.2.1",
+    "electron": "44.11.4",
     "electron-builder": "^26.15.0",
     "jsdom": "^29.0.2"
   },
+  "overrides": {
+    "app-builder-lib": {
+      "minimatch@^10.2.5": "11.0.3",
+      "@electron/universal": {
+        "minimatch@^9.0.3": "11.0.3"
+      }
+    }
+  },
   "tauriRuntime": {
-    "nodeVersion": "24.19.0"
+    "nodeVersion": "24.22.3"
   },
   "build": {
     "appId": "com.esri.arcgis-velocity-logger",
@@ -100,6 +108,7 @@
       "buildResources": "src/assets"
     },
     "mac": {
+      "minimumSystemVersion": "13.0",
       "icon": "src/assets/icon.png",
       "target": [
         "dmg",
@@ -136,7 +145,7 @@
     }
   },
   "dependencies": {
-    "@grpc/grpc-js": "^1.14.4",
+    "@grpc/grpc-js": "^1.14.7",
     "@grpc/proto-loader": "^0.8.0",
     "@xmpp/client": "^0.14.0",
     "@xmpp/jid": "^0.14.0",

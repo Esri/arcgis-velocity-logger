@@ -51,6 +51,11 @@ portable executable. Linux needs a C compiler, `pkg-config`, GTK 3, WebKitGTK
 [Tauri's platform prerequisites](https://v2.tauri.app/start/prerequisites/).
 The Electron prerequisite installer does not install these Tauri tools.
 
+Compact Linux dialog support uses the default `rfd` portal backend. Runtime
+hosts need `libdbus-1`, Zenity, and a supported GTK, GNOME, or KDE desktop portal
+backend. Installing these only in the build container does not provide them to
+an AppImage user's host. See [Linux installation requirements](installation.md#choose-a-package).
+
 > [!WARNING]
 > On macOS the system `/usr/bin/ar` is BSD `ar` and silently produces a
 > malformed ~100-byte `.deb` stub instead of a real Debian package. After
@@ -180,15 +185,22 @@ Validated outputs replace only `dist/tauri/linux-arm64/` for the example above.
 An unsuccessful build leaves previous artifacts intact. The manifest records
 the original Git commit and dirty state, the snapshot digest, actual container
 architecture, builder image ID, and installed package inventory. Base images
-and dependency lockfiles pin toolchains and application dependencies; Debian
+and dependency lockfiles pin toolchains and application dependencies; Ubuntu
 security package updates can still change a newly built image, so this is not
 a promise of byte-identical artifacts.
 
 Use the Linux artifacts on a compatible Linux system, not directly on macOS.
-This container targets Debian 12 (bookworm), whose glibc baseline is 2.36.
-Do not treat its Compact artifacts as compatible with Ubuntu 22.04/glibc 2.35
-or older systems without a separate build and validation for that baseline.
-Headless package checks do not replace Linux GUI validation.
+This container targets Ubuntu 24.04 LTS with glibc 2.39, using only its official
+updates and security repositories for native libraries. Digest-pinned Node and
+Rust stages supply toolchains, not cross-distribution GTK/WebKit libraries.
+The LTS baseline provides a stable set of supported prebuilt dependencies
+without requiring a private WebKit build. The verifier checks declared DEB
+runtime dependencies before promoting artifacts. See
+[Linux package compatibility](installation.md#choose-a-package) for the
+architecture, ABI, distribution dependencies, tested systems, and GUI limits;
+a `.deb` suffix alone does not establish Debian or Ubuntu compatibility.
+Known advisories without a supported distribution fix remain explicitly
+reported; no custom WebKit build or incompatible override is used.
 
 `scripts/prepare-tauri.js` downloads the exact Node version pinned in
 `package.json`, verifies the official archive's SHA-256, installs production
@@ -262,10 +274,12 @@ assets, not assets already published in a release.
 | DMG | `arcgis-velocity-logger-{version}-{edition}-mac-{arch}.dmg` | End-user distribution; drag-to-Applications install |
 | ZIP | `arcgis-velocity-logger-{version}-{edition}-mac-{arch}.zip` | CI pipelines and scripted distribution |
 
-Apple Silicon (arm64) and Intel (x64) are both supported. macOS 12 through 15
-are supported; macOS 11 is best-effort (the Electron 41 minimum) and macOS 10.15
-is not supported. These Electron compatibility claims do not replace the
-native SDK and bundled Node requirements for Tauri. The Tauri bundle is named
+Apple Silicon (arm64) and Intel (x64) are both supported. Standalone requires
+macOS 13 or later with Electron 44; `build.mac.minimumSystemVersion` declares
+that floor in `package.json`. Compact requires macOS 13.5 or later, matching
+the bundled Node runtime; `bundle.macOS.minimumSystemVersion`
+in `src-tauri/tauri.conf.json` declares that floor. See the
+[macOS installation requirements](installation.md#macos). The Compact bundle is named
 `ArcGIS Velocity Logger Compact.app` and uses identifier
 `com.esri.arcgis-velocity-logger.tauri` to coexist with Electron.
 

@@ -11,11 +11,39 @@ const { once } = require('node:events');
 const { isAllowedChannel } = require('../src/tauri-policy');
 const { encodeFrames, MAX_FRAME } = require('../src/tauri-wire');
 const { JSDOM } = require('jsdom');
+const vm = require('node:vm');
 
 const entry = path.join(__dirname, '../src/tauri-backend.js');
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'velocity-tauri-test-'));
 const env = { ...process.env, HOME: temporary, APPDATA: temporary, XDG_CONFIG_HOME: temporary };
 delete env.VELOCITY_TAURI_CLI;
+
+async function clipboardCompletion() {
+  const source = fs.readFileSync(path.join(__dirname, '../src/main.js'), 'utf8');
+  const start = source.indexOf("ipcMain.handle('xmpp-copy-client-settings'");
+  const end = source.indexOf('\n});', start) + '\n});'.length;
+  const handlers = new Map();
+  const messages = [];
+  let complete;
+  const context = {
+    ipcMain: { handle: (channel, handler) => handlers.set(channel, handler) },
+    xmppTransport: { isConnected: () => true, getClientSettings: () => ({ host: '127.0.0.1' }) },
+    currentConnectionDetails: { type: 'server' },
+    clipboard: { writeText: () => new Promise(resolve => { complete = resolve; }) },
+    velocityLog: (...message) => messages.push(message),
+  };
+  vm.runInNewContext(source.slice(start, end), context);
+  const handler = handlers.get('xmpp-copy-client-settings');
+  const pending = handler({});
+  assert.equal(messages.length, 0, 'Copy success must not be logged before the native clipboard completes');
+  complete();
+  assert.equal((await pending).success, true);
+  context.clipboard.writeText = async () => { throw new Error('Clipboard permission denied'); };
+  const failed = await handler({});
+  assert.equal(failed.success, false);
+  assert.equal(failed.error, 'Clipboard permission denied');
+  assert.equal(messages.at(-1)[0], 'warn');
+}
 
 function keyboardBridge() {
   const source = fs.readFileSync(path.join(__dirname, '../src/tauri-frontend.js'), 'utf8');
@@ -88,6 +116,9 @@ async function bridge() {
   const created = new Map();
   const menus = new Map();
   const operations = [];
+  let clipboardRequest;
+  let clipboardRequested;
+  const clipboardReady = new Promise(resolve => { clipboardRequested = resolve; });
   const waiters = new Map();
   let next = 0;
   const write = message => child.stdin.write(JSON.stringify(message) + '\n');
@@ -107,6 +138,11 @@ async function bridge() {
     if (message.type === 'response') { replies.get(message.id)?.(message); replies.delete(message.id); return; }
     if (message.type === 'native') {
       operations.push(message);
+      if (message.op === 'clipboard') {
+        clipboardRequest = message;
+        clipboardRequested();
+        return;
+      }
       if (message.op === 'menu') {
         const collect = items => {
           for (const item of items) {
@@ -136,6 +172,14 @@ async function bridge() {
     await frontend(main.label, { type: 'ready' });
     const version = await frontend(main.label, { type: 'invoke', channel: 'get-app-version', args: [] });
     assert.equal(version.value, require('../package.json').version);
+    let copySettled = false;
+    const copy = frontend(main.label, { type: 'send', channel: 'copy-to-clipboard', args: ['sample'] })
+      .then(response => { copySettled = true; return response; });
+    await clipboardReady;
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(copySettled, false, 'Native clipboard requests must complete before the IPC handler returns');
+    write({ type: 'result', id: clipboardRequest.id, value: null });
+    assert.equal((await copy).error, undefined);
     const forbidden = await frontend(splash.label, { type: 'send', channel: 'connect-tcp', args: [{}] });
     assert.match(forbidden.error, /not permitted/);
     const arbitrary = await frontend(main.label, { type: 'invoke', channel: 'shell:exec', args: ['touch nope'] });
@@ -172,6 +216,7 @@ async function bridge() {
 
 (async () => {
   try {
+    await clipboardCompletion();
     const large = { type: 'response', id: 1, value: 'Unicode \u{1f30e}'.repeat(2 * 1024 * 1024) };
     const frames = [...encodeFrames(large)];
     assert.ok(frames.length > 1);

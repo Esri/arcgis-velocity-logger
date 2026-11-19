@@ -45,17 +45,46 @@ runtime; the portable launcher does not install it or register an application.
 Linux Tauri requires WebKitGTK 4.1 and the native libraries for the target
 distribution. An AppImage is not a guarantee of compatibility with every Linux
 release. See the [native prerequisites](build-and-release.md#prerequisites).
-Compact Linux packages built with the local container target Debian 12
-(glibc 2.36) or a compatible newer system; Ubuntu 22.04/glibc 2.35 is not a
-validated target for those artifacts. Standalone has its own Electron platform
-requirements.
+Compact Linux packages built with the local container target Ubuntu 24.04 LTS
+(glibc 2.39). A DEB is a package format, not an Ubuntu-only or Debian-only
+compatibility guarantee: the CPU architecture, required GLIBC/GLIBCXX symbols,
+and distribution package dependencies must all match. The DEB declares
+`libc6 (>= 2.39)` and `libstdc++6 (>= 12)` along with native desktop dependencies.
+Debian 12/glibc 2.36 and Ubuntu 22.04/glibc 2.35 are below that baseline; Alpine's
+musl environment is not a supported substitute. Standalone has its own Electron requirements.
+
+ARM64 DEB dependency installation and native headless DEB/AppImage capture
+have been verified on Ubuntu 24.04 LTS and Debian 13 (glibc 2.41). These checks
+cover CLI behavior and capture completion, not every desktop GUI workflow.
+Other distributions and architectures still need their own validation.
 Compact is not always the smaller download: its Linux AppImage bundles required
 GTK/WebKit libraries for portability and can be larger than Standalone.
 The DEB instead declares distribution dependencies that must be installed.
+AppImage still relies on the host's compatible libc and desktop services; it
+does not make these packages universally self-contained.
+
+Compact's Linux native dialogs require Zenity and a supported XDG Desktop
+Portal backend provided by the desktop environment, with `libdbus-1` available.
+Use the GTK, GNOME, or KDE portal backend appropriate to the desktop; a wlroots
+backend alone does not provide the file chooser API. AppImage users must install
+these host prerequisites too: the AppImage does not install or launch portal
+services. Missing Zenity is reported as a dialog error, not a user cancellation.
+Headless capture does not require dialog tools or a running desktop.
+
+Official distribution WebKitGTK packages may retain known security advisories
+until supported updates are published. Use current distribution updates and
+review unresolved findings; the application does not build a private WebKit
+fork or mix libraries from another distribution. DEB installations receive
+system-library fixes through distribution updates; AppImages need to be rebuilt
+to refresh the GTK/WebKit libraries bundled in them.
 
 ## Install and launch
 
 ### macOS
+
+Standalone requires macOS 13 or later with Electron 44. Compact requires macOS
+13.5 or later for its bundled Node.js 24 runtime. Choose an edition and
+architecture compatible with the target Mac.
 
 To install from a DMG:
 

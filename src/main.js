@@ -1764,8 +1764,12 @@ ipcMain.handle('get-current-theme', async () => {
   return 'dark'; // Default theme
 });
 
-ipcMain.on('copy-to-clipboard', (event, text) => {
-  clipboard.writeText(text);
+ipcMain.on('copy-to-clipboard', async (event, text) => {
+  try {
+    await clipboard.writeText(text);
+  } catch (error) {
+    handleError(error, 'Copy to Clipboard');
+  }
 });
 
 ipcMain.on('open-external-link', (event, url) => {
@@ -2747,7 +2751,7 @@ ipcMain.on('disconnect-xmpp', async () => {
     updateTcpButtonStates('disconnected');
 });
 
-ipcMain.handle('xmpp-copy-client-settings', (_event, { includePassword = false } = {}) => {
+ipcMain.handle('xmpp-copy-client-settings', async (_event, { includePassword = false } = {}) => {
     if (!xmppTransport ||
         currentConnectionDetails?.type !== 'server' ||
         typeof xmppTransport.getClientSettings !== 'function' ||
@@ -2756,7 +2760,7 @@ ipcMain.handle('xmpp-copy-client-settings', (_event, { includePassword = false }
     }
     try {
         const settings = xmppTransport.getClientSettings({ includePassword });
-        clipboard.writeText(JSON.stringify(settings, null, 2));
+        await clipboard.writeText(JSON.stringify(settings, null, 2));
         velocityLog('info', `[XMPP] Copied client settings (password ${includePassword ? 'included' : 'withheld'})`);
         return { success: true, settings };
     } catch (error) {
