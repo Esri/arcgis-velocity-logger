@@ -410,6 +410,9 @@ When a usable script is supplied, a path-aware hook signs in two phases:
 Tauri uses the same external signer through `scripts/tauri-sign.js` for the
 native executable and NSIS output, and signs the final portable wrapper after
 assembly. An explicitly configured but unreadable Tauri signer fails the build.
+Tauri's NSIS helper DLLs also use that signer, with each requested DLL's exact
+filename as the signing mask. This does not add a DLL wildcard to Electron's
+unpacked-app signing batch or allow unrelated file types.
 
 The hook skips electron-builder's built-in Authenticode signing only for those
 direct files; nested helpers such as
