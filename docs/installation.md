@@ -33,6 +33,8 @@ Download packages only from the repository's official GitHub release page.
 
 `<edition>` is `standalone` or `compact`; `<arch>` is `x64` or `arm64`.
 Download only a format and architecture actually listed in the release.
+Release maintainers verify package sizes and SHA-256 checksums using retained
+local target manifests; those manifests are not application downloads.
 Previously published asset names are unchanged. **Standalone** uses Electron
 and bundles Chromium; **Compact** uses Tauri with WKWebView on macOS, WebView2
 on Windows, and WebKitGTK on Linux. Compact includes the pinned Node runtime and production transport

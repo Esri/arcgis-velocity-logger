@@ -131,6 +131,20 @@ selects all formats for that OS. Compact supports explicit `--windows-cross`
 from macOS and `--linux-container` for a local Linux environment. Other
 unsupported targets fail rather than bundling the wrong architecture.
 
+Package-only Electron commands always pass `--publish=never`, including
+sequential, parallel, and container builds. Explicit requests for another
+publishing mode fail before output cleanup. CI tags or environment variables
+must not turn a packaging check into an upload. Publish verified outputs
+separately with the release workflow.
+
+### Tauri builds
+
+The Compact build checks that the Tauri CLI is installed and any explicitly
+requested Windows signer is readable before running build tools or recreating
+staging. Restore a missing CLI with `npm ci`; correct an invalid signer path
+rather than accepting an unsigned fallback. These checks do not submit a
+signing request or guarantee service connectivity.
+
 ### Windows cross-builds from macOS
 
 Install the host tools and selected Rust target:
@@ -485,9 +499,13 @@ It runs the full pipeline:
 4. Builds the selected runtime, platform, architecture, and distribution.
 5. Commits and pushes the version bump, only when the version changed.
 6. Validates all selected target manifests and artifact hashes, creates a draft,
-   uploads the validated artifacts and manifests, and then publishes it with
+   uploads the validated application packages, and then publishes it with
    generated notes. Missing selected targets or changed artifact hashes fail
    rather than silently producing a partial release.
+
+Local manifests remain mandatory validation and provenance records, not public
+release downloads. A complete two-edition release uploads 14 application
+packages while retaining its six manifests locally.
 
 ### Options
 
@@ -554,11 +572,62 @@ If you need to publish without the script:
 Build first, then inspect the exact validated file list before uploading:
 
 ```bash
-node scripts/release-artifacts.js --runtime both --platform mac --arch arm64
+node scripts/release-artifacts.js --runtime both --platform mac --arch arm64 --packages-only
 ```
 
-Upload only those files and their manifests. Do not glob `dist/`: it can contain
+Upload only those application packages. Do not glob `dist/`: it can contain
 unpacked applications, other versions, and incomplete targets.
+
+### Verification and recovery
+
+Before resuming an interrupted release, validate the existing matrix without
+building or uploading:
+
+```bash
+node scripts/release-artifacts.js --runtime both --platform all --distribution both
+node scripts/release-artifacts.js --runtime both --platform all --distribution both --packages-only
+./scripts/release.sh --upload-only --runtime both --platform all --notes-file /path/to/reviewed-notes.md --dry-run
+```
+
+The validator checks recorded hashes, version, target, and required formats.
+`--packages-only` changes the returned file list, not the manifest or checksum
+requirements; it is the list the release workflow uploads.
+Also confirm each manifest's source commit and dirty flag match the intended
+release. Reuse only outputs whose producer and final signed bytes are verified;
+do not rewrite an old manifest to claim a newer commit. Upload-only publishes
+after its uploads complete, so use the dry run for inspection.
+
+An interrupted signing request is different from an interrupted upload.
+Acceptance is not completion: retain its unique request identity, require
+terminal success and verified copy-back, and do not resubmit when correlation
+is uncertain. Let the external signing tool own its staging and cleanup.
+Shared signing clients stay serialized even when local builds run in parallel.
+
+### Ready-file signing batches
+
+One signing request can contain several independent, fully prepared files.
+The explicit adapter batch mode signs at least two regular EXE, DLL, or MSI
+files from one flat, regular-file-only directory in one locked request:
+
+```bash
+VELOCITY_SIGN_SCRIPT=/path/to/sign.sh node scripts/tauri-sign.js --batch /ready/application.exe /ready/node.exe /ready/helper.dll
+```
+
+Only the listed exact filenames are selected. Nested directories and links are
+rejected so signer scan-depth settings cannot broaden the batch. Wildcards, multiple source
+directories, duplicate names, case-only collisions, and space-to-hyphen
+collisions are rejected. Prepare a deliberate batch directory if ready inputs
+are scattered, retain their original mapping and hashes, and verify every
+signed result before copying it back.
+
+Batch independent inner payloads only after their bytes are final; assemble
+installers and ZIPs after those inputs are signed. Newly assembled setup and
+portable EXEs can form another batch. Do not combine installer `NSS` and
+portable `UNK` app variants under the same basename, return success from a
+Tauri hook before its file is signed, or run competing clients against shared
+signing directories. The normal Tauri callback remains synchronous and
+single-file; batch mode is an explicit preparation workflow, not a deferred
+signing queue.
 
 ### Host-OS support matrix
 
@@ -596,6 +665,24 @@ prefixed with `v`, for example `v1.2.3`.
    release notes.
 7. `./scripts/release.sh <version>` completes, and the published release lists
    every expected macOS, Windows, and Linux artifact.
+
+Inspect archive entry types and link targets before comparing file contents;
+following a link into the build checkout can hide a non-portable archive.
+Use ordinary safe extraction and reject unexpected links, including absolute,
+escaping, or dangling links inside application payloads. The documented
+DMG-root `Applications` link to `/Applications` is allowed outside the `.app`
+bundle for drag-to-Applications installation; it is not a runtime resource.
+Compact Windows ZIP and portable payloads must match by entry type and contents.
+The Compact NSIS application uses the `NSS` bundle marker while the portable
+and ZIP application uses `UNK`; verify each variant against its own signing
+input rather than requiring their complete executables to be identical.
+
+When Windows signing is configured, Tauri NSIS signs helper DLLs as well as
+executables. Keep their exact filename
+masks and verify the signed helpers embedded in the installer. Verify primary
+application signatures separately from outer installer signatures; neither
+proves native Windows startup, CLI argument handling, or portable extraction
+works on a target machine.
 
 ## Troubleshooting
 
